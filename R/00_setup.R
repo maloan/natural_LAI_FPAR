@@ -1,4 +1,39 @@
-# 00_setup.R — Bootstrap config, reference grids, areas, AOIs (0.05° / 0.25°)
+## =============================================================================
+# 00_setup.R — Initialize config, reference grids, areas, and AOIs (0.05° / 0.25°)
+#
+# Purpose
+#   Bootstrap the SNU_LAI_FPAR environment by generating reference grids,
+#   global cell-area rasters, AOI masks, and a structured config.yml that
+#   defines paths, datasets, and processing parameters for the workflow.
+#
+# Inputs
+#   - Environment variable SNU_LAI_FPAR_ROOT (default: ~/GitHub/natural_LAI_FPAR)
+#   - Raw data directories: LAI, FPAR, ESA-CCI, LUH2, GLC_FCS30D
+#   - Utility scripts: R/utils.R, R/io.R
+#
+# Outputs
+#   - config/config.yml — unified configuration and paths
+#   - src/ref_0p05.tif, ref_0p25.tif — reference grids
+#   - src/area_0p05_km2.tif, area_0p25_km2.tif — cell areas (km²)
+#   - src/aoi_0p05.tif, aoi_0p25.tif — AOI masks
+#   - src/manifest_00.csv — metadata and validation summary
+#
+# Environment variables
+#   RECOMPUTE_REFS  (logical, default FALSE) — rebuild reference grids
+#   RECOMPUTE_AREAS (logical, default FALSE) — rebuild area rasters
+#   RECOMPUTE_AOIS  (logical, default FALSE) — rebuild AOI masks
+#   SILENT_TIMING   (logical, default FALSE)
+#   GDAL_TILED      (logical, default TRUE)
+#   RUN_TAG         (string, default "baseline")
+#
+# Processing overview
+#   1) Define directory structure and dataset paths.
+#   2) Write project config (grids, variables, thresholds, masks).
+#   3) Generate and validate reference rasters (0.05°, 0.25°).
+#   4) Compute cell areas and AOI masks.
+#   5) Sanity-check CRS, extents, and total Earth area.
+#   6) Write manifest for reproducibility.
+## =============================================================================
 
 suppressPackageStartupMessages({
   library(yaml)
@@ -11,7 +46,7 @@ ROOT <- normalizePath(path.expand(
 ),
 winslash = "/",
 mustWork = FALSE)
-source(file.path(ROOT, "R", "00_utils.R"))
+source(file.path(ROOT, "R", "utils.R"))
 source(file.path(ROOT, "R", "io.R"))
 
 terraOptions(progress = 1, memfrac = 0.25)
@@ -43,10 +78,14 @@ COMMON_OUT_DIR <- file.path(ROOT, "data")
 in_dirs <- list(
   lai_nc_dir       = exp_(file.path(ROOT, "data-raw/LAI/lai_1982-2021")),
   fpar_nc_dir      = exp_(file.path(ROOT, "data-raw/FPAR/fpar_1982-2021")),
-  cci_dir          = exp_(file.path(ROOT, "data-raw/ESACCI/ESACCI_1992-2020")),
+  cci_dir          = exp_(file.path(
+    ROOT, "data-raw/ESACCI/ESACCI_1992-2020"
+  )),
   luh2_dir         = exp_(file.path(ROOT, "data-raw/LUH2_v2h")),
   glc_dir          = exp_(file.path(ROOT, "data-raw/GLC_FCS30D")),
-  valid_tiles_info = exp_(file.path(ROOT, "src/valid_tiles_info_0p05_full_10deg.rds")),
+  valid_tiles_info = exp_(file.path(
+    ROOT, "src/valid_tiles_info_0p05_full_10deg.rds"
+  )),
   bilinear_ref     = exp_(file.path(ROOT, "src/refgrid_0p05.nc"))
 )
 
@@ -172,7 +211,7 @@ invisible(lapply(
 ))
 
 # --- write config.yml ----------------------------------------------------------
-cfg_path <- file.path("config", "config.yml")
+cfg_path <- file.path(ROOT, "config", "config.yml")
 
 
 cfg <- list()

@@ -183,7 +183,7 @@ paths:
   luh2_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/data-raw/LUH2_v2h
   glc_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/data-raw/GLC_FCS30D
   valid_tiles_info: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/src/valid_tiles_info_0p05_full_10deg.rds
-  bilinear_ref: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/out/common/masks/refgrid_0p05.nc
+  bilinear_ref: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/src/refgrid_0p05.nc
   ref_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/src
   out_root: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline
   georef_lai_0p05_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/data/georef/georef_lai_0p05
@@ -220,6 +220,8 @@ grids:
     - 180.0
     - -90.0
     - 90.0
+    area_raster: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/src/area_0p05_km2.tif
+    aoi_raster: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/src/aoi_0p05.tif
   grid_025:
     ref_raster: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/src/ref_0p25.tif
     resolution_deg: 0.25
@@ -228,6 +230,8 @@ grids:
     - 180.0
     - -90.0
     - 90.0
+    area_raster: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/src/area_0p25_km2.tif
+    aoi_raster: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/src/aoi_0p25.tif
 variables:
   produce:
   - LAI

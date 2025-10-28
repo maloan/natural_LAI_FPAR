@@ -1,5 +1,35 @@
 ## =============================================================================
-# 03_glc_stack_0p05.R — Build annual categorical yearstack at 0.05°
+# 03_glc_stack_0p05.R — Build annual GLC_FCS30D categorical yearstack (0.05°)
+#
+# Purpose
+#   Assemble annual categorical GLC_FCS30D land-cover rasters (1985–2022) into
+#   a single multi-band GeoTIFF aligned to the 0.05° global reference grid.
+#   Generates periodic quicklooks for cropland and urban masks.
+#
+# Inputs
+#   - Annual GLC_FCS30D GeoTIFFs: cfg$paths$glc_dir
+#   - Reference grid: cfg$grids$grid_005$ref_raster (EPSG:4326)
+#   - Class codes and years: cfg$glc$classes, cfg$glc$years
+#
+# Outputs
+#   - glc_cat_yearstack_0p05.tif — multi-layer categorical stack (1 band/year)
+#   - Quicklooks: cropland/urban binary maps for selected years (e.g., 1990–2020)
+#
+# Environment variables
+#   SKIP_EXISTING (logical, default TRUE)  — skip if stack exists
+#   OVERWRITE     (logical, default FALSE) — force rebuild even if exists
+#   REMAKE_QL     (logical, default FALSE) — regenerate quicklooks only
+#
+# Dependencies
+#   Packages: terra, yaml, dplyr, stringr, glue
+#   Sourced helpers: utils.R, io.R, geom.R, viz.R, options.R
+#
+# Processing overview
+#   1) Identify all annual categorical rasters within config year range.
+#   2) Validate class codes and enforce CRS/alignment to 0.05° grid.
+#   3) Stack yearly layers into a single multi-band raster.
+#   4) Write GeoTIFF and generate global/AOI quicklooks (cropland, urban).
+## =============================================================================
 
 # Load packages
 suppressPackageStartupMessages({
@@ -18,18 +48,19 @@ ROOT <- normalizePath(path.expand(
 winslash = "/",
 mustWork = FALSE)
 # Other source files
-source(file.path(ROOT, "R", "00_utils.R"))
+source(file.path(ROOT, "R", "utils.R"))
 source(file.path(ROOT, "R", "io.R"))
 source(file.path(ROOT, "R", "geom.R"))
 source(file.path(ROOT, "R", "viz.R"))
+source(file.path(ROOT, "R", "options.R"))
 cfg <- cfg_read()
 opts <- opts_read()
 terraOptions(progress = 1, memfrac = 0.25)
 ref005 <- rast(path.expand(cfg$grids$grid_005$ref_raster))
 
 # --- paths ---------------------------------------------------------------------
-glc_dir <- path.expand(CFG$paths$glc_dir)        # where annual categorical rasters live
-out_dir     <- path.expand(CFG$paths$glc_out_dir)    # where stack will be written
+glc_dir <- path.expand(cfg$paths$glc_dir)        # where annual categorical rasters live
+out_dir     <- path.expand(cfg$paths$glc_out_dir)    # where stack will be written
 ql_dir      <- file.path(out_dir, "quicklooks")
 stack_out <- file.path(out_dir, "glc_cat_yearstack_0p05.tif")
 
@@ -57,19 +88,18 @@ nodata_vals   <- vec_int(classes$nodata)
 # Build 0/1 display layers and name them like the fraction quicklook expects
 glc_quicklook_layers <- function(cat_r, cropland_vals, urban_vals) {
   rC <- classify(cat_r, cbind(cropland_vals, 1), others = 0)
-  rU <- classify(cat_r, cbind(urban_vals,    1), others = 0)
+  rU <- classify(cat_r, cbind(urban_vals, 1), others = 0)
   x  <- rast(list(frac_cropland = rC, frac_urban = rU))
   names(x) <- c("frac_cropland", "frac_urban")
   x
 }
-
 
 # ----------------- Plotting helper --------------------------------------------
 plot_quicklooks <- function(cat_r,
                             cropland_vals,
                             urban_vals,
                             yr,
-                            CFG,
+                            cfg,
                             ql_dir) {
   # make a binary cropland mask (1 where class ∈ cropland_vals, else 0).
   rC <- classify(cat_r, cbind(cropland_vals, 1), others = 0)
@@ -120,13 +150,14 @@ if (SKIP_EXISTING && HAVE_STACK && !OVERWRITE) {
     s <- rast(stack_out)
     for (yr in years_for_ql) {
       nm <- sprintf("Y%04d", yr)
-      if (!nm %in% names(s)) next
+      if (!nm %in% names(s))
+        next
       cat_r <- s[[nm]]
       ql_layers <- glc_quicklook_layers(cat_r, cropland_vals, urban_vals)
       quicklook_all_aois(
         frac    = ql_layers,
         year    = yr,
-        cfg     = CFG,
+        cfg     = cfg,
         ql_root = ql_dir,
         down    = 4L,
         include_global  = TRUE,
@@ -186,7 +217,7 @@ if (SKIP_EXISTING && HAVE_STACK && !OVERWRITE) {
       quicklook_all_aois(
         frac    = ql_layers,
         year    = yr,
-        cfg     = CFG,
+        cfg     = cfg,
         ql_root = ql_dir,
         down    = 4L,
         include_global  = TRUE,
@@ -203,3 +234,4 @@ if (SKIP_EXISTING && HAVE_STACK && !OVERWRITE) {
               wopt = wopt_int(opts$SPEED_OVER_SIZE))
   cat("Wrote glc yearstack: ", stack_out, "\n", sep = "")
 }
+gc()

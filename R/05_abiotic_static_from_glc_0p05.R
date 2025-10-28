@@ -1,5 +1,39 @@
 ## =============================================================================
-# 05_abiotic_static_from_glc_0p05.R — Build static abiotic mask from GLC yearstack
+# 05_abiotic_static_from_glc_0p05.R — Build static abiotic mask from GLC stack
+#
+# Purpose
+#   Create a static “abiotic” drop mask (1=drop, 0=keep) using multi-year
+#   categorical GLC_FCS30D maps aggregated to 0.05° resolution, marking pixels
+#   persistently dominated by water, snow/ice, or bare surfaces.
+#
+# Inputs
+#   - Annual GLC_FCS30D GeoTIFFs (0.05°): cfg$paths$glc_dir
+#   - Reference grid (0.05°): cfg$grids$grid_005$ref_raster
+#   - Class codes: cfg$glc$classes (water, snow_ice, bare, nodata)
+#
+# Outputs
+#   - mask_static_abiotic_GLC_{Y1–Y2}_tauW{τW}_tauI{τI}_tauB{τB}_0p05.tif
+#     (Byte; 1=drop, 0=keep, NA=255)
+#
+# Environment variables
+#   TAU_WATER (numeric, default 0.05)
+#   TAU_ICE   (numeric, default 0.05)
+#   TAU_BARE  (numeric, default 0.30)
+#   ABIOTIC_Y1, ABIOTIC_Y2 (integer; year window)
+#   SKIP_EXISTING (logical, default TRUE)
+#
+# Dependencies
+#   Packages: terra, stringr, glue
+#   Sourced helpers: utils.R, io.R, geom.R, viz.R, options.R
+#
+# Processing overview
+#   1) Identify yearly GLC rasters within the configured time window.
+#   2) Build binary masks (0/1) for water, ice, and bare classes.
+#   3) Average across years to obtain multi-year class fractions.
+#   4) Drop pixels where pW≥τW ∨ pI≥τI ∨ pB≥τB.
+#   5) Write final static abiotic mask (Byte; 1=drop, 0=keep).
+## =============================================================================
+
 
 suppressPackageStartupMessages({
   library(terra)
@@ -15,10 +49,11 @@ ROOT <- normalizePath(path.expand(
 winslash = "/",
 mustWork = FALSE)
 # Other source files
-source(file.path(ROOT, "R", "00_utils.R"))
+source(file.path(ROOT, "R", "utils.R"))
 source(file.path(ROOT, "R", "io.R"))
 source(file.path(ROOT, "R", "geom.R"))
 source(file.path(ROOT, "R", "viz.R"))
+source(file.path(ROOT, "R", "options.R"))
 cfg <- cfg_read()
 opts <- opts_read()
 terraOptions(progress = 1, memfrac = 0.25)
@@ -144,7 +179,7 @@ writeRaster(
   gdal = gdal_wopt("LOG1S")$gdal,
   NAflag = 255
 )
-
+gc()
 cat(
   glue(
     "

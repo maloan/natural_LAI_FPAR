@@ -1,5 +1,44 @@
 ## =============================================================================
 # 07_apply_mask_0p05.R — Apply drop masks to monthly LAI/FPAR at 0.05°
+#
+# Purpose
+#   Apply one or more binary “drop” masks (1=drop, 0=keep) to monthly
+#   georeferenced LAI/FPAR rasters, optionally combining dynamic (CCI/GLC)
+#   and static (LUH, abiotic) overlays. Outputs masked GeoTIFFs and
+#   diagnostic quicklooks.
+#
+# Inputs
+#   - Monthly LAI or FPAR rasters (0.05°): cfg$paths$georef_*_0p05_dir
+#   - Drop mask (0.05°): from CCI, GLC, or LUH
+#   - Optional overlays:
+#       * Static abiotic mask (mask_static_abiotic_*)
+#       * LUH pasture-overlap mask (mask_luh_overlap_*)
+#   - Reference grid: cfg$grids$grid_005$ref_raster
+#
+# Outputs
+#   - Masked monthly GeoTIFFs (0.05°) in variable-specific subdirectories
+#   - Optional quicklooks (before/after masking; Jan/Jul)
+#
+# Environment variables
+#   VAR                = LAI | FPAR
+#   MASK               = CCI | GLC | LUH_RATIO
+#   USED_N_YEARS       = integer (GLC persistence)
+#   APPLY_ABIOTIC_STATIC = TRUE|FALSE
+#   APPLY_LUH_OVERLAP    = TRUE|FALSE
+#   TAU_CCI, K_CCI, CCI_BAND (for CCI mask selection)
+#   G_MIN, P_MIN, ALPHA (for LUH overlay)
+#   SKIP_EXISTING, OVERWRITE, REMAKE_QL (logical)
+#
+# Dependencies
+#   Packages: terra, stringr, glue
+#   Sourced helpers: utils.R, io.R, geom.R, viz.R, options.R
+#
+# Processing overview
+#   1) Select input variable (LAI/FPAR) and matching drop mask (CCI/GLC/LUH).
+#   2) Optionally union static abiotic and LUH pasture-overlap overlays.
+#   3) Clamp values to config limits and apply mask (1=drop → NA).
+#   4) Write masked GeoTIFFs and before/after quicklooks for key months.
+## =============================================================================
 
 suppressPackageStartupMessages({
   library(terra)
@@ -15,10 +54,11 @@ ROOT <- normalizePath(path.expand(
 winslash = "/",
 mustWork = FALSE)
 # Other source files
-source(file.path(ROOT, "R", "00_utils.R"))
+source(file.path(ROOT, "R", "utils.R"))
 source(file.path(ROOT, "R", "io.R"))
 source(file.path(ROOT, "R", "geom.R"))
 source(file.path(ROOT, "R", "viz.R"))
+source(file.path(ROOT, "R", "options.R"))
 cfg <- cfg_read()
 opts <- opts_read()
 terraOptions(progress = 1, memfrac = 0.25)
@@ -26,20 +66,15 @@ terraOptions(progress = 1, memfrac = 0.25)
 SKIP_EXISTING <- as.logical(Sys.getenv("SKIP_EXISTING", "FALSE"))
 OVERWRITE     <- as.logical(Sys.getenv("OVERWRITE", "TRUE"))
 REMAKE_QL     <- as.logical(Sys.getenv("REMAKE_QL", "TRUE"))
-APPLY_LUH_OVERLAP <- as.logical(Sys.getenv("APPLY_LUH_OVERLAP","TRUE"))
+APPLY_LUH_OVERLAP <- as.logical(Sys.getenv("APPLY_LUH_OVERLAP", "TRUE"))
 APPLY_ABIOTIC_STATIC <- as.logical(Sys.getenv("APPLY_ABIOTIC_STATIC", "TRUE"))
 Y0   <- as.integer(Sys.getenv("LUH_AVG_START", cfg$project$years$cci_start))
-YL   <- as.integer(Sys.getenv("LUH_AVG_END",   cfg$project$years$cci_end))
+YL   <- as.integer(Sys.getenv("LUH_AVG_END", cfg$project$years$cci_end))
 SRC  <- toupper(Sys.getenv("GRASS_SOURCE", "CCI"))   # CCI|GLC_FRAC|GLC_TEMP
-GMIN <- as.numeric(Sys.getenv("G_MIN",  "0.05"))
-PMIN <- as.numeric(Sys.getenv("P_MIN",  "0.20"))
+GMIN <- as.numeric(Sys.getenv("G_MIN", "0.05"))
+PMIN <- as.numeric(Sys.getenv("P_MIN", "0.20"))
+ALPHA <- as.numeric(Sys.getenv("ALPHA", "0.50"))
 
-find_one <- function(dir, pattern) {
-  cand <- list.files(dir, pattern = pattern, full.names = TRUE)
-  if (!length(cand))
-    stop("No mask matching pattern '", pattern, "' in: ", dir, call. = FALSE)
-  cand[order(file.info(cand)$mtime, decreasing = TRUE)][1]  # newest
-}
 
 # --- choose variable + mask source --------------------------------------------
 VAR  <- toupper(Sys.getenv("VAR", "FPAR"))     # LAI | FPAR
@@ -101,9 +136,13 @@ if (MASK == "CCI") {
   tau_env  <- Sys.getenv("TAU_CCI", "")
   k_env    <- Sys.getenv("K_CCI", "")
   tau_tok  <- if (nzchar(tau_env))
-{    gsub("\\.", "p", sprintf("%.2f", as.numeric(tau_env)))}
+  {
+    gsub("\\.", "p", sprintf("%.2f", as.numeric(tau_env)))
+  }
   else
-    {".*"}
+  {
+    ".*"
+  }
 
   if (nzchar(tau_env) && nzchar(k_env)) {
     rx <- if (nzchar(band_env)) {
@@ -152,111 +191,42 @@ mask <- rast(mask_path)
 if (!compareGeom(mask, ref005, stopOnError = FALSE)) {
   mask <- resample(mask, ref005, method = "near")
 }
-if (!all(values(mask) %in% c(0,1,NA))) stop("Unexpected mask values — expected 0/1 only.")
+if (!all(values(mask) %in% c(0, 1, NA)))
+  stop("Unexpected mask values — expected 0/1 only.")
 
 mask_combined_path <- file.path(out_dir, "combined_mask_0p05.tif")
 if (!file.exists(mask_combined_path) || OVERWRITE) {
-  writeRaster(mask, mask_combined_path, overwrite=TRUE,
-              gdal = gdal_wopt("LOG1S")$gdal, NAflag=255)
+  writeRaster(
+    mask,
+    mask_combined_path,
+    overwrite = TRUE,
+    gdal = gdal_wopt("LOG1S")$gdal,
+    NAflag = 255
+  )
 }
 # --- discover inputs -----------------------------------------------------------
 files <- list.files(in_dir, patt, full.names = TRUE)
 if (!length(files))
   stop("No ", VAR, " files found in: ", in_dir)
-
-# --- quicklook helper ----------------------------------------------------------
-quicklook_after_full <- function(ra, ym, title = ql_title, down = 4L, zlim = zlim) {
-  qd <- file.path(out_dir, "quicklooks")
-  dir.create(qd, TRUE, showWarnings = FALSE)
-  rr <- if (down > 1L) aggregate(ra, down, mean, na.rm = TRUE) else ra
-  png(file.path(qd, sprintf("quicklook_%s_masked_full_%s.png", title, ym)),
-      width = 1400, height = 700, res = 120)
-  op <- par(oma = c(0,0,2,0), mar = c(3,3,3,6))
-  terra::plot(rr,
-              main  = sprintf("%s %s (masked)", title, ym),
-              col   = pal_green(64), colNA = col_na, zlim = zlim,
-              axes  = TRUE, legend = TRUE
-  )
-  .add_overlays(rr)
-  mtext("Longitude (°E)", side = 1, line = 2)
-  mtext("Latitude (°N)",  side = 2, line = 2)
-  par(op); dev.off()
-}
-
-
-quicklook <- function(rb,
-                      ra,
-                      ym,
-                      title = ql_title,
-                      down = 4L,
-                      zlim = zlim) {
-  qd <- file.path(out_dir, "quicklooks")
-  dir.create(qd, TRUE, showWarnings = FALSE)
-  if (down > 1L) {
-    rb <- aggregate(rb, down, mean, na.rm = TRUE)
-    ra <- aggregate(ra, down, mean, na.rm = TRUE)
-  }
-  png(
-    file.path(qd, sprintf(
-      "quicklook_%s_masked_%s.png", title, ym
-    )),
-    width = 1400,
-    height = 700,
-    res = 120
-  )
-  op <- par(
-    mfrow = c(1, 2),
-    oma = c(0, 0, 2.2, 0),
-    mar = c(3, 3, 3, 6)
-  )
-  terra::plot(
-    rb,
-    main = sprintf("%s %s (before)", title, ym),
-    col = pal_green(64),
-    colNA = col_na,
-    zlim = zlim,
-    axes = TRUE,
-    legend = TRUE
-  )
-  .add_overlays(rb)
-  mtext("Longitude (°E)", side = 1, line = 2)
-  mtext("Latitude (°N)", side = 2, line = 2)
-  terra::plot(
-    ra,
-    main = sprintf("%s %s (masked)", title, ym),
-    col = pal_green(64),
-    colNA = col_na,
-    zlim = zlim,
-    axes = TRUE,
-    legend = TRUE
-  )
-  .add_overlays(ra)
-  mtext("Longitude (°E)", side = 1, line = 2)
-  mtext("Latitude (°N)", side = 2, line = 2)
-  mtext(
-    "Masked 0.05° quicklook",
-    side = 3,
-    outer = TRUE,
-    cex = 1.05
-  )
-  par(op)
-  dev.off()
-}
-
 # --- optional static abiotic overlay (union) ----------------------------------
 
 if (APPLY_ABIOTIC_STATIC) {
   abi_dir  <- file.path(cfg$paths$masks_root_dir, "mask_abiotic")
-  abi_path <- list.files(abi_dir, "mask_static_abiotic_CCI_.*_0p05.tif", full.names = TRUE)
-   if (length(abi_path)) {
+  abi_path <- list.files(abi_dir,
+                         "mask_static_abiotic_CCI_.*_0p05.tif",
+                         full.names = TRUE)
+  if (length(abi_path)) {
     abi_path <- abi_path[order(file.info(abi_path)$mtime, decreasing = TRUE)][1]
     abi_mask <- rast(abi_path)
     if (!compareGeom(abi_mask, ref005, stopOnError = FALSE)) {
       abi_mask <- resample(abi_mask, ref005, method = "near")
     }
-    mask <- app(c(mask, abi_mask),
-                fun = function(v) as.integer(any(v >= 1, na.rm = TRUE)),
-                cores = 1)
+    mask <- app(
+      c(mask, abi_mask),
+      fun = function(v)
+        as.integer(any(v >= 1, na.rm = TRUE)),
+      cores = 1
+    )
 
     message("Applied static abiotic overlay: ", basename(abi_path))
   } else {
@@ -267,8 +237,11 @@ if (APPLY_ABIOTIC_STATIC) {
 
 # --- optional LUH overlay (pasture-overlap) -----------------------------------
 if (APPLY_LUH_OVERLAP) {
-  tok <- function(x) gsub("\\.", "p", sprintf("%.2f", as.numeric(x)))
-  rx <- glue("mask_luh_overlap_CCI_Gmin{tok(GMIN)}_Pmin{tok(PMIN)}_alpha{tok(ALPHA)}_{Y1}-{Y2}_0p05_rep.tif")
+  tok <- function(x)
+    gsub("\\.", "p", sprintf("%.2f", as.numeric(x)))
+  rx <- glue(
+    "mask_luh_overlap_CCI_Gmin{tok(GMIN)}_Pmin{tok(PMIN)}_alpha{tok(ALPHA)}_{Y1}-{Y2}_0p05_rep.tif"
+  )
   luh_dir  <- file.path(cfg$paths$masks_root_dir, "mask_luh_overlap")
   luh_path <- find_one(luh_dir, rx)
   luh <- rast(luh_path)
@@ -276,9 +249,12 @@ if (APPLY_LUH_OVERLAP) {
     luh <- resample(luh, ref005, method = "near")
   }
   # union: 1=drop if either mask says drop
-  mask <- app(c(mask, luh),
-              fun = function(v) as.integer(any(v >= 1, na.rm = TRUE)),
-              cores = 1)
+  mask <- app(
+    c(mask, luh),
+    fun = function(v)
+      as.integer(any(v >= 1, na.rm = TRUE)),
+    cores = 1
+  )
   message("Applied LUH pasture-overlap overlay: ", basename(luh_path))
 }
 
@@ -317,19 +293,23 @@ for (f in files) {
 
   # Jan/Jul quicklooks
   if (substr(ym, 5, 6) %in% c("01", "07")) {
-    ql_png <- file.path(out_dir,"quicklooks",
+    ql_png <- file.path(out_dir,
+                        "quicklooks",
                         sprintf("quicklook_%s_masked_%s.png", ql_title, ym))
     if (REMAKE_QL || !(SKIP_EXISTING && file.exists(ql_png))) {
       quicklook(r, r_masked, ym, title = ql_title, zlim = zlim)
     }
     # after-only, full-frame
-    ql_full <- file.path(out_dir,"quicklooks",
-                         sprintf("quicklook_%s_masked_full_%s.png", ql_title, ym))
+    ql_full <- file.path(
+      out_dir,
+      "quicklooks",
+      sprintf("quicklook_%s_masked_full_%s.png", ql_title, ym)
+    )
     if (REMAKE_QL || !(SKIP_EXISTING && file.exists(ql_full))) {
       quicklook_after_full(r_masked, ym, title = ql_title, zlim = zlim)
     }
   }
 
 }
-
+gc()
 message("Masked ", VAR, " written to: ", out_dir)

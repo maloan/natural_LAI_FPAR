@@ -1,4 +1,36 @@
-# 01_georef_0p05.R
+## =============================================================================
+# 01_georef_0p05.R — Georeference monthly LAI/FPAR to 0.05° grid
+#
+# Purpose
+#   Read monthly LAI or FPAR from NetCDF files, apply CF scaling and clamping,
+#   orient and rotate to lon–lat coordinates, resample to the global 0.05°
+#   reference grid, and export as GeoTIFFs with optional quicklook PNGs.
+#
+# Inputs
+#   - NetCDF files: cfg$paths$lai_nc_dir or cfg$paths$fpar_nc_dir
+#   - Reference grid: cfg$grids$grid_005$ref_raster (EPSG:4326)
+#   - Config: cfg_read(), opts_read()
+#
+# Outputs
+#   - GeoTIFFs: {VAR}_{YYYYMM}_0p05.tif in georef_{VAR}_0p05_dir
+#   - Quicklooks: {VAR}_{YYYYMM}_0p05.png in quicklooks/
+#
+# Environment variables
+#   VAR        (string, default "FPAR") — variable to process ("LAI" or "FPAR")
+#   REMAKE_QL  (logical, default FALSE) — force remake of quicklooks
+#
+# Dependencies
+#   Packages: ncdf4, terra
+#   Sourced helpers: utils.R, io.R, geom.R, viz.R, options.R
+#
+# Processing overview
+#   1) Discover monthly NetCDF files.
+#   2) Read variable and time slice, apply scale/offset/fill corrections.
+#   3) Clamp and rescale values; handle 0–360° longitude.
+#   4) Snap to 0.05° reference grid (bilinear).
+#   5) Write GeoTIFF and optional PNG quicklook.
+## =============================================================================
+
 suppressPackageStartupMessages({
   library(ncdf4)
   library(terra)
@@ -12,26 +44,25 @@ ROOT <- normalizePath(path.expand(
 winslash = "/",
 mustWork = FALSE)
 # source other files
-source(file.path(ROOT, "ref", "options.R"))
-source(file.path(ROOT, "ref", "io.R"))
-source(file.path(ROOT, "ref", "geom.R"))
-source(file.path(ROOT, "ref", "00_utils.R"))  # add this if %||% lives here
-terraOptions(progress = 1, memfrac = 0.4)
-# source configuration
-CFG  <- cfg_read(file.path(ROOT, "config", "config.yml"))
-# calls runtime functions
+source(file.path(ROOT, "R", "utils.R"))
+source(file.path(ROOT, "R", "io.R"))
+source(file.path(ROOT, "R", "geom.R"))
+source(file.path(ROOT, "R", "viz.R"))
+source(file.path(ROOT, "R", "options.R"))
+cfg <- cfg_read()
 opts <- opts_read()
+terraOptions(progress = 1, memfrac = 0.25)
 # list of GDAL/terra options for a 32-bit float GeoTIFF (datatype, tiling,
 # compression, etc.)
 REMAKE_QL <- as.logical(Sys.getenv("REMAKE_QL", "FALSE"))
 wopt <- wopt_f32(opts$SPEED_OVER_SIZE)
 
 # define raster
-ref005 <- rast(path.expand(CFG$grids$grid_005$ref_raster))
+ref005 <- rast(path.expand(cfg$grids$grid_005$ref_raster))
 # --- choose variable: VAR=LAI|FPAR (env) ---
 VAR <- toupper(Sys.getenv("VAR", "FPAR"))
 stopifnot(VAR %in% c("LAI", "FPAR"))
-Vcfg <- CFG$variables[[tolower(VAR)]]
+Vcfg <- cfg$variables[[tolower(VAR)]]
 
 # ---- plotting palette (sequential green: low=light, high=dark; NA=grey) ----
 pal_green <- function(n = 64)
@@ -41,15 +72,15 @@ col_na <- "#bdbdbd"  # grey for NA
 # --- paths from config keyed by VAR ---
 if (VAR == "LAI") {
   # Set directories and plotting setting
-  out_georef <- path.expand(CFG$paths$georef_lai_0p05_dir)
+  out_georef <- path.expand(cfg$paths$georef_lai_0p05_dir)
   out_quick  <- file.path(path.expand(out_georef), "quicklooks")
-  nc_dir     <- path.expand(CFG$paths$lai_nc_dir)
+  nc_dir     <- path.expand(cfg$paths$lai_nc_dir)
   zlim_plot  <- c(0, 8)
 } else {
   # Set directories and plotting setting
-  out_georef <- path.expand(CFG$paths$georef_fpar_0p05_dir)
+  out_georef <- path.expand(cfg$paths$georef_fpar_0p05_dir)
   out_quick  <- file.path(path.expand(out_georef), "quicklooks")
-  nc_dir     <- path.expand(CFG$paths$fpar_nc_dir)
+  nc_dir     <- path.expand(cfg$paths$fpar_nc_dir)
   zlim_plot  <- c(0, 1)
 }
 # create respective directories
@@ -90,21 +121,6 @@ pick_varname <- function(nc, cfg_vars, VAR) {
 }
 
 extract_ym_from_filename <- function(p) {
-  #' Extract YYYYMM from a path
-  #'
-  #' Returns the first year-month tag (YYYYMM, 1900–2099) found in the file
-  #' stem. If none is found, returns the stem unchanged.
-  #'
-  #' @param p Character path to a file.
-  #' @return Character scalar: matched `YYYYMM` or the stem.
-  #'
-  #' @details Uses `basename()` + `tools::file_path_sans_ext()` and the regex
-  #' `(19|20)\\d{2}(0[1-9]|1[0-2])`.
-  #'
-  #' @examples
-  #' extract_ym_from_filename("/path/LAI_200307.nc")  # "200307"
-  #' extract_ym_from_filename("foo.nc")               # "foo"
-
   s <- tools::file_path_sans_ext(basename(p))
   m <- regexpr("(19|20)\\d{2}(0[1-9]|1[0-2])", s, perl = TRUE)
   if (m[1] > 0) {
@@ -276,4 +292,5 @@ for (f in files) {
   }
 
 }
+gc()
 message("Done 01_georef_monthlies_to_0p05.R")

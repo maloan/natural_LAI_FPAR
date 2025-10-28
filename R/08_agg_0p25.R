@@ -1,7 +1,36 @@
-
-
 ## =============================================================================
-# 08_agg_0p25.R — Area-weighted aggregation of masked LAI/FPAR from 0.05° → 0.25°
+# 08_agg_0p25.R — Area-weighted aggregation of masked LAI/FPAR (0.05° → 0.25°)
+#
+# Purpose
+#   Aggregate monthly masked LAI/FPAR fields from 0.05° to 0.25° resolution
+#   using cell-area weighting to preserve spatial means. Generates global
+#   0.25° GeoTIFFs and optional quicklooks for quality control.
+#
+# Inputs
+#   - Masked monthly LAI or FPAR (0.05°): cfg$paths$masked_*_005_dir
+#   - Cell area raster (0.05°): cfg$grids$grid_005$area_raster
+#   - Reference grids: cfg$grids$grid_005$ref_raster, cfg$grids$grid_025$ref_raster
+#
+# Outputs
+#   - {VAR}_masked_{YYYYMM}_0p25.tif (Float32; area-weighted mean)
+#   - Quicklook PNGs for selected months (Jan, Jul)
+#
+# Environment variables
+#   VAR  = LAI | FPAR
+#   MASK = CCI | GLC
+#   SKIP_EXISTING, OVERWRITE, REMAKE_QL (logical)
+#
+# Dependencies
+#   Packages: terra, stringr, glue
+#   Sourced helpers: utils.R, io.R, geom.R, viz.R, options.R
+#
+# Processing overview
+#   1) Identify masked 0.05° LAI/FPAR inputs for each month.
+#   2) Multiply by 0.05° cell area and sum over 5×5 blocks (numerator).
+#   3) Sum non-NA area weights (denominator).
+#   4) Compute weighted mean = numerator / denominator.
+#   5) Snap to canonical 0.25° grid, write GeoTIFFs, and draw quicklooks.
+## =============================================================================
 
 suppressPackageStartupMessages({
   library(terra)
@@ -17,10 +46,11 @@ ROOT <- normalizePath(path.expand(
 winslash = "/",
 mustWork = FALSE)
 # Other source files
-source(file.path(ROOT, "R", "00_utils.R"))
+source(file.path(ROOT, "R", "utils.R"))
 source(file.path(ROOT, "R", "io.R"))
 source(file.path(ROOT, "R", "geom.R"))
 source(file.path(ROOT, "R", "viz.R"))
+source(file.path(ROOT, "R", "options.R"))
 cfg <- cfg_read()
 opts <- opts_read()
 terraOptions(progress = 1, memfrac = 0.25)
@@ -176,5 +206,5 @@ for (f in files) {
     }
   }
 }
-
+gc()
 message("Aggregated monthly ", VAR, " written to: ", out_dir)

@@ -1,5 +1,36 @@
 ## =============================================================================
-# 02_cci_frac_0p05.R — Aggregate ESA-CCI/C3S land cover to 0.05° fractions
+# 02_cci_frac_0p05.R — Aggregate ESA-CCI/C3S land cover to 0.05° fractional cover
+#
+# Purpose
+#   Convert annual ESA-CCI/C3S categorical land-cover maps (~300 m) to 0.05°
+#   fractional cover rasters for key classes (cropland, urban, grass, cls30/40).
+#   Used to construct later “used-land” and “abiotic” masks.
+#
+# Inputs
+#   - ESA-CCI/C3S annual GeoTIFFs: cfg$paths$cci_dir
+#   - Reference grid (0.05°): cfg$grids$grid_005$ref_raster
+#   - Config: cfg$esa_cci$class groups and weights
+#
+# Outputs
+#   - GeoTIFFs: ESACCI_frac_{YYYY}_0p05.tif (Float32, 0–1 fraction)
+#   - Quicklooks: quicklook_global_{YYYY}.png and AOI panels
+#
+# Environment variables
+#   REMAKE_ALL   (logical, default FALSE) — rebuild all outputs
+#   REMAKE_QL    (logical, default FALSE) — rebuild quicklooks only
+#   SKIP_EXISTING(logical, default TRUE)  — skip existing GeoTIFFs
+#
+# Dependencies
+#   Packages: terra, dplyr, stringr, glue, tibble
+#   Sourced helpers: utils.R, io.R, geom.R, viz.R, options.R
+#
+# Processing overview
+#   1) Discover one ESA-CCI or C3S file per year (prefer C3S if both exist).
+#   2) Reclassify pixel codes into cropland, urban, grass, cls30, cls40 groups.
+#   3) Aggregate 300 m → 0.05° via mean(0/1) to obtain fractional cover.
+#   4) Fuse weighted fractions (cls30×w30 + cls40×w40).
+#   5) Write fractional GeoTIFF and generate global/AOI quicklooks.
+## =============================================================================
 
 # Load packages
 suppressPackageStartupMessages({
@@ -18,10 +49,11 @@ ROOT <- normalizePath(path.expand(
 winslash = "/",
 mustWork = FALSE)
 # Other source files
-source(file.path(ROOT, "R", "00_utils.R"))
+source(file.path(ROOT, "R", "utils.R"))
 source(file.path(ROOT, "R", "io.R"))
 source(file.path(ROOT, "R", "geom.R"))
 source(file.path(ROOT, "R", "viz.R"))
+source(file.path(ROOT, "R", "options.R"))
 cfg <- cfg_read()
 opts <- opts_read()
 terraOptions(progress = 1, memfrac = 0.25)
@@ -203,6 +235,6 @@ for (i in seq_len(nrow(plan))) {
       drop_global_key  = FALSE
     )
   }
-
 }
+gc()
 message("Done.")

@@ -1,5 +1,38 @@
 ## =============================================================================
-# 04_cci_mask_0p05.R — Build conservative mask from CCI/C3S fractions
+# 04_cci_mask_0p05.R — Build conservative CCI/C3S “used-land” mask (0.05°)
+#
+# Purpose
+#   Create a binary “drop” mask (1=drop, 0=keep) from annual ESA-CCI/C3S
+#   fractional covers by identifying pixels persistently above a fraction
+#   threshold τ across ≥k years within the chosen window.
+#
+# Inputs
+#   - Fraction rasters: ESACCI_frac_{YYYY}_0p05.tif (from 02_cci_frac_0p05.R)
+#   - Reference grid: cfg$grids$grid_005$ref_raster
+#   - Config thresholds: tau_cci, k_cci, cci_band, cci_years
+#
+# Outputs
+#   - mask_used_{band}_tau{τ}_k{k}_{Y1–Y2}_0p05.tif (Byte; 1=drop, 0=keep, NA=255)
+#   - Quicklook PNGs for global and AOIs
+#
+# Environment variables
+#   CCI_BAND       (string, default "frac_fused")
+#   TAU_CCI        (numeric, default 0.1)
+#   K_CCI          (integer, default 3)
+#   SKIP_EXISTING  (logical, default TRUE)
+#   REMAKE_QL      (logical, default FALSE)
+#
+# Dependencies
+#   Packages: terra, stringr, glue
+#   Sourced helpers: utils.R, io.R, geom.R, viz.R, options.R
+#
+# Processing overview
+#   1) Stack yearly fractional cover rasters (CCI/C3S, 1992–2020).
+#   2) Threshold each year by τ to mark used pixels.
+#   3) Require persistence ≥k years → conservative “used-land” mask.
+#   4) Write Byte GeoTIFF (1=drop, 0=keep) and generate AOI quicklooks.
+## =============================================================================
+
 
 
 # load packages
@@ -13,13 +46,16 @@ suppressPackageStartupMessages({
 # Root dir
 ROOT <- normalizePath(path.expand(
   Sys.getenv("SNU_LAI_FPAR_ROOT", "~/GitHub/natural_LAI_FPAR")
-), winslash = "/", mustWork = FALSE)
+),
+winslash = "/",
+mustWork = FALSE)
 
 # Other source files
-source(file.path(ROOT, "R", "00_utils.R"))
+source(file.path(ROOT, "R", "utils.R"))
 source(file.path(ROOT, "R", "io.R"))
 source(file.path(ROOT, "R", "geom.R"))
 source(file.path(ROOT, "R", "viz.R"))
+source(file.path(ROOT, "R", "options.R"))
 cfg <- cfg_read()
 opts <- opts_read()
 terraOptions(progress = 1, memfrac = 0.25)
@@ -154,5 +190,5 @@ if (REMAKE_QL || !file.exists(ql_probe)) {
     drop_global_key = FALSE  # set TRUE if cfg$aois includes a 'global' entry
   )
 }
-
+gc()
 cat(glue("Written: {out_mask_cci}, Quicklooks in: {ql_dir}"))
