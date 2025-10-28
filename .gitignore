@@ -1,3 +1,43 @@
+# R metadata
+.Rhistory
+.RData
+.Rproj.user/
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Output & intermediate data
+/output/*
+!/output/README.md
+
+/data/*
+!/data/README.md
+
+# Raw data (heavy, external)
+data-raw/ESACCI/ESACCI_1992-2020/
+data-raw/FPAR/fpar_1982-2021/
+data-raw/LAI/lai_1982-2021/
+data-raw/GLC_FCS30D/
+data-raw/LUH2_v2h/
+
+# Optional outputs
+*.png
+*.csv
+*.pdf
+*.aux
+*.log
+*.out
+
+# Manifest + lock files
+manifest.csv
+.lock
+
+# Debug / temp files
+*.swp
+*.tmp
+*~
+
 # History files
 .Rhistory
 .Rapp.history

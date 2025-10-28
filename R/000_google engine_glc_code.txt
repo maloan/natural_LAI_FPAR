@@ -1,0 +1,89 @@
+// === BASIC: GLC_FCS30D yearly @ 0.05° (mode) =============================
+  /// https://code.earthengine.google.com/?scriptPath=users%2Fsat-io%2Fawesome-gee-catalog-examples%3Aglobal-landuse-landcover%2FGLC-FCS30D
+  // --- Settings -------------------------------------------------------------
+  var AOI = ee.Geometry.Rectangle([-180, -90, 180, 90], null, false); // change if you want a subregion
+  var MAKE_EXPORTS = false;                      // set true to export
+  var DRIVE_FOLDER = 'GLC_FCS30D_005deg_yearly'; // Drive folder for outputs
+  
+  // 0.05° grid aligned to -180..180, 90..-90
+  var transform005 = [0.05, 0, -180, 0, -0.05, 90];
+  var proj005 = ee.Projection('EPSG:4326').transform(transform005);
+  
+  // Years available from the collections
+  var FIVE = ['1985','1990','1995'];
+  var ANNUAL = ee.List.sequence(2000, 2022).map(function(y){ return ee.Number(y).format('%04d'); });
+  var YEARS = ee.List(FIVE).cat(ANNUAL);
+  
+  // --- Load and mosaic tiles ------------------------------------------------
+    var fiveCol  = ee.ImageCollection('projects/sat-io/open-datasets/GLC-FCS30D/five-years-map');
+  var annCol   = ee.ImageCollection('projects/sat-io/open-datasets/GLC-FCS30D/annual');
+  
+  var fiveImg  = fiveCol.mosaic().rename(FIVE);      // 3 bands: 1985, 1990, 1995
+  var annImg   = annCol.mosaic().rename(ANNUAL);     // 2000..2022 bands
+  
+  // --- Make one 0.05° image per year (categorical mode) ---------------------
+    function coarseYear(ystr) {
+      ystr = ee.String(ystr);
+      var base = ee.Image(ee.Algorithms.If(
+        ee.List(FIVE).contains(ystr), fiveImg.select(ystr), annImg.select(ystr)
+      ));
+      
+      // reduce to 0.05° by MODE (majority class), then snap exact grid & clip
+      var coarse = masked
+      .reduceResolution({ reducer: ee.Reducer.mode(), maxPixels: 1e6, bestEffort: true })
+      .reproject({ crs: proj005 })
+      .clip(AOI)
+      .rename(ee.String('lc_').cat(ystr))
+      .set('year', ystr);
+      
+      return coarse;
+    }
+  
+  // Build collection & a single stacked image with bands lc_YYYY
+  var perYearList = YEARS.map(coarseYear);
+  var perYearIC   = ee.ImageCollection.fromImages(perYearList);
+  var yearlyStack = perYearIC.toBands();
+  
+  // Clean band names after toBands() (ensures exactly 'lc_YYYY')
+  var cleanNames = YEARS.map(function(y) { return ee.String('lc_').cat(ee.String(y)); });
+  yearlyStack = yearlyStack.rename(cleanNames);
+  
+  // --- Quick visualize one year --------------------------------------------
+    Map.centerObject(AOI, 2);
+  var showYear = '2020';
+  Map.addLayer(ee.Image(perYearIC.filter(ee.Filter.eq('year', showYear)).first()),
+               {min:1, max:255, palette:['000000','ffff64','aaf0f0','0046c8','c31400','ffffff']},
+               'LC (mode) ' + showYear);
+  
+  // --- Exports --------------------------------------------------------------
+    if (MAKE_EXPORTS) {
+      // Option A: single multi-band stack (easiest to pull into R)
+      Export.image.toDrive({
+        image: yearlyStack.toInt16(),
+        description: 'GLC_FCS30D_mode_0p05_1985_2022_stack',
+        folder: DRIVE_FOLDER,
+        fileNamePrefix: 'GLC_FCS30D_mode_0p05_1985_2022',
+        region: AOI,
+        crs: 'EPSG:4326',
+        crsTransform: transform005,
+        maxPixels: 1e13
+      });
+      
+      // Option B: per-year files (uncomment if you prefer separate TIFFs)
+      /*
+        YEARS.getInfo().forEach(function(y) {
+          var img = ee.Image(perYearIC.filter(ee.Filter.eq('year', y)).first());
+          Export.image.toDrive({
+            image: img.toInt16(),
+            description: 'GLC_FCS30D_mode_0p05_' + y,
+            folder: DRIVE_FOLDER,
+            fileNamePrefix: 'GLC_FCS30D_mode_0p05_' + y,
+            region: AOI,
+            crs: 'EPSG:4326',
+            crsTransform: transform005,
+            maxPixels: 1e13
+          });
+        });
+      */
+    }
+  
