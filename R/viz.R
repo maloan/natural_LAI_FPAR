@@ -46,7 +46,7 @@ pal_green <- function(n = 64) {
 }
 pal_mask   <- c("#f0f0f0", "#d73027")  # 0 keep, 1 drop
 col_na     <- "#bdbdbd"
-.have_maps <- requireNamespace("maps", quietly = TRUE)
+
 
 # ----- Directory helpers -------------------------------------------------------
 
@@ -211,7 +211,28 @@ aoi_extents <- function(cfg, drop_global = FALSE) {
 
 # ----- LAI/FPAR masked quicklooks ---------------------------------------------
 
-quicklook_before_after <- function(rb, ra, ym, title, ql_dir, zlim, down = 4L) {
+plot_mask <- function(r, title, file, pal = c("#f0f0f0", "#d73027")) {
+  # Binarize for visualization to avoid odd codes (e.g., 255)
+  r2 <- terra::ifel(r >= 1, 1, 0)
+  png(file, 1400, 700, res = 120)
+  op <- par(mar = c(3, 3, 3, 6))
+  on.exit({ par(op); dev.off() }, add = TRUE)
+  terra::plot(r2, main = title, col = pal, breaks = c(-0.5, 0.5, 1.5),
+              legend = FALSE, axes = TRUE, box = TRUE)
+  legend("bottomleft", fill = pal, legend = c("0 keep", "1 drop"), bty = "n")
+}
+.plot_ts <- function(df, title, file) {
+  png(file, 1400, 700, res = 120)
+  op <- par(mar = c(4,4,3,1)); on.exit({ par(op); dev.off() }, add = TRUE)
+  cols <- c(masked = "#d73027", unmasked = "#4575b4")
+  yl <- range(df$mean, na.rm = TRUE)
+  x  <- df$date[df$subset=="unmasked"]; y <- df$mean[df$subset=="unmasked"]
+  plot(x, y, type = "l", col = cols["unmasked"], lwd = 2, ylim = yl,
+       xlab = "Date", ylab = "Area-weighted mean", main = title)
+  lines(df$date[df$subset=="masked"], df$mean[df$subset=="masked"], col = cols["masked"], lwd = 2)
+  legend("topleft", lwd = 2, col = cols, legend = c("unmasked","masked"), bty = "n")
+}
+quicklook_before_after <- function(rb, ra, ym, title, ql_dir, zlim, down = 2L) {
   dir.create(ql_dir, TRUE, showWarnings = FALSE)
   if (down > 1L) {
     rb <- terra::aggregate(rb, down, mean, na.rm = TRUE)
@@ -264,7 +285,7 @@ quicklook_before_after <- function(rb, ra, ym, title, ql_dir, zlim, down = 4L) {
   dev.off()
 }
 
-quicklook_after_full <- function(ra, ym, title, ql_dir, zlim, down = 4L) {
+quicklook_after_full <- function(ra, ym, title, ql_dir, zlim, down = 2L) {
   dir.create(ql_dir, TRUE, showWarnings = FALSE)
   rr <- if (down > 1L) {
     terra::aggregate(ra, down, mean, na.rm = TRUE)
@@ -368,7 +389,7 @@ quicklook_all_aois <- function(frac,
                                year,
                                cfg,
                                ql_root,
-                               down = 4L,
+                               down = 2L,
                                include_global = TRUE,
                                drop_global_key = FALSE) {
   stopifnot(inherits(frac, "SpatRaster"))
@@ -468,7 +489,7 @@ quicklook_mask_all_aois <- function(mask,
                                     tag,
                                     cfg,
                                     ql_root,
-                                    down = 4L,
+                                    down = 2L,
                                     include_global = TRUE,
                                     drop_global_key = FALSE) {
   dir.create(ql_root, TRUE, showWarnings = FALSE)
