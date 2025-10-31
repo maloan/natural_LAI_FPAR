@@ -1,0 +1,185 @@
+---
+title: "Natural-Vegetation LAI/FPAR Masking & Aggregation — Workflow Vignette"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+  pdf_document:
+    toc: true
+---
+
+# Purpose
+
+This vignette documents a reproducible workflow to (i) construct *used-land* and *abiotic* masks at 0.05°, (ii) apply masks to monthly LAI/FPAR fields, (iii) area-weight aggregate to 0.25°, and (iv) evaluate sensitivity and agreement across mask families (CCI, GLC, LUH pasture overlap).
+
+The code is organized as small, composable scripts with shared helpers (`utils.R`, `geom.R`, `io.R`, `viz.R`, `options.R`, `names.R`). Everything runs non-interactively (HPC-friendly), yet each step can be explored interactively in R.
+
+------------------------------------------------------------------------
+
+# Minimal setup
+
+```{r}
+# Set your project root (where /config, /R, /workflow live)
+Sys.setenv(SNU_LAI_FPAR_ROOT = "~/GitHub/natural_LAI_FPAR")
+
+# Libraries used in interactive exploration (scripts load their own)
+suppressPackageStartupMessages({
+  library(terra)
+  library(yaml)
+  library(glue)
+  library(stringr)
+  library(tidyverse)
+})
+```
+
+------------------------------------------------------------------------
+
+# Configuration
+
+Edit `config/config.yml`:
+
+-   `paths`: sources (CCI/GLC/LUH), outputs, viz directory
+-   `grids`: canonical 0.05° and 0.25° ref rasters + area rasters
+-   `project$years`: e.g., `cci_start: 1992`, `cci_end: 2020`
+-   `glc$classes`, `esa_cci$classes`, `luh2$variables`
+
+Check:
+
+```{r}
+ROOT <- Sys.getenv("SNU_LAI_FPAR_ROOT")
+CFG  <- yaml::read_yaml(file.path(ROOT, "config", "config.yml"))
+str(CFG$paths)
+str(CFG$grids)
+CFG$project$years
+```
+
+------------------------------------------------------------------------
+
+# Environment flags (override per run)
+
+Common flags (all boolean accept `1/0`, `true/false`):
+
+-   `SKIP_EXISTING` (default `TRUE`)
+-   `OVERWRITE` (default `FALSE`)
+-   `REMAKE_QL` (default `FALSE` for quicklooks)
+-   `USED_N_YEARS` (e.g., `3`)
+-   `TAU_CCI`, `K_CCI`, `CCI_BAND`
+-   `TAU_WATER`, `TAU_ICE`, `TAU_BARE`
+-   `GRASS_SOURCE` (`CCI|GLC_FRAC`)
+-   `G_MIN`, `P_MIN`, `ALPHA` (LUH pasture/grass decision)
+-   `LUH_AVG_START`, `LUH_AVG_END`
+
+Example:
+
+```{r}
+Sys.setenv(SKIP_EXISTING="TRUE", OVERWRITE="FALSE", REMAKE_QL="TRUE")
+Sys.setenv(USED_N_YEARS="3", TAU_CCI="0.10", K_CCI="3", CCI_BAND="frac_fused")
+Sys.setenv(TAU_WATER="0.05", TAU_ICE="0.05", TAU_BARE="0.30")
+Sys.setenv(GRASS_SOURCE="CCI", G_MIN="0.05", P_MIN="0.20", ALPHA="0.50")
+Sys.setenv(LUH_AVG_START = "1992", LUH_AVG_END = "2020")
+```
+
+
+------------------------------------------------------------------------
+
+# Workflow overview
+
+1.  **Build masks**
+
+    -   `04_glc_used_0p05.R`: used≥N years (GLC categorical yearstack)
+    -   `05_abiotic_static_from_cci_all_years.R` or `05_abiotic_static_from_glc_0p05.R`
+    -   `07_luh_masks.R` and `04_luh_pasture_overlap_025.R`: LUH pasture/rangeland and pasture-overlap rule
+
+2.  **Apply masks to monthly fields**
+
+    -   `07_apply_mask_0p05.R`: clamp + union of CCI/GLC with optional abiotic + LUH overlays
+
+3.  **Aggregate**
+
+    -   `08_agg_0p25.R`: area-weighted 0.05° → 0.25°
+
+4.  **Evaluate**
+
+    -   `10_eval_masks.R`: global fractions, pairwise Jaccard, sensitivities
+    -   `11_eval_outputs.R`: publication-quality figs
+
+------------------------------------------------------------------------
+
+# Running steps (from R)
+
+> You can also drive these with `make`, but here we show direct Rscript usage to keep the vignette self-contained.
+
+```{r}
+root <- Sys.getenv("SNU_LAI_FPAR_ROOT")
+run <- function(script, env=list()) {
+  old <- Sys.getenv(names(env), unset = NA_character_)
+  on.exit({ mapply(Sys.setenv, names(old), as.list(old)) }, add=TRUE)
+  mapply(Sys.setenv, names(env), as.list(env))
+  system2("Rscript", c(file.path(root, "R", script)))
+}
+```
+
+```{r}
+# # 1) GLC used≥N mask (0.05°)
+# run("04_glc_used_0p05.R", env = c(USED_N_YEARS="3"))
+# 
+# # 2) Abiotic static from CCI (0.05°)
+# run("05_abiotic_static_from_cci_all_years.R",
+#     env = c(TAU_WATER="0.05", TAU_ICE="0.05", TAU_BARE="0.30"))
+# 
+# # 3) LUH pasture/rangeland shares + 0.05° replicas
+# run("07_luh_masks.R", env = c(LUH_AVG_START="1992", LUH_AVG_END="2020"))
+# 
+# # 4) LUH pasture-overlap rule (0.25° + 0.05° replica)
+# run("04_luh_pasture_overlap_025.R",
+#     env = c(GRASS_SOURCE="CCI", G_MIN="0.05", P_MIN="0.20", ALPHA="0.50",
+#             LUH_AVG_START="1992", LUH_AVG_END="2020"))
+# 
+# # 5) Apply masks to monthly fields (choose VAR & MASK; union overlays via flags)
+# #    Examples: FPAR with CCI mask; LAI with GLC mask; abiotic+LUH overlays enabled
+# run("07_apply_mask_0p05.R",
+#     env = c(VAR="FPAR", MASK="CCI",
+#             APPLY_ABIOTIC_STATIC="TRUE", APPLY_LUH_OVERLAP="TRUE"))
+# run("07_apply_mask_0p05.R",
+#     env = c(VAR="LAI", MASK="GLC",
+#             APPLY_ABIOTIC_STATIC="TRUE", APPLY_LUH_OVERLAP="FALSE"))
+# 
+# # 6) Aggregate to 0.25°
+# run("08_agg_0p25.R", env = c(VAR="FPAR", MASK="CCI"))
+# run("08_agg_0p25.R", env = c(VAR="LAI",  MASK="GLC"))
+# 
+# # 7) Evaluate masks + sensitivities
+# run("10_eval_masks.R")
+# 
+# # 8) Render figures from evaluation CSVs
+# run("11_eval_outputs.R")
+```
+
+------------------------------------------------------------------------
+
+# Exploring artifacts
+
+
+
+```{r}
+CFG <- yaml::read_yaml(file.path(root,"config","config.yml"))
+# Examples (adjust to your configured paths)
+m_cci <- rast(list.files(CFG$paths$masks_cci_dir, "mask_used_.*0p05.tif$", full.names=TRUE)[1])
+m_glc <- rast(list.files(CFG$paths$masks_glc_dir, "mask_used_ge\\d+_.*0p05.tif$", full.names=TRUE)[1])
+
+# Quick visual sanity check
+plot(m_cci, col=c("#f0f0f0","#d73027"), breaks=c(-0.5,0.5,1.5), main="CCI used-mask (1=drop)")
+plot(m_glc, col=c("#f0f0f0","#d73027"), breaks=c(-0.5,0.5,1.5), main="GLC used≥N (1=drop)")
+```
+
+
+------------------------------------------------------------------------
+
+# Reproducibility notes
+
+-   **Semantics:** masks are byte rasters with `1 = drop`, `0 = keep`, `NA = no data (255 tag on disk)`.
+-   **Resampling rules:** categorical → `near`; continuous → `bilinear`; aggregation uses explicit **area weights** at 0.05°.
+-   **Filename tokens** embed parameters (e.g., `tau0p10_k3`, `Gmin0p05_Pmin0p20_alpha0p50`, `1992-2020`).
+-   **Provenance:** use `io.R::gtiff_desc()` and manifests for per-stage logging; scripts emit quicklooks for Jan/Jun
