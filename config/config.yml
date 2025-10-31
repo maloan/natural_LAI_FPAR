@@ -186,6 +186,7 @@ paths:
   bilinear_ref: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/src/refgrid_0p05.nc
   ref_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/src
   out_root: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline
+  eval_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline/eval
   georef_lai_0p05_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/data/georef/georef_lai_0p05
   georef_fpar_0p05_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/data/georef/georef_fpar_0p05
   cci_out_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/data/frac/cci_frac_0p05
@@ -203,14 +204,10 @@ paths:
   masked_lai_glc_005_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline/masked_0p05/LAI/masked_LAI_GLC/masked_lai_0p05
   masked_fpar_cci_005_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline/masked_0p05/FPAR/masked_FPAR_CCI/masked_fpar_0p05
   masked_fpar_glc_005_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline/masked_0p05/FPAR/masked_FPAR_GLC/masked_fpar_0p05
-  masked_lai_luh_005_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline/masked_0p05/LAI/masked_LAI_LUH/masked_lai_0p05
-  masked_fpar_luh_005_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline/masked_0p05/FPAR/masked_FPAR_LUH/masked_fpar_0p05
   masked_lai_cci_025_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline/masked_0p25/LAI/masked_LAI_CCI/masked_lai_0p25
   masked_lai_glc_025_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline/masked_0p25/LAI/masked_LAI_GLC/masked_lai_0p25
   masked_fpar_cci_025_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline/masked_0p25/FPAR/masked_FPAR_CCI/masked_fpar_0p25
   masked_fpar_glc_025_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline/masked_0p25/FPAR/masked_FPAR_GLC/masked_fpar_0p25
-  masked_lai_luh_025_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline/masked_0p25/LAI/masked_LAI_LUH/masked_lai_0p25
-  masked_fpar_luh_025_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline/masked_0p25/FPAR/masked_FPAR_LUH/masked_fpar_0p25
 grids:
   grid_005:
     ref_raster: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/src/ref_0p05.tif
