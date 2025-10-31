@@ -71,6 +71,7 @@ ref025 <- rast(cfg$grids$grid_025$ref_raster)
 out_dir <- cfg$paths$masks_luh_dir
 ql_dir  <- cfg$paths$masks_luh_quick_dir
 dir.create(out_dir, TRUE, showWarnings = FALSE)
+pal_green <- hcl.colors(64, "Greens", rev = TRUE)
 
 # --- load LUH (0.25°) ----------------------------------------------------------
 luh_nc <- cfg$luh2$states_nc
@@ -162,12 +163,11 @@ if (WRITE_005) {
 # (NB: ql_dir is overridden here to <out_dir>/quicklooks)
 ql_dir <- file.path(out_dir, "quicklooks")
 dir.create(ql_dir, TRUE, showWarnings = FALSE)
-pal_col   <- hcl.colors(64, "YlGnBu", rev = TRUE)
 plot_ql <- function(r,
                     title,
                     file,
                     zlim = c(0, 1),
-                    pal = pal_col) {
+                    pal = pal_green) {
   png(file, 1400, 700, res = 120)
   op <- par(mar = c(3, 3, 3, 6))
   terra::plot(
