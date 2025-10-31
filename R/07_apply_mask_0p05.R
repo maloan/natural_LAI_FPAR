@@ -125,7 +125,8 @@ out_tmpl <- switch(MASK,
 
 # Ensure output dirs exist
 dir.create(out_dir, TRUE, showWarnings = FALSE)
-dir.create(file.path(out_dir, "quicklooks"), TRUE, showWarnings = FALSE)
+ql_dir <- file.path(out_dir, "quicklooks")
+dir.create(ql_dir, TRUE, showWarnings = FALSE)
 
 # --- pick mask file (semantics: 1 = drop, 0 = keep) ---------------------------
 Y1 <- cfg$project$years$cci_start
@@ -240,7 +241,7 @@ if (APPLY_LUH_OVERLAP) {
   tok <- function(x)
     gsub("\\.", "p", sprintf("%.2f", as.numeric(x)))
   rx <- glue(
-    "mask_luh_overlap_CCI_Gmin{tok(GMIN)}_Pmin{tok(PMIN)}_alpha{tok(ALPHA)}_{Y1}-{Y2}_0p05_rep.tif"
+    "mask_luh_overlap_CCI_alpha{tok(ALPHA)}_{Y1}-{Y2}_0p05_rep.tif"
   )
   luh_dir  <- file.path(cfg$paths$masks_root_dir, "mask_luh_overlap")
   luh_path <- find_one(luh_dir, rx)
@@ -297,7 +298,14 @@ for (f in files) {
                         "quicklooks",
                         sprintf("quicklook_%s_masked_%s.png", ql_title, ym))
     if (REMAKE_QL || !(SKIP_EXISTING && file.exists(ql_png))) {
-      quicklook(r, r_masked, ym, title = ql_title, zlim = zlim)
+      quicklook_before_after(
+        r,
+        r_masked,
+        ym,
+        title = ql_title,
+        ql_dir = ql_dir,
+        zlim = zlim
+      )
     }
     # after-only, full-frame
     ql_full <- file.path(
@@ -306,7 +314,11 @@ for (f in files) {
       sprintf("quicklook_%s_masked_full_%s.png", ql_title, ym)
     )
     if (REMAKE_QL || !(SKIP_EXISTING && file.exists(ql_full))) {
-      quicklook_after_full(r_masked, ym, title = ql_title, zlim = zlim)
+      quicklook_after_full(r_masked,
+                           ym,
+                           title = ql_title,
+                           ql_dir = ql_dir,
+                           zlim = zlim)
     }
   }
 
