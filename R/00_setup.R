@@ -94,6 +94,8 @@ dirs <- list(
   ref_dir   = REF_DIR,
   out_root  = OUT_DIR,
 
+  eval_dir = file.path(OUT_DIR, "eval"),
+
   # georef (0.05°)
   georef_lai_0p05_dir  = file.path(COMMON_OUT_DIR, "georef", "georef_lai_0p05"),
   georef_fpar_0p05_dir = file.path(COMMON_OUT_DIR, "georef", "georef_fpar_0p05"),
@@ -142,20 +144,6 @@ dirs <- list(
     "masked_FPAR_GLC",
     "masked_fpar_0p05"
   ),
-  masked_lai_luh_005_dir  = file.path(
-    OUT_DIR,
-    "masked_0p05",
-    "LAI",
-    "masked_LAI_LUH",
-    "masked_lai_0p05"
-  ),
-  masked_fpar_luh_005_dir = file.path(
-    OUT_DIR,
-    "masked_0p05",
-    "FPAR",
-    "masked_FPAR_LUH",
-    "masked_fpar_0p05"
-  ),
 
   # masked 0.25°
   masked_lai_cci_025_dir  = file.path(
@@ -184,20 +172,6 @@ dirs <- list(
     "masked_0p25",
     "FPAR",
     "masked_FPAR_GLC",
-    "masked_fpar_0p25"
-  ),
-  masked_lai_luh_025_dir  = file.path(
-    OUT_DIR,
-    "masked_0p25",
-    "LAI",
-    "masked_LAI_LUH",
-    "masked_lai_0p25"
-  ),
-  masked_fpar_luh_025_dir = file.path(
-    OUT_DIR,
-    "masked_0p25",
-    "FPAR",
-    "masked_FPAR_LUH",
     "masked_fpar_0p25"
   )
 )
