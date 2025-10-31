@@ -1,5 +1,5 @@
 ## =============================================================================
-# 05_abiotic_static_from_cci_all_years.R — Build multi-year abiotic mask (0.05°)
+# 05_abiotic_static_from_cci.R — Build multi-year abiotic mask (0.05°)
 #
 # Purpose
 #   Generate a static “abiotic” drop mask (1=drop, 0=keep) by identifying pixels
@@ -85,8 +85,6 @@ plan <- plan[!is.na(plan$year), ]
 
 all_pW <- all_pI <- all_pB <- list()
 
-
-
 for (i in seq_len(nrow(plan))) {
   out_tif <- file.path(
     out_dir,
@@ -97,7 +95,7 @@ for (i in seq_len(nrow(plan))) {
       gsub("\\.", "p", sprintf("%.2f", TAU_BARE))
     )
   )
-  SKIP_EXISTING <- as.logical(Sys.getenv("SKIP_EXISTING", "TRUE"))
+  SKIP_EXISTING <- TRUE
   if (SKIP_EXISTING && file.exists(out_tif)) {
     message("✓ Abiotic mask already exists — skipping: ", out_tif)
     quit(save = "no")
@@ -157,7 +155,7 @@ quicklook_mask_all_aois(
   tag     = "abiotic_all_years",
   cfg     = cfg,
   ql_root = ql_dir,
-  down    = 4L,
+  down    = 2L,
   include_global  = TRUE,
   drop_global_key = FALSE
 )
