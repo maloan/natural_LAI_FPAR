@@ -193,6 +193,8 @@ env_get_int <- function(key, def) {
   }
 }
 
+.have_maps <- requireNamespace("maps", quietly = TRUE)
+
 detect_workers <- function() {
   max(1L, min(3L, max(1L, parallel::detectCores(TRUE) - 1L)))
 }
