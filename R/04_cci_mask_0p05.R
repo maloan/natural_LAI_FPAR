@@ -185,7 +185,7 @@ if (REMAKE_QL || !file.exists(ql_probe)) {
     tag     = tag,
     cfg     = cfg,
     ql_root = ql_dir,
-    down    = 4L,
+    down    = 2L,
     include_global  = TRUE,
     drop_global_key = FALSE  # set TRUE if cfg$aois includes a 'global' entry
   )
