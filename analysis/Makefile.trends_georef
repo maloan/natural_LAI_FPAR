@@ -1,0 +1,39 @@
+# ==============================================================================
+# Makefile.trends_georef — Wrapper for 21_build_trends_georef.sh
+#
+# Usage:
+#   make trends                            # run for LAI + FPAR
+#   make trends VARS="FPAR"                # run only FPAR
+#   make one VAR=FPAR                      # run only FPAR
+#
+# ==============================================================================
+SHELL := /bin/bash
+.SHELLFLAGS := -euo pipefail -c
+
+ROOT    ?= $(HOME)/GitHub/natural_LAI_FPAR
+SCRIPT   = $(ROOT)/analysis/21_build_trends_georef.sh
+
+VARS    ?= LAI FPAR
+
+# ------------------------------------------------------------------------------
+# Run everything
+# ------------------------------------------------------------------------------
+.PHONY: trends
+trends: $(foreach V,$(VARS),run_$(V))
+
+# Expand to run_<VAR>
+.PHONY: run_%
+run_%:
+	@VAR=$(subst run_,,$@); \
+	echo "========================================================"; \
+	echo " Running georef trends: VAR=$$VAR"; \
+	echo "========================================================"; \
+	"$(SCRIPT)" "$${VAR}"
+
+# ------------------------------------------------------------------------------
+# Run only one variable
+# ------------------------------------------------------------------------------
+.PHONY: one
+one:
+	@echo "Running script only for VAR=$(VAR)"
+	"$(SCRIPT)" "$(VAR)"
