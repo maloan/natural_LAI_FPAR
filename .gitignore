@@ -30,7 +30,7 @@ data-raw/LUH2_v2h/
 *.aux
 *.log
 *.out
-
+*.yml
 # Manifest + lock files
 manifest.csv
 .lock

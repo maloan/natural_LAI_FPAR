@@ -1,5 +1,5 @@
 project:
-  run_tag: baseline
+  run_tag: tau_0.2
   name: SNU_LAI_FPAR_natmask_global
   crs: EPSG:4326
   aoi_extent:
@@ -185,49 +185,49 @@ paths:
   valid_tiles_info: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/src/valid_tiles_info_0p05_full_10deg.rds
   bilinear_ref: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/src/refgrid_0p05.nc
   ref_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/src
-  out_root: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline
-  eval_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline/eval
+  out_root: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/tau_0.2
+  eval_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/tau_0.2/eval
   georef_lai_0p05_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/data/georef/georef_lai_0p05
   georef_fpar_0p05_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/data/georef/georef_fpar_0p05
   cci_out_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/data/frac/cci_frac_0p05
   cci_quick_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/data/frac/cci_frac_0p05/quicklooks
   glc_out_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/data/frac/GLC_frac_0p05
   glc_quick_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/data/frac/GLC_frac_0p05/quicklooks
-  masks_root_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline/masks
-  masks_cci_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline/masks/mask_cci
-  masks_cci_quick_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline/masks/mask_cci/quicklooks
-  masks_glc_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline/masks/mask_glc
-  masks_glc_quick_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline/masks/mask_glc/quicklooks
-  masks_luh_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline/masks/mask_luh
-  masks_luh_quick_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline/masks/mask_luh/quicklooks
-  masked_lai_cci_005_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline/masked_0p05/LAI/masked_LAI_CCI/masked_lai_0p05
-  masked_lai_glc_005_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline/masked_0p05/LAI/masked_LAI_GLC/masked_lai_0p05
-  masked_fpar_cci_005_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline/masked_0p05/FPAR/masked_FPAR_CCI/masked_fpar_0p05
-  masked_fpar_glc_005_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline/masked_0p05/FPAR/masked_FPAR_GLC/masked_fpar_0p05
-  masked_lai_cci_025_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline/masked_0p25/LAI/masked_LAI_CCI/masked_lai_0p25
-  masked_lai_glc_025_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline/masked_0p25/LAI/masked_LAI_GLC/masked_lai_0p25
-  masked_fpar_cci_025_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline/masked_0p25/FPAR/masked_FPAR_CCI/masked_fpar_0p25
-  masked_fpar_glc_025_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/baseline/masked_0p25/FPAR/masked_FPAR_GLC/masked_fpar_0p25
+  masks_root_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/tau_0.2/masks
+  masks_cci_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/tau_0.2/masks/mask_cci
+  masks_cci_quick_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/tau_0.2/masks/mask_cci/quicklooks
+  masks_glc_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/tau_0.2/masks/mask_glc
+  masks_glc_quick_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/tau_0.2/masks/mask_glc/quicklooks
+  masks_luh_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/tau_0.2/masks/mask_luh
+  masks_luh_quick_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/tau_0.2/masks/mask_luh/quicklooks
+  masked_lai_cci_005_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/tau_0.2/masked_0p05/LAI/masked_LAI_CCI/masked_lai_0p05
+  masked_lai_glc_005_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/tau_0.2/masked_0p05/LAI/masked_LAI_GLC/masked_lai_0p05
+  masked_fpar_cci_005_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/tau_0.2/masked_0p05/FPAR/masked_FPAR_CCI/masked_fpar_0p05
+  masked_fpar_glc_005_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/tau_0.2/masked_0p05/FPAR/masked_FPAR_GLC/masked_fpar_0p05
+  masked_lai_cci_025_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/tau_0.2/masked_0p25/LAI/masked_LAI_CCI/masked_lai_0p25
+  masked_lai_glc_025_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/tau_0.2/masked_0p25/LAI/masked_LAI_GLC/masked_lai_0p25
+  masked_fpar_cci_025_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/tau_0.2/masked_0p25/FPAR/masked_FPAR_CCI/masked_fpar_0p25
+  masked_fpar_glc_025_dir: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/output/tau_0.2/masked_0p25/FPAR/masked_FPAR_GLC/masked_fpar_0p25
 grids:
   grid_005:
-    ref_raster: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/src/ref_0p05.tif
+    ref_raster: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/src/ref_0p05.nc
     resolution_deg: 0.05
     extent:
     - -180.0
     - 180.0
     - -90.0
     - 90.0
-    area_raster: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/src/area_0p05_km2.tif
+    area_raster: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/src/area_0p05_km2.nc
     aoi_raster: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/src/aoi_0p05.tif
   grid_025:
-    ref_raster: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/src/ref_0p25.tif
+    ref_raster: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/src/ref_0p25.nc
     resolution_deg: 0.25
     extent:
     - -180.0
     - 180.0
     - -90.0
     - 90.0
-    area_raster: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/src/area_0p25_km2.tif
+    area_raster: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/src/area_0p25_km2.nc
     aoi_raster: /home/akurth@giub.local/GitHub/natural_LAI_FPAR/src/aoi_0p25.tif
 variables:
   produce:
