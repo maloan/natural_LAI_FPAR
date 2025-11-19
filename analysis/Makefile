@@ -5,10 +5,10 @@ WD ?= $(ROOT)/R
 RUN_TAG ?= baseline
 
 # ==== env toggles ====
-SKIP_EXISTING ?= FALSE
-OVERWRITE     ?= TRUE
-SILENT_TIMING ?= TRUE
-REMAKE_QL     ?= TRUE
+SKIP_EXISTING ?= TRUE
+OVERWRITE     ?= FALSE
+SILENT_TIMING ?= FALSE
+REMAKE_QL     ?= FALSE
 
 # GLC mask
 USED_N_YEARS  ?= 3
@@ -28,6 +28,8 @@ APPLY_ABIOTIC_STATIC ?= TRUE
 
 # LUH overlap (0.25°, replicate to 0.05°)
 GRASS_SOURCE  ?= CCI
+G_MIN         ?= 0.05
+P_MIN         ?= 0.20
 ALPHA         ?= 0.50
 LUH_AVG_START ?= 1992
 LUH_AVG_END   ?= 2020
@@ -35,28 +37,24 @@ APPLY_LUH_OVERLAP ?= TRUE
 
 # Common env
 ENV_COMMON = SKIP_EXISTING=$(SKIP_EXISTING) OVERWRITE=$(OVERWRITE) SILENT_TIMING=$(SILENT_TIMING) REMAKE_QL=$(REMAKE_QL) RUN_TAG=$(RUN_TAG)
-ENV_LUHOV = GRASS_SOURCE=$(GRASS_SOURCE) ALPHA=$(ALPHA) \
-            LUH_AVG_START=$(LUH_AVG_START) LUH_AVG_END=$(LUH_AVG_END)
-COMMON_OUT := $(ROOT)/data
-
 
 # ==== default ====
 .PHONY: all
-all: lai-cci fpar-cci
+all: lai-cci fpar-cci eval-masks eval-outputs
 
 # ---- optional meta-targets ----
 .PHONY: all-cci-glc
 all-cci-glc: lai-cci fpar-cci lai-glc fpar-glc
 
 .PHONY: all-full
-all-full: all-cci-glc lai-cci-luhov fpar-cci-luhov lai-glc-luhov fpar-glc-luhov
+all-full: all-cci-glc lai-cci-luhov fpar-cci-luhov lai-glc-luhov fpar-glc-luhov eval-masks eval-outputs
 
 # ==== precomputable shared steps ====
 .PHONY: precompute
-precompute: georef-lai georef-fpar glc-yearstack
+precompute: georef-lai georef-fpar cci-frac glc-yearstack
 
 .PHONY: precompute-quick
-precompute-quick: config glc-yearstack
+precompute-quick: config cci-frac glc-yearstack
 
 # ==== core steps ====
 .PHONY: config
@@ -82,7 +80,7 @@ abiotic-cci: config
 	$(ENV_COMMON) $(R) $(WD)/05_abiotic_static_from_cci_0p05.R
 
 .PHONY: cci-mask
-cci-mask: config
+cci-mask:
 	CCI_BAND=$(CCI_BAND) TAU_CCI=$(TAU_CCI) K_CCI=$(K_CCI) \
 	$(ENV_COMMON) $(R) $(WD)/04_cci_mask_0p05.R
 
@@ -91,17 +89,18 @@ glc-yearstack: config
 	$(ENV_COMMON) $(R) $(WD)/03_glc_stack_0p05.R
 
 .PHONY: glc-mask
-glc-mask: config glc-yearstack
+glc-mask:
 	USED_N_YEARS=$(USED_N_YEARS) $(ENV_COMMON) $(R) $(WD)/04_glc_mask_0p05.R
 
 .PHONY: luh-use
 luh-use: config
 	$(ENV_COMMON) $(R) $(WD)/07_luh_use_masks.R
 
-luh-overlap-mask: config
-	$(ENV_LUHOV) $(ENV_COMMON) $(R) $(WD)/04_luh_pasture_overlap_025.R
-
-
+.PHONY: luh-overlap-mask
+luh-overlap-mask: config cci-frac
+	GRASS_SOURCE=$(GRASS_SOURCE) G_MIN=$(G_MIN) P_MIN=$(P_MIN) ALPHA=$(ALPHA) \
+	LUH_AVG_START=$(LUH_AVG_START) LUH_AVG_END=$(LUH_AVG_END) \
+	$(ENV_COMMON) $(R) $(WD)/04_luh_pasture_overlap_025.R
 
 # ==== apply masks @0.05° ====
 .PHONY: apply-lai-cci
@@ -133,25 +132,33 @@ apply-fpar-glc: glc-mask abiotic-cci
 apply-lai-cci-luhov: cci-mask luh-overlap-mask abiotic-cci
 	VAR=LAI MASK=CCI CCI_BAND=$(CCI_BAND) \
 	APPLY_ABIOTIC_STATIC=$(APPLY_ABIOTIC_STATIC) APPLY_LUH_OVERLAP=TRUE \
-	$(ENV_LUHOV) $(ENV_COMMON) $(R) $(WD)/07_apply_mask_0p05.R
+	GRASS_SOURCE=$(GRASS_SOURCE) G_MIN=$(G_MIN) P_MIN=$(P_MIN) ALPHA=$(ALPHA) \
+	LUH_AVG_START=$(LUH_AVG_START) LUH_AVG_END=$(LUH_AVG_END) \
+	$(ENV_COMMON) $(R) $(WD)/07_apply_mask_0p05.R
 
 .PHONY: apply-fpar-cci-luhov
 apply-fpar-cci-luhov: cci-mask luh-overlap-mask abiotic-cci
- VAR=FPAR MASK=CCI CCI_BAND=$(CCI_BAND) \
- APPLY_ABIOTIC_STATIC=$(APPLY_ABIOTIC_STATIC) APPLY_LUH_OVERLAP=TRUE \
- $(ENV_LUHOV) $(ENV_COMMON) $(R) $(WD)/07_apply_mask_0p05.R
+	VAR=FPAR MASK=CCI CCI_BAND=$(CCI_BAND) \
+	APPLY_ABIOTIC_STATIC=$(APPLY_ABIOTIC_STATIC) APPLY_LUH_OVERLAP=TRUE \
+	GRASS_SOURCE=$(GRASS_SOURCE) G_MIN=$(G_MIN) P_MIN=$(P_MIN) ALPHA=$(ALPHA) \
+	LUH_AVG_START=$(LUH_AVG_START) LUH_AVG_END=$(LUH_AVG_END) \
+	$(ENV_COMMON) $(R) $(WD)/07_apply_mask_0p05.R
 
 .PHONY: apply-lai-glc-luhov
 apply-lai-glc-luhov: glc-mask luh-overlap-mask abiotic-cci
 	VAR=LAI MASK=GLC USED_N_YEARS=$(USED_N_YEARS) \
 	APPLY_ABIOTIC_STATIC=$(APPLY_ABIOTIC_STATIC) APPLY_LUH_OVERLAP=TRUE \
-	$(ENV_LUHOV) $(ENV_COMMON) $(R) $(WD)/07_apply_mask_0p05.R
+	GRASS_SOURCE=$(GRASS_SOURCE) G_MIN=$(G_MIN) P_MIN=$(P_MIN) ALPHA=$(ALPHA) \
+	LUH_AVG_START=$(LUH_AVG_START) LUH_AVG_END=$(LUH_AVG_END) \
+	$(ENV_COMMON) $(R) $(WD)/07_apply_mask_0p05.R
 
 .PHONY: apply-fpar-glc-luhov
 apply-fpar-glc-luhov: glc-mask luh-overlap-mask abiotic-cci
 	VAR=FPAR MASK=GLC USED_N_YEARS=$(USED_N_YEARS) \
 	APPLY_ABIOTIC_STATIC=$(APPLY_ABIOTIC_STATIC) APPLY_LUH_OVERLAP=TRUE \
-	$(ENV_LUHOV) $(ENV_COMMON) $(R) $(WD)/07_apply_mask_0p05.R
+	GRASS_SOURCE=$(GRASS_SOURCE) G_MIN=$(G_MIN) P_MIN=$(P_MIN) ALPHA=$(ALPHA) \
+	LUH_AVG_START=$(LUH_AVG_START) LUH_AVG_END=$(LUH_AVG_END) \
+	$(ENV_COMMON) $(R) $(WD)/07_apply_mask_0p05.R
 
 # ==== aggregate masked 0.05° → 0.25° ====
 .PHONY: agg-lai-cci
@@ -211,6 +218,15 @@ lai-glc-luhov: config glc-mask luh-overlap-mask abiotic-cci apply-lai-glc-luhov 
 .PHONY: fpar-glc-luhov
 fpar-glc-luhov: config glc-mask luh-overlap-mask abiotic-cci apply-fpar-glc-luhov agg-fpar-glc-luhov
 
+# ==== evaluation ====
+.PHONY: eval-masks
+eval-masks: config
+	$(ENV_COMMON) $(R) $(WD)/10_eval_masks.R
+
+.PHONY: eval-outputs
+eval-outputs:
+	$(R) $(WD)/11_eval_outputs.R
+
 # ==== quicklooks ====
 .PHONY: ql
 ql:
@@ -230,6 +246,7 @@ help:
 	@echo "  lai-cci / fpar-cci / lai-glc / fpar-glc"
 	@echo "  lai-cci-luhov / fpar-cci-luhov / lai-glc-luhov / fpar-glc-luhov"
 	@echo "  luh-overlap-mask : create LUH overlap mask"
+	@echo "  eval-masks / eval-outputs"
 	@echo "  ql               : regenerate quicklooks"
 	@echo "  RUN_TAG=$(RUN_TAG), COMMON_OUT=$(COMMON_OUT)"
 	@echo "  CCI_BAND=$(CCI_BAND), TAU_CCI=$(TAU_CCI), K_CCI=$(K_CCI)"
