@@ -13,6 +13,8 @@ Thumbs.db
 
 /data/*
 !/data/README.md
+/analysis/georef
+/analysis/trend_plots
 
 # Raw data (heavy, external)
 data-raw/ESACCI/ESACCI_1992-2020/
