@@ -2,83 +2,54 @@
 # utils.R — General-purpose helpers for config, timing, GDAL, and geometry
 #
 # Purpose
-#   Define shared low-level tools for configuration handling, timing, raster
-#   alignment, GDAL write settings, and lightweight parallel execution.
-#
-# Functions
-#   %||%()              — Null-coalescing operator
-#   find_one()          — Find newest matching file in directory
-#   tok()               — Encode numeric thresholds (e.g., 0.05 → "0p05")
-#   exp_()              — Expand and normalize file paths
-#   cfg_read()          — Load global config.yml
-#   .with_timing()      — Time and log script steps to CSV
-#   gdal_wopt()         — Standardized GDAL write options
-#   align_to()          — Resample raster to reference grid
-#   .is_snapped()       — Check raster alignment to lon/lat grid origin
-#   .snap_to_grid()     — Correct minor grid misalignments
-#   env_get_int()       — Read integer environment variable with fallback
-#   detect_workers()    — Detect usable CPU cores
-#   runner()            — Apply tasks serially or in parallel
-#
-# Inputs
-#   - Environment variables and raster objects as needed by each helper.
-#
-# Outputs
-#   - Utility return values, no direct file outputs.
+#   Shared low-level tools for configuration handling, timing, GDAL options,
+#   raster alignment, and lightweight parallel execution.
 #
 # Dependencies
-#   Packages: terra, yaml, parallel
-#
-# Processing overview
-#   1) Configure and load workflow metadata.
-#   2) Support standardized GDAL options and geometry checks.
-#   3) Provide safe, cross-platform timing and parallel helpers.
+#   terra, yaml, parallel, here
 ## =============================================================================
 
 suppressPackageStartupMessages({
   library(terra)
   library(yaml)
   library(parallel)
+  library(here)
 })
 
-`%||%` <- function(a, b) {
-  if (is.null(a)) {
-    return(b)
-  } else {
-    return(a)
-  }
-}
+# ==============================================================================
+# Basic utilities
+# ==============================================================================
+
+`%||%` <- function(a, b) if (is.null(a)) b else a
+
+tok <- function(x) gsub("\\.", "p", sprintf("%.2f", as.numeric(x)))
+
+exp_ <- function(p) normalizePath(path.expand(p), winslash = "/", mustWork = FALSE)
 
 find_one <- function(dir, pattern) {
   cand <- list.files(dir, pattern = pattern, full.names = TRUE)
   if (!length(cand)) {
     stop("No file matching pattern '", pattern, "' in: ", dir, call. = FALSE)
-  } else {
-    cand[order(file.info(cand)$mtime, decreasing = TRUE)][1]
   }
-}
-
-tok <- function(x) {
-  gsub("\\.", "p", sprintf("%.2f", as.numeric(x)))
-}
-
-exp_ <- function(p) {
-  normalizePath(path.expand(p), winslash = "/", mustWork = FALSE)
+  cand[order(file.info(cand)$mtime, decreasing = TRUE)][1]
 }
 
 cfg_read <- function() {
-  ROOT <- exp_(Sys.getenv("SNU_LAI_FPAR_ROOT", unset = "~/GitHub/natural_LAI_FPAR"))
-  yaml::read_yaml(file.path(ROOT, "config", "config.yml"))
+  yaml::read_yaml(here("config", "config.yml"))
 }
+
+
+# ==============================================================================
+# Timing helper
+# ==============================================================================
 
 .with_timing <- function(label,
                          expr,
                          csv = NULL,
                          enabled = TRUE,
                          script_name = NULL) {
-  if (!enabled) {
-    return(force(expr))
-  }
+
+  if (!enabled) return(force(expr))
 
   t0 <- unclass(Sys.time())
   message(sprintf("[TIC] %s", label))
@@ -88,10 +59,7 @@ cfg_read <- function() {
     cat(sprintf("[TOC] %-28s %.2f s\n", label, dt))
     if (!is.null(csv)) {
       row <- data.frame(
-        script  = if (is.null(script_name))
-          label
-        else
-          script_name,
+        script  = script_name %||% label,
         step    = label,
         seconds = dt,
         time    = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
@@ -115,9 +83,15 @@ cfg_read <- function() {
   force(expr)
 }
 
+
+# ==============================================================================
+# GDAL write options
+# ==============================================================================
+
 gdal_wopt <- function(dtype = "FLT4S",
                       compress = "DEFLATE",
                       threads = "AUTO") {
+
   thr <- if (identical(threads, "AUTO")) {
     "NUM_THREADS=ALL_CPUS"
   } else {
@@ -126,74 +100,67 @@ gdal_wopt <- function(dtype = "FLT4S",
 
   list(
     datatype = dtype,
-    NAflag   = if (dtype %in% c("INT1U", "INT2U", "INT2S", "INT4U", "INT4S")) {
-      255
-    } else {
-      NULL
-    },
-    gdal     = c(
+    NAflag   = if (dtype %in% c("INT1U","INT2U","INT2S","INT4U","INT4S")) 255 else NULL,
+    gdal = c(
       sprintf("COMPRESS=%s", compress),
       "TILED=YES",
       "SPARSE_OK=TRUE",
-      if (dtype == "FLT4S") {
-        "PREDICTOR=3"
-      } else {
-        "PREDICTOR=2"
-      },
+      if (dtype == "FLT4S") "PREDICTOR=3" else "PREDICTOR=2",
       thr,
       "BIGTIFF=IF_SAFER"
     )
   )
 }
 
+
+# ==============================================================================
+# Geometry helpers
+# ==============================================================================
+
 align_to <- function(r, ref, method = c("near", "bilinear")) {
   method <- match.arg(method)
-  if (compareGeom(r, ref, stopOnError = FALSE)) {
-    return(r)
-  } else {
-    return(resample(r, ref, method))
-  }
+  if (compareGeom(r, ref, stopOnError = FALSE)) r else resample(r, ref, method)
 }
 
-.is_snapped <- function(r,
-                        origin_x = -180,
-                        origin_y = -90,
-                        tol = 1e-10) {
+.is_int_like <- function(x, tol = 1e-10) abs(x - round(x)) < tol
+
+.is_snapped <- function(r, origin_x = -180, origin_y = -90, tol = 1e-10) {
   rx <- res(r)[1]
   ry <- res(r)[2]
-  qx <- (xmin(r) - origin_x) / rx
-  qy <- (ymin(r) - origin_y) / ry
-  .is_int_like(qx, tol) && .is_int_like(qy, tol)
+  .is_int_like((xmin(r) - origin_x) / rx, tol) &&
+    .is_int_like((ymin(r) - origin_y) / ry, tol)
 }
 
-.snap_to_grid <- function(r,
-                          origin_x = -180,
-                          origin_y = -90) {
+.snap_to_grid <- function(r, origin_x = -180, origin_y = -90) {
   rx <- res(r)[1]
   ry <- res(r)[2]
   nx <- ncol(r)
   ny <- nrow(r)
+
   x0 <- origin_x + round((xmin(r) - origin_x) / rx) * rx
   y0 <- origin_y + round((ymin(r) - origin_y) / ry) * ry
+
   ext(r) <- ext(x0, x0 + nx * rx, y0, y0 + ny * ry)
   r
 }
 
+
+# ==============================================================================
+# Environment handling
+# ==============================================================================
+
 env_get_int <- function(key, def) {
   v <- Sys.getenv(key, unset = "")
-  if (identical(v, "")) {
-    return(def)
-  } else {
-    vv <- suppressWarnings(as.integer(v))
-    if (is.na(vv)) {
-      return(def)
-    } else {
-      return(vv)
-    }
-  }
+  if (!nzchar(v)) return(def)
+
+  out <- suppressWarnings(as.integer(v))
+  if (is.na(out)) def else out
 }
 
-.have_maps <- requireNamespace("maps", quietly = TRUE)
+
+# ==============================================================================
+# Parallel helpers
+# ==============================================================================
 
 detect_workers <- function() {
   max(1L, min(3L, max(1L, parallel::detectCores(TRUE) - 1L)))

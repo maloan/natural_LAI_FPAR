@@ -2,75 +2,55 @@
 # viz.R — Visualization and quicklook utilities for LAI/FPAR and mask products
 #
 # Purpose
-#   Provide standardized plotting utilities for QA and reporting, including
-#   color palettes, histogram summaries, and global/AOI quicklook generation.
+#   Standardized plotting utilities for QA and reporting.
 #
-# Functions
-#   viz_dir_for(cfg, step_tag)             — Create/resolve visualization subdir
-#   viz_png(r, outfile, ...)               — Generic raster plotting
-#   viz_hist(r, outfile, ...)              — Histogram helper with safe ranges
-#   aoi_extents(cfg, drop_global)          — Build AOI extent list from cfg$aois
-#   quicklook_before_after(rb, ra, ...)    — 2-panel before/after (masked)
-#   quicklook_after_full(ra, ...)          — Single-panel masked preview
-#   ql_write_two_panels(r, year, ...)      — Cropland/Urban 2-panel quicklook
-#   quicklook_all_aois(frac, year, ...)    — Global + AOI quicklooks (fractions)
-#   ql_write_mask_two(r_global, r_local, ...) — Mask 2-panel (global vs AOI)
-#   quicklook_mask_all_aois(mask, ...)     — Global + AOI quicklooks (masks)
-#
-# Inputs
-#   - SpatRaster objects (fractional or binary)
-#   - cfg$aois : AOI metadata with lon_min/lon_max/lat_min/lat_max
-#   - ql_root  : Output directory for PNG quicklooks
-#
-# Outputs
-#   - PNG figures under <ql_root>/<AOI>/quicklook_*.png
-#
-# Dependencies
-#   Packages: terra; maps (optional for coastlines)
-#
-# Notes
-#   - No reliance on global variables like ROOT/out_dir/ql_title.
-#   - All if/else use explicit curly braces for clarity and robustness.
+# Dependencies: terra, maps (optional), here, utils.R, geom.R
 ## =============================================================================
 
 suppressPackageStartupMessages({
   library(terra)
+  library(here)
 })
-source(file.path(ROOT, "R", "utils.R"))
-source(file.path(ROOT, "R", "geom.R"))
 
-# ----- Palettes and small constants -------------------------------------------
+source(here("R/utils.R"))
+source(here("R/geom.R"))
 
-pal_green <- function(n = 64) {
-  hcl.colors(n, "Greens", rev = TRUE)
-}
-pal_mask   <- c("#f0f0f0", "#d73027")  # 0 keep, 1 drop
-col_na     <- "#bdbdbd"
+# ==============================================================================
+# Palettes
+# ==============================================================================
+
+pal_green <- function(n = 64) hcl.colors(n, "Greens", rev = TRUE)
+pal_mask  <- c("#f0f0f0", "#d73027")   # keep / drop
+col_na    <- "#bdbdbd"
 
 
-# ----- Directory helpers -------------------------------------------------------
+# ==============================================================================
+# Directory helper
+# ==============================================================================
 
 viz_dir_for <- function(cfg, step_tag) {
-  d <- file.path(path.expand(cfg$paths$viz_dir), step_tag)
+  d <- here(cfg$paths$viz_dir, step_tag)
   dir.create(d, recursive = TRUE, showWarnings = FALSE)
-  return(d)
+  d
 }
 
-# ----- Map overlays (graticule + coastlines when available) -------------------
+
+# ==============================================================================
+# Grid and coast overlays
+# ==============================================================================
 
 .add_overlays <- function(r,
                           grid_step = 30,
                           grid_col = "grey85",
                           coast_col = "grey25",
                           lwd = 0.6) {
-  abline(
-    h = seq(-90, 90, by = grid_step),
-    v = seq(-180, 180, by = grid_step),
-    col = grid_col,
-    lwd = lwd
-  )
+
+  abline(h = seq(-90, 90, grid_step),
+         v = seq(-180, 180, grid_step),
+         col = grid_col, lwd = lwd)
+
   if (.have_maps) {
-    ex <- terra::ext(r)
+    ex <- ext(r)
     mp <- maps::map(
       "world",
       xlim = c(ex[1], ex[2]),
@@ -81,7 +61,10 @@ viz_dir_for <- function(cfg, step_tag) {
   }
 }
 
-# ----- Generic plotters --------------------------------------------------------
+
+# ==============================================================================
+# Generic raster plotters
+# ==============================================================================
 
 viz_png <- function(r,
                     outfile,
@@ -89,37 +72,28 @@ viz_png <- function(r,
                     zlim = NULL,
                     maxcell = 2e6,
                     categorical = FALSE) {
-  if (file.exists(outfile)) {
-    return(invisible(outfile))
-  }
-  png(outfile,
-      width = 1600,
-      height = 900,
-      res = 150)
+
+  if (file.exists(outfile)) return(invisible(outfile))
+
+  png(outfile, width = 1600, height = 900, res = 150)
   op <- par(no.readonly = TRUE)
-  on.exit({
-    par(op)
-    dev.off()
-  }, add = TRUE)
+  on.exit({ par(op); dev.off() }, add = TRUE)
+
   par(mar = c(3, 3, 3, 5))
-  if (categorical) {
-    r <- as.factor(r)
-  }
+  if (categorical) r <- as.factor(r)
+
   terra::plot(
     r,
-    main = if (!is.null(title)) {
-      title
-    } else {
-      basename(outfile)
-    },
+    main = title %||% basename(outfile),
     zlim = zlim,
     maxcell = maxcell,
     axes = FALSE,
-    box  = FALSE
+    box = FALSE
   )
   box()
   invisible(outfile)
 }
+
 
 viz_hist <- function(r,
                      outfile,
@@ -127,310 +101,205 @@ viz_hist <- function(r,
                      maxsamp = 1e6,
                      main = NULL,
                      xlab = "value") {
-  if (file.exists(outfile)) {
-    return(invisible(outfile))
-  }
-  png(outfile,
-      width = 1400,
-      height = 900,
-      res = 150)
+
+  if (file.exists(outfile)) return(invisible(outfile))
+
+  png(outfile, width = 1400, height = 900, res = 150)
   op <- par(no.readonly = TRUE)
-  on.exit({
-    par(op)
-    dev.off()
-  }, add = TRUE)
+  on.exit({ par(op); dev.off() }, add = TRUE)
   par(mar = c(4, 4, 3, 1))
 
   rr <- try(terra::global(r, "range", na.rm = TRUE), silent = TRUE)
-  if (inherits(rr, "try-error")) {
+  if (inherits(rr, "try-error") || any(!is.finite(rr))) {
     plot.new()
     title(main = paste0(main %||% basename(outfile), " (no data)"))
     return(invisible(outfile))
   }
+
   vals <- unlist(rr[1, ], use.names = FALSE)
-  if (length(vals) < 2 || any(!is.finite(vals))) {
-    plot.new()
-    title(main = paste0(main %||% basename(outfile), " (no finite data)"))
-    return(invisible(outfile))
-  }
-  lo <- as.numeric(vals[1])
-  hi <- as.numeric(vals[2])
-  if (!is.finite(lo) || !is.finite(hi)) {
-    plot.new()
-    title(main = paste0(main %||% basename(outfile), " (no finite data)"))
-    return(invisible(outfile))
-  }
-  if (hi <= lo) {
-    eps <- max(1e-8, 1e-6 * abs(lo))
-    hi <- lo + eps
-  }
-  if (!is.null(breaks)) {
+  lo   <- vals[1]; hi <- vals[2]
+  if (hi <= lo) hi <- lo + max(1e-8, 1e-6 * abs(lo))
+
+  breaks <- if (is.null(breaks)) pretty(c(lo, hi), 40) else {
     eps <- max(1e-8, 1e-6 * abs(hi - lo))
-    if (min(breaks) > lo) {
-      breaks <- c(lo - eps, breaks)
-    }
-    if (max(breaks) < hi) {
-      breaks <- c(breaks, hi + eps)
-    }
-  } else {
-    breaks <- pretty(c(lo, hi), n = 40)
+    c(min(breaks, lo - eps), max(breaks, hi + eps))
   }
 
-  hh <- terra::hist(
-    r,
-    plot = FALSE,
-    breaks = breaks,
-    maxsamp = maxsamp,
-    na.rm = TRUE
-  )
-  if (is.null(hh$counts) || length(hh$counts) == 0) {
-    plot.new()
-    title(main = paste0(main %||% basename(outfile), " (empty sample)"))
+  hh <- terra::hist(r, plot = FALSE, breaks = breaks, maxsamp = maxsamp, na.rm = TRUE)
+  if (is.null(hh$counts) || !length(hh$counts)) {
+    plot.new(); title(main = paste0(main %||% basename(outfile), " (empty)"))
     return(invisible(outfile))
   }
-  plot(hh, main = if (!is.null(main)) {
-    main
-  } else {
-    basename(outfile)
-  }, xlab = xlab)
+
+  plot(hh,
+       main = main %||% basename(outfile),
+       xlab = xlab)
   invisible(outfile)
 }
 
-# ----- AOI utilities -----------------------------------------------------------
+
+# ==============================================================================
+# AOI utilities
+# ==============================================================================
 
 aoi_extents <- function(cfg, drop_global = FALSE) {
   stopifnot(!is.null(cfg$aois))
-  exts <- lapply(cfg$aois, function(a) {
-    terra::ext(a$lon_min, a$lon_max, a$lat_min, a$lat_max)
-  })
-  if (drop_global && "global" %in% names(exts)) {
-    exts <- exts[setdiff(names(exts), "global")]
-  }
-  return(exts)
+  exts <- lapply(cfg$aois, function(a)
+    ext(a$lon_min, a$lon_max, a$lat_min, a$lat_max)
+  )
+  if (drop_global) exts <- exts[setdiff(names(exts), "global")]
+  exts
 }
 
-# ----- LAI/FPAR masked quicklooks ---------------------------------------------
 
-plot_mask <- function(r, title, file, pal = c("#f0f0f0", "#d73027")) {
-  # Binarize for visualization to avoid odd codes (e.g., 255)
+# ==============================================================================
+# Mask visualization (global or AOI)
+# ==============================================================================
+
+plot_mask <- function(r, title, file, pal = pal_mask) {
   r2 <- terra::ifel(r >= 1, 1, 0)
+
   png(file, 1400, 700, res = 120)
   op <- par(mar = c(3, 3, 3, 6))
   on.exit({ par(op); dev.off() }, add = TRUE)
-  terra::plot(r2, main = title, col = pal, breaks = c(-0.5, 0.5, 1.5),
+
+  terra::plot(r2, main = title,
+              col = pal, breaks = c(-0.5, 0.5, 1.5),
               legend = FALSE, axes = TRUE, box = TRUE)
+
   legend("bottomleft", fill = pal, legend = c("0 keep", "1 drop"), bty = "n")
 }
-.plot_ts <- function(df, title, file) {
-  png(file, 1400, 700, res = 120)
-  op <- par(mar = c(4,4,3,1)); on.exit({ par(op); dev.off() }, add = TRUE)
-  cols <- c(masked = "#d73027", unmasked = "#4575b4")
-  yl <- range(df$mean, na.rm = TRUE)
-  x  <- df$date[df$subset=="unmasked"]; y <- df$mean[df$subset=="unmasked"]
-  plot(x, y, type = "l", col = cols["unmasked"], lwd = 2, ylim = yl,
-       xlab = "Date", ylab = "Area-weighted mean", main = title)
-  lines(df$date[df$subset=="masked"], df$mean[df$subset=="masked"], col = cols["masked"], lwd = 2)
-  legend("topleft", lwd = 2, col = cols, legend = c("unmasked","masked"), bty = "n")
-}
-quicklook_before_after <- function(rb, ra, ym, title, ql_dir, zlim, down = 2L) {
+
+
+# ==============================================================================
+# Before/after LAI/FPAR quicklooks
+# ==============================================================================
+
+quicklook_before_after <- function(rb, ra, ym, title, ql_dir, zlim, down = 4L) {
+
   dir.create(ql_dir, TRUE, showWarnings = FALSE)
-  if (down > 1L) {
-    rb <- terra::aggregate(rb, down, mean, na.rm = TRUE)
-    ra <- terra::aggregate(ra, down, mean, na.rm = TRUE)
-  }
-  png(
-    file.path(ql_dir, sprintf(
-      "quicklook_%s_masked_%s.png", title, ym
-    )),
-    width = 1400,
-    height = 700,
-    res = 120
-  )
-  op <- par(
-    mfrow = c(1, 2),
-    oma = c(0, 0, 2.2, 0),
-    mar = c(3, 3, 3, 6)
-  )
-  terra::plot(
-    rb,
-    main = sprintf("%s %s (before)", title, ym),
-    col = pal_green(64),
-    colNA = col_na,
-    zlim = zlim,
-    axes = TRUE,
-    legend = TRUE
-  )
+
+  rb <- if (down > 1L) terra::aggregate(rb, down, mean, na.rm = TRUE) else rb
+  ra <- if (down > 1L) terra::aggregate(ra, down, mean, na.rm = TRUE) else ra
+
+  png(file.path(ql_dir, sprintf("quicklook_%s_masked_%s.png", title, ym)),
+      width = 1400, height = 700, res = 120)
+
+  op <- par(mfrow = c(1, 2), oma = c(0, 0, 2.2, 0), mar = c(3, 3, 3, 6))
+  on.exit({ par(op); dev.off() }, add = TRUE)
+
+  terra::plot(rb, main = sprintf("%s %s (before)", title, ym),
+              col = pal_green(64), colNA = col_na, zlim = zlim,
+              axes = TRUE, legend = TRUE)
   .add_overlays(rb)
-  mtext("Longitude (°E)", side = 1, line = 2)
-  mtext("Latitude (°N)", side = 2, line = 2)
-  terra::plot(
-    ra,
-    main = sprintf("%s %s (masked)", title, ym),
-    col = pal_green(64),
-    colNA = col_na,
-    zlim = zlim,
-    axes = TRUE,
-    legend = TRUE
-  )
+
+  terra::plot(ra, main = sprintf("%s %s (masked)", title, ym),
+              col = pal_green(64), colNA = col_na, zlim = zlim,
+              axes = TRUE, legend = TRUE)
   .add_overlays(ra)
-  mtext("Longitude (°E)", side = 1, line = 2)
-  mtext("Latitude (°N)", side = 2, line = 2)
-  mtext(
-    "Masked 0.05° quicklook",
-    side = 3,
-    outer = TRUE,
-    cex = 1.05
-  )
-  par(op)
-  dev.off()
+
+  mtext("Masked 0.05° quicklook", side = 3, outer = TRUE, cex = 1.05)
 }
 
-quicklook_after_full <- function(ra, ym, title, ql_dir, zlim, down = 2L) {
+
+quicklook_after_full <- function(ra, ym, title, ql_dir, zlim, down = 4L) {
+
   dir.create(ql_dir, TRUE, showWarnings = FALSE)
-  rr <- if (down > 1L) {
-    terra::aggregate(ra, down, mean, na.rm = TRUE)
-  } else {
-    ra
-  }
-  png(
-    file.path(
-      ql_dir,
-      sprintf("quicklook_%s_masked_full_%s.png", title, ym)
-    ),
-    width = 1400,
-    height = 700,
-    res = 120
-  )
+  rr <- if (down > 1L) terra::aggregate(ra, down, mean, na.rm = TRUE) else ra
+
+  png(file.path(ql_dir, sprintf("quicklook_%s_masked_full_%s.png", title, ym)),
+      width = 1400, height = 700, res = 120)
+
   op <- par(oma = c(0, 0, 2, 0), mar = c(3, 3, 3, 6))
-  terra::plot(
-    rr,
-    main = sprintf("%s %s (masked)", title, ym),
-    col = pal_green(64),
-    colNA = col_na,
-    zlim = zlim,
-    axes = TRUE,
-    legend = TRUE
-  )
+  on.exit({ par(op); dev.off() }, add = TRUE)
+
+  terra::plot(rr, main = sprintf("%s %s (masked)", title, ym),
+              col = pal_green(64), colNA = col_na, zlim = zlim,
+              axes = TRUE, legend = TRUE)
   .add_overlays(rr)
-  mtext("Longitude (°E)", side = 1, line = 2)
-  mtext("Latitude (°N)", side = 2, line = 2)
-  par(op)
-  dev.off()
 }
 
-# ----- Fractional cover quicklooks (cropland/urban) ----------------------------
+
+# ==============================================================================
+# Fractional cover quicklooks (cropland/urban)
+# ==============================================================================
 
 ql_write_two_panels <- function(r,
                                 year,
                                 title,
                                 out_png,
                                 zlim = c(0, 1),
-                                pal  = pal_green(64),
+                                pal = pal_green(64),
                                 colNA = col_na) {
-  .have_maps_local <- requireNamespace("maps", quietly = TRUE)
-  add_overlays_local <- function() {
-    abline(
-      h = seq(-90, 90, by = 30),
-      v = seq(-180, 180, by = 30),
-      col = "grey85",
-      lwd = 0.6
-    )
-    if (.have_maps_local) {
+
+  have_maps <- requireNamespace("maps", quietly = TRUE)
+
+  add_overlay <- function() {
+    abline(h = seq(-90, 90, 30),
+           v = seq(-180, 180, 30),
+           col = "grey85", lwd = 0.6)
+    if (have_maps) {
       mp <- maps::map("world", plot = FALSE)
       lines(mp$x, mp$y, col = "grey25", lwd = 0.6)
     }
   }
-  png(out_png,
-      width = 1400,
-      height = 700,
-      res = 120)
-  op <- par(
-    mfrow = c(1, 2),
-    oma = c(2.2, 2.2, 3, 5),
-    mar = c(3, 3, 2.5, 6)
-  )
-  terra::plot(
-    r[["frac_cropland"]],
-    col = pal,
-    colNA = colNA,
-    zlim = zlim,
-    axes = TRUE,
-    legend = TRUE,
-    plg = list(title = "Fraction [0,1]", cex = 0.8),
-    main = sprintf("Cropland — %s %d", title, year)
-  )
-  add_overlays_local()
-  mtext("Longitude (°E)", side = 1, line = -1)
-  mtext("Latitude (°N)", side = 2, line = 2)
-  terra::plot(
-    r[["frac_urban"]],
-    col = pal,
-    colNA = colNA,
-    zlim = zlim,
-    axes = TRUE,
-    legend = TRUE,
-    plg = list(title = "Fraction [0,1]", cex = 0.8),
-    main = sprintf("Urban — %s %d", title, year)
-  )
-  add_overlays_local()
-  mtext("Longitude (°E)", side = 1, line = -1)
-  mtext("Latitude (°N)", side = 2, line = 2)
-  mtext(
-    "ESA-CCI/C3S → 0.05° fractional cover quicklook",
-    side = 3,
-    outer = TRUE,
-    cex = 1.05
-  )
-  par(op)
-  dev.off()
+
+  png(out_png, width = 1400, height = 700, res = 120)
+  op <- par(mfrow = c(1, 2), oma = c(2.2, 2.2, 3, 5), mar = c(3, 3, 2.5, 6))
+  on.exit({ par(op); dev.off() }, add = TRUE)
+
+  terra::plot(r[["frac_cropland"]], col = pal, colNA = colNA, zlim = zlim,
+              axes = TRUE, legend = TRUE,
+              plg = list(title = "Fraction [0,1]", cex = 0.8),
+              main = sprintf("Cropland — %s %d", title, year))
+  add_overlay()
+
+  terra::plot(r[["frac_urban"]], col = pal, colNA = colNA, zlim = zlim,
+              axes = TRUE, legend = TRUE,
+              plg = list(title = "Fraction [0,1]", cex = 0.8),
+              main = sprintf("Urban — %s %d", title, year))
+  add_overlay()
+
+  mtext("ESA-CCI/C3S 0.05° fractional cover quicklook",
+        side = 3, outer = TRUE, cex = 1.05)
 }
+
 
 quicklook_all_aois <- function(frac,
                                year,
                                cfg,
                                ql_root,
-                               down = 2L,
+                               down = 4L,
                                include_global = TRUE,
                                drop_global_key = FALSE) {
+
   stopifnot(inherits(frac, "SpatRaster"))
   dir.create(ql_root, TRUE, showWarnings = FALSE)
-  x <- if (down > 1L) {
-    terra::aggregate(frac,
-                     fact = down,
-                     fun = mean,
-                     na.rm = TRUE)
-  } else {
-    frac
-  }
-  if (isTRUE(include_global)) {
+
+  x <- if (down > 1L) terra::aggregate(frac, down, mean, na.rm = TRUE) else frac
+
+  if (include_global) {
     d <- file.path(ql_root, "global")
     dir.create(d, TRUE, showWarnings = FALSE)
-    ql_write_two_panels(
-      r = x,
-      year = year,
-      title = "Global",
-      out_png = file.path(d, sprintf("quicklook_global_%d.png", year))
-    )
+    ql_write_two_panels(x, year, "Global",
+                        file.path(d, sprintf("quicklook_global_%d.png", year)))
   }
-  exts <- aoi_extents(cfg, drop_global = drop_global_key)
+
+  exts <- aoi_extents(cfg, drop_global_key)
   for (nm in names(exts)) {
-    d <- file.path(ql_root, nm)
-    dir.create(d, TRUE, showWarnings = FALSE)
+    d <- file.path(ql_root, nm); dir.create(d, TRUE)
     rr <- try(terra::crop(x, exts[[nm]]), silent = TRUE)
-    if (inherits(rr, "try-error")) {
-      next
-    } else {
-      ql_write_two_panels(
-        r = rr,
-        year = year,
-        title = nm,
-        out_png = file.path(d, sprintf("quicklook_%s_%d.png", nm, year))
-      )
+    if (!inherits(rr, "try-error")) {
+      ql_write_two_panels(rr, year, nm,
+                          file.path(d, sprintf("quicklook_%s_%d.png", nm, year)))
     }
   }
 }
 
-# ----- Mask quicklooks (0 keep = grey, 1 drop = red) ---------------------------
+
+# ==============================================================================
+# Mask quicklooks
+# ==============================================================================
 
 ql_write_mask_two <- function(r_global,
                               r_local,
@@ -438,98 +307,67 @@ ql_write_mask_two <- function(r_global,
                               title_local,
                               out_png,
                               col = pal_mask) {
+
+  png(out_png, width = 1200, height = 600, res = 120)
+  op <- par(mfrow = c(1, 2), oma = c(0, 0, 2, 0), mar = c(2, 2, 2, 5))
+  on.exit({ par(op); dev.off() }, add = TRUE)
+
   brks <- c(-0.5, 0.5, 1.5)
-  png(out_png,
-      width = 1200,
-      height = 600,
-      res = 120)
-  op <- par(
-    mfrow = c(1, 2),
-    oma = c(0, 0, 2, 0),
-    mar = c(2, 2, 2, 5)
-  )
-  terra::plot(
-    r_global,
-    col = col,
-    breaks = brks,
-    legend = FALSE,
-    main = title_global,
-    axes = FALSE,
-    box = TRUE
-  )
+
+  terra::plot(r_global, col = col, breaks = brks,
+              legend = FALSE, main = title_global,
+              axes = FALSE, box = TRUE)
   .add_overlays(r_global)
-  legend(
-    "bottomleft",
-    fill = col,
-    legend = c("0 keep", "1 drop"),
-    bty = "n"
-  )
-  terra::plot(
-    r_local,
-    col = col,
-    breaks = brks,
-    legend = FALSE,
-    main = title_local,
-    axes = FALSE,
-    box = TRUE
-  )
+  legend("bottomleft", fill = col, legend = c("0 keep", "1 drop"), bty = "n")
+
+  terra::plot(r_local, col = col, breaks = brks,
+              legend = FALSE, main = title_local,
+              axes = FALSE, box = TRUE)
   .add_overlays(r_local)
-  legend(
-    "bottomleft",
-    fill = col,
-    legend = c("0 keep", "1 drop"),
-    bty = "n"
-  )
-  par(op)
-  dev.off()
+  legend("bottomleft", fill = col, legend = c("0 keep", "1 drop"), bty = "n")
 }
+
 
 quicklook_mask_all_aois <- function(mask,
                                     title,
                                     tag,
                                     cfg,
                                     ql_root,
-                                    down = 2L,
+                                    down = 4L,
                                     include_global = TRUE,
                                     drop_global_key = FALSE) {
+
   dir.create(ql_root, TRUE, showWarnings = FALSE)
+
+  # Downscale by majority vote if needed
   x <- if (down > 1L) {
-    maj <- function(v, ...) {
-      as.integer(mean(as.integer(v), na.rm = TRUE) >= 0.5)
-    }
-    terra::aggregate(terra::ifel(mask, 1L, 0L), down, maj)
+    maj <- function(v, ...) as.integer(mean(as.integer(v), na.rm = TRUE) >= 0.5)
+    terra::aggregate(terra::ifel(mask, 1, 0), down, maj)
   } else {
-    terra::ifel(mask, 1L, 0L)
+    terra::ifel(mask, 1, 0)
   }
 
-  if (isTRUE(include_global)) {
-    d <- file.path(ql_root, "global")
-    dir.create(d, TRUE, showWarnings = FALSE)
+  if (include_global) {
+    gdir <- file.path(ql_root, "global")
+    dir.create(gdir, TRUE)
     ql_write_mask_two(
-      r_global     = x,
-      r_local      = x,
-      title_global = paste(title, "— Global"),
-      title_local  = paste(title, "— Global"),
-      out_png      = file.path(d, sprintf("quicklook_mask_global_%s.png", tag))
+      x, x,
+      paste(title, "— Global"),
+      paste(title, "— Global"),
+      file.path(gdir, sprintf("quicklook_mask_global_%s.png", tag))
     )
   }
 
-  exts <- aoi_extents(cfg, drop_global = drop_global_key)
+  exts <- aoi_extents(cfg, drop_global_key)
   for (nm in names(exts)) {
-    d <- file.path(ql_root, nm)
-    dir.create(d, TRUE, showWarnings = FALSE)
+    d <- file.path(ql_root, nm); dir.create(d, TRUE)
     rr <- try(terra::crop(x, exts[[nm]]), silent = TRUE)
-    if (inherits(rr, "try-error")) {
-      next
-    } else {
+    if (!inherits(rr, "try-error")) {
       ql_write_mask_two(
-        r_global     = x,
-        r_local      = rr,
-        title_global = paste(title, "— Global"),
-        title_local  = paste(title, "—", nm),
-        out_png      = file.path(d, sprintf(
-          "quicklook_mask_%s_%s.png", nm, tag
-        ))
+        x, rr,
+        paste(title, "— Global"),
+        paste(title, "—", nm),
+        file.path(d, sprintf("quicklook_mask_%s_%s.png", nm, tag))
       )
     }
   }
