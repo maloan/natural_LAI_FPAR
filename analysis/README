@@ -1,0 +1,93 @@
+
+# **Analysis**
+
+This directory contains post-processing and diagnostic scripts for LAI/FPAR trend analysis.
+The focus is on generating reproducible global and regional summaries from masked and unmasked products after aggregation to 0.25°.
+
+## **Scope**
+
+The analysis layer provides:
+
+* construction of trend datasets (per-year and per-decade slopes)
+* global-map visualisations
+* latitudinal summaries
+* masked vs. unmasked comparisons
+* significance diagnostics (Mann–Kendall)
+* auxiliary georeferencing steps for pre-1992 GLC/FPAR inputs
+
+All scripts are standalone and can be executed non-interactively (HPC-ready).
+
+---
+
+## **Structure**
+
+### **Trend construction**
+
+* **`20_build_trends.sh`**
+  Compute linear trends from the full monthly series (masked & unmasked, 0.25°).
+
+* **`21_build_trends_georef.sh`**
+  Same as above, but applied to the “georeferenced” raw series. Used for cross-checks and long temporal baselines.
+
+### **Trend visualisation and comparison**
+
+* **`22_plot_global.R`**
+  Global maps of per-decade slopes.
+
+* **`23_plot_difference.R`**
+  Δ-maps: masked minus unmasked trends.
+
+* **`23_master_trend_plots.R`**
+  Batch runner orchestrating all global maps, difference maps, histograms, and AOI views.
+
+* **`24_plot_scatter.R`**
+  Pixel-wise scatter plots comparing masked vs. unmasked slopes and distribution summaries.
+
+* **`25_plot_latbands.R`**
+  Latitudinal mean trend profiles (5° wide bins).
+
+* **`26_plot_significance.R`**
+  Mann–Kendall p-value maps for trend significance.
+
+### **Support directories**
+
+* **`trend_plots/`**
+  Output directory for all figures produced by the above scripts.
+
+* **`georef/`**
+  Intermediate series used for georeferenced trend checks.
+
+* **`Makefile.trends_masked`**, **`Makefile.trends_georef`**
+  Makefile automation for end-to-end trend construction and figure generation.
+
+---
+
+## **Execution**
+
+Each script runs as:
+
+```bash
+Rscript 22_plot_global.R
+bash    20_build_trends.sh
+```
+
+Parameters (e.g., variable, mask type, tau) are detected from filenames or controlled via environment variables.
+
+For batch execution:
+
+```bash
+make -f Makefile.trends_masked
+make -f Makefile.trends_georef
+```
+
+---
+
+## **Notes**
+
+* All scripts assume that masked and unmasked 0.25° NetCDF files already exist in `analysis/<tag>_0p25/nc/`.
+* Trend computations follow a consistent naming scheme:
+  `trend_slope_yearmean_decade.nc`, `trend_slope_peryear.nc`, etc.
+* Visualisation uses standardized palettes (batlow, greens) and consistent AOI layout.
+
+---
+

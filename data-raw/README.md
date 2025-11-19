@@ -1,14 +1,32 @@
-# Raw Datasets and Downloads
+# **Raw Datasets and Source Inputs**
 
-Unprocessed source data stored in original or lightly modified form.
+This directory contains unprocessed external datasets used as primary inputs to the LAI/FPAR workflow. Files here retain their original structure (or minimal preprocessing only) and are not modified by the main pipeline.
 
-## Subfolders
+## **Subdirectories**
 
--   `ESACCI/` – Land cover files and download scripts from CCI/C3S
--   `FPAR/` and `LAI/` – Raw MODIS-derived vegetation index data
--   `GLC_FCS30D/` – High-resolution GLC-FCS30D rasters (converted to 0.05°)
--   `LUH2_v2h/` – NetCDF state and land-use data from LUH2
+-   **`ESACCI/`** ESA CCI / C3S Land Cover products and helper scripts for downloading and yearstack preparation.
 
-## Note
+-   **`FPAR/`** Original FPAR time series from SNU before reprojection or clipping.
 
-These files are not tracked by git.
+-   **`LAI/`** Original LAI fields from SNU. Used as the starting point for georeferencing and temporal stacking.
+
+-   **`GLC_FCS30D/`** GLC_FCS30D land cover at 0.05.
+
+-   **`LUH2_v2h/`** Raw LUH2 v2h NetCDF files, including state variables, transitions, and management layers.
+
+## **Usage**
+
+These datasets act as immutable inputs for:
+
+-   Fractional cover derivation
+-   Land-cover masks (CCI, GLC)
+-   LUH2 pasture/rangeland fraction and overlap analysis
+-   LAI/FPAR georeferencing and time-series construction
+
+All subsequent steps read from the processed `data/` directory.
+
+## **Versioning**
+
+These files are **not tracked by Git**. Reproducibility depends on external dataset versioning and documented download procedures.
+
+------------------------------------------------------------------------
