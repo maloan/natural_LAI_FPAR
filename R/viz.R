@@ -232,13 +232,13 @@ ql_write_two_panels <- function(r,
                                 pal = pal_green(64),
                                 colNA = col_na) {
 
-  have_maps <- requireNamespace("maps", quietly = TRUE)
+  .have_maps <- requireNamespace("maps", quietly = TRUE)
 
   add_overlay <- function() {
     abline(h = seq(-90, 90, 30),
            v = seq(-180, 180, 30),
            col = "grey85", lwd = 0.6)
-    if (have_maps) {
+    if (.have_maps) {
       mp <- maps::map("world", plot = FALSE)
       lines(mp$x, mp$y, col = "grey25", lwd = 0.6)
     }
