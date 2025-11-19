@@ -79,3 +79,6 @@ vignettes/*.pdf
 
 # R Environment Variables
 .Renviron
+
+# config 
+/config/config.yml
