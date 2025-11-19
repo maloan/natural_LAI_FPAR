@@ -1,0 +1,40 @@
+# ==============================================================================
+# Makefile.trends_masked — Wrapper for 20_build_trends.sh
+#
+# Usage:
+#   make trends TAUS="tau_0.1 tau_0.2"
+#   make one TAU=tau_0.1
+#
+# Default TAUS = tau_0.1
+# ==============================================================================
+
+SHELL := /bin/bash
+.SHELLFLAGS := -euo pipefail -c
+
+ROOT    ?= $(HOME)/GitHub/natural_LAI_FPAR
+SCRIPT   = $(ROOT)/analysis/20_build_trends.sh
+
+# Default τ list — you can override from CLI
+TAUS ?= tau_0.1
+
+# ------------------------------------------------------------------------------
+# Run trends for all TAUS
+# ------------------------------------------------------------------------------
+.PHONY: trends
+trends: $(foreach T,$(TAUS),run_$(T))
+
+.PHONY: run_%
+run_%:
+	@TAU=$(subst run_,,$@); \
+	echo "========================================================"; \
+	echo " Running masked-0p25 trends for TAU=$$TAU"; \
+	echo "========================================================"; \
+	"$(SCRIPT)" "$$TAU"
+
+# ------------------------------------------------------------------------------
+# Run only one τ
+# ------------------------------------------------------------------------------
+.PHONY: one
+one:
+	@echo "Running only TAU=$(TAU)"
+	"$(SCRIPT)" "$(TAU)"
