@@ -1,94 +1,93 @@
-# Core R Code
+# **Core R Code**
 
-This directory contains the main components of the LAI/FPAR processing workflow.  
-Scripts are organised by stage, and shared modules provide geometry, I/O, option
-handling, and visualisation tools.
+This directory contains the principal components of the LAI/FPAR processing and analysis workflow. Scripts are organised by processing stage (00–17), supported by shared modules for geometry, I/O, configuration, statistics, and visualisation.
 
----
+------------------------------------------------------------------------
 
-## Structure
+## **Script overview**
 
-### 0× — Initialisation and setup
-- `00_setup.R`  
-  Prepare the runtime environment, load core modules, and validate paths.
+### **00 — Initialisation**
 
-### 1× — Geolocation
-- `01_georef_0p05.R`  
-  Georeference raw LAI/FPAR fields to a 0.05° lon–lat grid.
+-   **`00_setup.R`** Initialise configuration, verify paths, load shared modules, and prepare runtime options.
 
-### 2× — ESA-CCI fractional cover
-- `02_cci_frac_0p05.R`  
-  Derive annual fractional-cover layers (grass, bare, water, urban, etc.).
+------------------------------------------------------------------------
 
-### 3× — GLC yearstack
-- `03_glc_stack_0p05.R`  
-  Build yearly stacks of Landsat GLC_FCS30D (categorical + fractional).
+### **01 — Georeferencing (0.05°)**
 
-### 4× — Mask construction (CCI, GLC, LUH)
-- `04_cci_mask_0p05.R`  
-  CCI-based drop-mask using τ,k thresholds.
-- `04_glc_mask_0p05.R`  
-  GLC used≥N mask (temporal persistence).
-- `04_luh_pasture_overlap_025.R`  
-  LUH pasture–grass overlap mask (0.25° and 0.05° variants).
+-   **`01_georef_0p05.R`** Harmonise raw LAI and FPAR inputs to the common 0.05° grid and write monthly georeferenced layers.
 
-### 5× — Static abiotic masks
-- `05_abiotic_static_from_cci_0p05.R`  
-  Water/ice/bare threshold masks from CCI fractions.
-- `05_abiotic_static_from_glc_0p05.R`  
-  Same for GLC.
+------------------------------------------------------------------------
 
-### 7× — Mask application
-- `07_apply_mask_0p05.R`  
-  Apply binary drop masks to monthly LAI/FPAR (0.05°), with quicklooks.
-- `07_luh_use_masks.R`  
-  Combine LUH-derived drop masks with other mask sets.
+### **02–03 — Fractional cover & GLC stacks**
 
-### 8× — Aggregation
-- `08_agg_0p25.R`  
-  Area-weighted 0.05° → 0.25° aggregation for LAI/FPAR.
+-   **`02_apply_abiotic_only_0p05.R`** Apply only the abiotic static mask to 0.05° fields (stand-alone utility step).
+-   **`03_cci_frac_0p05.R`** Derive ESA-CCI fractional cover layers (grass, urban, agricultural, etc.) at 0.05°.
+-   **`05_glc_stack_0p05.R`** Build yearly Landsat GLC_FCS30D stacks (categorical persistence and fractional summaries).
 
----
+------------------------------------------------------------------------
 
-## Shared modules
+### **04–10 — Mask construction**
 
-### Geometry and grid handling
-- `geom.R`  
-  Raster alignment, CF-time parsing, longitude rotation, area computation.
+-   **`04_cci_mask_0p05.R`** Dynamic CCI mask based on τ, k thresholds for fractional-cover transitions.
+-   **`06_glc_mask_0p05.R`** GLC persistence mask (e.g., used ≥ N years).
+-   **`07_abiotic_static_from_cci_0p05.R`** CCI-derived static mask for water, and ice.
+-   **`08_abiotic_static_from_glc_0p05.R`** GLC-derived abiotic mask (alternative source).
+-   **`09_luh_use_masks.R`** Assemble LUH2-based land-use (pasture) layers.
+-   **`10_luh_pasture_overlap_025.R`** Quantify LUH pasture × satellite grass overlap; derive drop masks at 0.25° and propagate to 0.05°.
+
+------------------------------------------------------------------------
+
+### **11–12 — Mask application & aggregation**
+
+-   **`11_apply_mask_0p05.R`** Apply selected mask configuration (CCI/GLC, LUH overlap, abiotic static) to georeferenced LAI/FPAR at 0.05°.
+-   **`12_agg_0p25.R`** Area-weighted aggregation of masked 0.05° layers to 0.25° resolution.
+
+------------------------------------------------------------------------
+
+### **13–17 — Analytical and diagnostic scripts**
+
+-   **`13_analyse_georef_0p25.R`** Diagnostic summaries and maps for georeferenced (unmasked) 0.25° LAI/FPAR.
+-   **`14_compare_lai_fpar_trends.R`** Compare LAI vs FPAR trend structures and spatial patterns.
+-   **`15_analyse_masked_trends.R`** Trend analysis for masked 0.25° products.
+-   **`16_compare_masked_unmasked.R`** Quantify differences between masked and unmasked trends.
+-   **`17_analyse_trend_mask.R`** Examine trend sensitivity to specific masking schemes.
+
+------------------------------------------------------------------------
+
+## **Shared modules**
+
+### Geometry & grid handling
+
+-   **`geom.R`** Grid alignment, area calculations, coordinate utilities, and spatial helpers.
 
 ### Input/output
-- `io.R`  
-  GDAL write presets, provenance metadata, session logging, manifest helpers.
+
+-   **`io.R`** NetCDF/TIFF read–write helpers, GDAL settings, provenance metadata.
 
 ### Visualisation
-- `viz.R`  
-  Standardised global/AOI quicklooks for masks, LAI/FPAR, and fractional cover.
 
-### Naming and configuration
-- `names.R`  
-  Strict, tokenised naming conventions.
-- `options.R`  
-  Environment-variable parsing and runtime toggles.
+-   **`viz.R`** Global/AOI quicklooks, mask diagnostics, and standardised plotting utilities.
 
-### General utilities
-- `utils.R`  
-  Path helpers, configuration loading, timing, GDAL options, small geometry tools.
+### Naming, configuration, options
 
-### Mask statistics
-- `stats.R`  
-  Area-weighted means, drop fractions, and pairwise contingency/Jaccard metrics.
+-   **`names.R`** Controlled naming conventions for intermediate products.
+-   **`options.R`** Parsing of environment variables and runtime switches.
 
----
+### General utilities & statistics
 
-## Workflow summary
+-   **`utils.R`** Configuration readers, path utilities, timing wrappers, file management.
+-   **`stats.R`** Area-weighted metrics, mask comparison statistics, Jaccard/overlap measures.
 
-1. **Georeference raw satellite inputs** (0.05°).  
-2. **Construct fractional layers and categorical stacks** (CCI, GLC).  
-3. **Generate land-use masks** (CCI τ–k, GLC persistence, LUH pasture overlap).  
-4. **Add abiotic static masks** (water/ice/bare).  
-5. **Apply masks to LAI/FPAR monthly fields**.  
-6. **Aggregate masked data to 0.25°** for model ingestion.  
-7. **Evaluate** masks and outputs via area-weighted statistics and quicklooks.
+------------------------------------------------------------------------
 
----
+## **Workflow summary**
 
+1.  **Setup** environment configuration.
+2.  **Georeference** LAI/FPAR monthly fields (0.05°).
+3.  **Derive** fractional cover (CCI) and categorical persistence (GLC).
+4.  **Construct** masks (CCI, GLC, LUH pasture overlap, abiotic).
+5.  **Apply** masks to monthly LAI/FPAR using flexible combinations.
+6.  **Aggregate** masked products to 0.25° for analysis and modelling.
+7.  **Analyse** trends, masking effects, and LAI–FPAR consistency (scripts 13–17).
+
+------------------------------------------------------------------------

@@ -41,8 +41,8 @@ COMMON_OUT_DIR <- here("data")
 
 # input dirs
 in_dirs <- list(
-  lai_nc_dir       = exp_(here("data-raw", "LAI", "lai_1982-2021")),
-  fpar_nc_dir      = exp_(here("data-raw", "FPAR", "fpar_1982-2021")),
+  lai_nc_dir       = exp_(here("data-raw", "LAI", "lai_1982-2024")),
+  fpar_nc_dir      = exp_(here("data-raw", "FPAR", "fpar_1982-2024")),
   cci_dir          = exp_(here("data-raw", "ESACCI", "ESACCI_1992-2020")),
   luh2_dir         = exp_(here("data-raw", "LUH2_v2h")),
   glc_dir          = exp_(here("data-raw", "GLC_FCS30D")),
@@ -76,16 +76,16 @@ dirs <- list(
   masks_luh_quick_dir = here("output", RUN_TAG, "masks", "mask_luh", "quicklooks"),
 
   # masked 0.05°
-  masked_lai_cci_005_dir  = here("output", RUN_TAG, "masked_0p05", "LAI",  "masked_LAI_CCI", "masked_lai_0p05"),
-  masked_lai_glc_005_dir  = here("output", RUN_TAG, "masked_0p05", "LAI",  "masked_LAI_GLC", "masked_lai_0p05"),
-  masked_fpar_cci_005_dir = here("output", RUN_TAG, "masked_0p05", "FPAR", "masked_FPAR_CCI", "masked_fpar_0p05"),
-  masked_fpar_glc_005_dir = here("output", RUN_TAG, "masked_0p05", "FPAR", "masked_FPAR_GLC", "masked_fpar_0p05"),
+  masked_lai_cci_005_dir  = here("output", RUN_TAG, "masked_0p05", "LAI",  "masked_LAI_CCI"),
+  masked_lai_glc_005_dir  = here("output", RUN_TAG, "masked_0p05", "LAI",  "masked_LAI_GLC"),
+  masked_fpar_cci_005_dir = here("output", RUN_TAG, "masked_0p05", "FPAR", "masked_FPAR_CCI"),
+  masked_fpar_glc_005_dir = here("output", RUN_TAG, "masked_0p05", "FPAR", "masked_FPAR_GLC"),
 
   # masked 0.25°
-  masked_lai_cci_025_dir  = here("output", RUN_TAG, "masked_0p25", "LAI",  "masked_LAI_CCI", "masked_lai_0p25"),
-  masked_lai_glc_025_dir  = here("output", RUN_TAG, "masked_0p25", "LAI",  "masked_LAI_GLC", "masked_lai_0p25"),
-  masked_fpar_cci_025_dir = here("output", RUN_TAG, "masked_0p25", "FPAR", "masked_FPAR_CCI", "masked_fpar_0p25"),
-  masked_fpar_glc_025_dir = here("output", RUN_TAG, "masked_0p25", "FPAR", "masked_FPAR_GLC", "masked_fpar_0p25")
+  masked_lai_cci_025_dir  = here("output", RUN_TAG, "masked_0p25", "LAI",  "masked_LAI_CCI"),
+  masked_lai_glc_025_dir  = here("output", RUN_TAG, "masked_0p25", "LAI",  "masked_LAI_GLC"),
+  masked_fpar_cci_025_dir = here("output", RUN_TAG, "masked_0p25", "FPAR", "masked_FPAR_CCI"),
+  masked_fpar_glc_025_dir = here("output", RUN_TAG, "masked_0p25", "FPAR", "masked_FPAR_GLC")
 )
 
 # ensure dirs exist
@@ -109,7 +109,7 @@ cfg$project <- list(
     lat_min = 35, lat_max = 70
   ),
   years = list(
-    lai_start = 1992, lai_end = 2020,
+    lai_start = 1982, lai_end = 2024,
     cci_start = 1992, cci_end = 2020,
     glc_start = 1985, glc_end = 2020
   )
@@ -156,7 +156,6 @@ cfg$variables <- list(
     nc_var_name_primary="LAI",
     nc_var_name_fallback="auto_first_variable",
     units="m2 m-2",
-    clamp=list(min=0,max=8),
     nc_lon_name="lon", nc_lat_name="lat",
     nc_time_names=c("time","time_counter")
   ),
@@ -164,7 +163,6 @@ cfg$variables <- list(
     nc_var_name_primary="FPAR",
     nc_var_name_fallback="auto_first_variable",
     units="1",
-    clamp=list(min=0,max=1),
     nc_lon_name="lon", nc_lat_name="lat",
     nc_time_names=c("time","time_counter")
   )

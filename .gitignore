@@ -15,13 +15,14 @@ Thumbs.db
 !/data/README.md
 /analysis/georef
 /analysis/trend_plots
-
+/analysis/*
 # Raw data (heavy, external)
 data-raw/ESACCI/ESACCI_1992-2020/
 data-raw/FPAR/fpar_1982-2021/
 data-raw/LAI/lai_1982-2021/
 data-raw/GLC_FCS30D/
 data-raw/LUH2_v2h/
+data-raw/*
 
 # Optional outputs
 *.png

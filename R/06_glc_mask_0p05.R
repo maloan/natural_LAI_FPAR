@@ -1,5 +1,5 @@
 ## =============================================================================
-# 04_glc_used_0p05.R — Build “used ≥ N years” mask from GLC_FCS30D yearstack
+# 06_glc_used_0p05.R — Build “used ≥ N years” mask from GLC_FCS30D yearstack
 ## =============================================================================
 
 suppressPackageStartupMessages({
@@ -11,7 +11,6 @@ suppressPackageStartupMessages({
 
 # --- config & refs -------------------------------------------------------------
 ROOT <- here()
-
 source(here("R", "utils.R"))
 source(here("R", "io.R"))
 source(here("R", "geom.R"))
@@ -23,9 +22,9 @@ opts <- opts_read()
 
 terraOptions(progress = 1, memfrac = 0.25)
 
-SKIP_EXISTING <- as.logical(Sys.getenv("SKIP_EXISTING", "FALSE"))
-OVERWRITE     <- as.logical(Sys.getenv("OVERWRITE", "TRUE"))
-REMAKE_QL     <- as.logical(Sys.getenv("REMAKE_QL", "TRUE"))
+SKIP_EXISTING <- as.logical(Sys.getenv("SKIP_EXISTING", "TRUE"))
+OVERWRITE     <- as.logical(Sys.getenv("OVERWRITE", "FALSE"))
+REMAKE_QL     <- as.logical(Sys.getenv("REMAKE_QL", "FALSE"))
 
 # --- paths ---------------------------------------------------------------------
 glc_out_dir <- cfg$paths$glc_out_dir
@@ -37,10 +36,14 @@ dir.create(ql_dir, TRUE, showWarnings = FALSE)
 
 # --- config / class codes ------------------------------------------------------
 N_YEARS <- as.integer(Sys.getenv("USED_N_YEARS", "3"))
-if (!is.finite(N_YEARS) || N_YEARS < 1)
+if (!is.finite(N_YEARS) ||
+    N_YEARS < 1) {
   stop("USED_N_YEARS must be a positive integer")
+}
 
-vec_int       <- function(x) as.integer(unlist(x, use.names = FALSE))
+vec_int       <- function(x) {
+  as.integer(unlist(x, use.names = FALSE))
+}
 classes       <- cfg$glc$classes
 cropland_vals <- vec_int(classes$cropland)
 urban_vals    <- vec_int(classes$urban)
@@ -57,7 +60,9 @@ stack <- file.path(glc_out_dir, "glc_cat_yearstack_0p05.tif")
 stack_path <- stack[file.exists(stack)]
 
 if (!length(stack_path))
+{
   stop("GLC yearstack not found under: ", glc_out_dir)
+}
 
 stack_path <- stack_path[1]
 cat("Using GLC yearstack: ", stack_path, "\n", sep = "")
@@ -66,7 +71,9 @@ cat("Using GLC yearstack: ", stack_path, "\n", sep = "")
 s <- rast(stack_path)
 
 if (is.na(crs(s)))
+{
   crs(s) <- crs(tmpl)
+}
 
 if (!compareGeom(s, tmpl, stopOnError = FALSE)) {
   message("Resampling yearstack → 0.05° template (near)")
@@ -74,33 +81,43 @@ if (!compareGeom(s, tmpl, stopOnError = FALSE)) {
 }
 
 if (length(nodata_vals))
+{
   s[s %in% nodata_vals] <- NA
+}
 
 # --- restrict stack to CCI window ---------------------------------------------
 keep_idx <- which(substr(names(s), 2, 5) %in% as.character(cci_win))
 s <- s[[keep_idx]]
-
-cat(
-  "Year window for used-counts: ",
-  Y1, "..", Y2, " (", nlyr(s), " years)\n", sep = ""
-)
+cat("Year window for used-counts: ",
+    Y1,
+    "..",
+    Y2,
+    " (",
+    nlyr(s),
+    " years)\n",
+    sep = "")
 
 # --- cores ---------------------------------------------------------------------
 ncores <- opts$N_WORKERS
 if (is.null(ncores) || is.na(ncores) || !is.finite(ncores))
+{
   ncores <- 1L
+}
 ncores <- max(1L, as.integer(ncores))
 
 # --- per-pixel counts & mask ---------------------------------------------------
 cnt_cropland <- app(
   s,
-  fun  = function(v, vals) sum(v %in% vals, na.rm = TRUE),
+  fun  = function(v, vals)
+    sum(v %in% vals, na.rm = TRUE),
   vals = cropland_vals,
   cores = ncores
 )
+
 cnt_urban <- app(
   s,
-  fun  = function(v, vals) sum(v %in% vals, na.rm = TRUE),
+  fun  = function(v, vals)
+    sum(v %in% vals, na.rm = TRUE),
   vals = urban_vals,
   cores = ncores
 )
@@ -138,10 +155,9 @@ if (!(SKIP_EXISTING && file.exists(out_counts)) || OVERWRITE) {
 # --- quicklooks ----------------------------------------------------------------
 tag <- sprintf("glc_used_ge%d_%d-%d", N_YEARS, Y1, Y2)
 
-ql_probe <- file.path(
-  ql_dir, "global",
-  sprintf("quicklook_mask_global_%s.png", tag)
-)
+ql_probe <- file.path(ql_dir,
+                      "global",
+                      sprintf("quicklook_mask_global_%s.png", tag))
 
 if (REMAKE_QL || !file.exists(ql_probe)) {
   quicklook_mask_all_aois(
@@ -159,16 +175,21 @@ if (REMAKE_QL || !file.exists(ql_probe)) {
 # --- summary -------------------------------------------------------------------
 p_used_global <- tryCatch(
   global(ifel(used_byte, 1, 0), "mean", na.rm = TRUE)[1, 1],
-  error = function(e) NA_real_
+  error = function(e)
+    NA_real_
 )
 
-cat(glue("
+cat(
+  glue(
+    "
 Wrote:
   - {out_used}
   - {out_counts}
 Quicklooks in: {ql_dir}
 Used≥{N_YEARS} proportion (global): {sprintf('%.4f', p_used_global)}
-"))
+"
+  )
+)
 
 gc()
 cat("Done\n")

@@ -1,5 +1,5 @@
 ## =============================================================================
-# 05_abiotic_static_from_cci.R — Build multi-year abiotic mask (0.05°)
+# 07_abiotic_static_from_cci.R — Build multi-year abiotic mask (0.05°)
 ## =============================================================================
 
 suppressPackageStartupMessages({
@@ -31,28 +31,31 @@ TAU_ICE   <- as.numeric(Sys.getenv("TAU_ICE", "0.05"))
 
 out_dir <- file.path(cfg$paths$masks_root_dir, "mask_abiotic")
 ql_dir  <- file.path(out_dir, "quicklooks")
+aoi_out <- file.path(ql_dir, "aois")
 
 dir.create(out_dir, TRUE, showWarnings = FALSE)
 dir.create(ql_dir, TRUE, showWarnings = FALSE)
+dir.create(aoi_out, recursive = TRUE, showWarnings = FALSE)
 
 ESACCI <- cfg$esa_cci$classes
-
-.as_int <- function(x) as.integer(unlist(x, use.names = FALSE))
-
-vals_water  <- .as_int(ESACCI$water)
-vals_ice    <- .as_int(ESACCI$snow_ice)
-nodata_vals <- unique(c(.as_int(ESACCI$nodata), 255L))
-
+vals_water  <- .as.integer(unlist(ESACCI$wate, use.names = FALSE))
+vals_ice    <- .as.integer(unlist(ESACCI$snow_ice, use.names = FALSE))
+nodata_vals <- unique(c(.as.integer(unlist(
+  ESACCI$nodata, use.names = FALSE
+)), 255L))
+aois <- cfg$aois
+pal  <- hcl.colors(2, "batlow")
 files <- list.files(cci_dir, "*.tif$", full.names = TRUE)
 years <- as.integer(str_extract(basename(files), "(19|20)\\d{2}"))
 
-plan <- data.frame(file = files, year = years, stringsAsFactors = FALSE)
+plan <- data.frame(file = files,
+                   year = years,
+                   stringsAsFactors = FALSE)
 plan <- plan[!is.na(plan$year), ]
 
 all_pW <- all_pI <- list()
 
 for (i in seq_len(nrow(plan))) {
-
   out_tif <- file.path(
     out_dir,
     sprintf(
@@ -67,19 +70,15 @@ for (i in seq_len(nrow(plan))) {
     message("✓ Abiotic mask already exists — skipping: ", out_tif)
     quit(save = "no")
   }
-
   r <- rast(plan$file[i])
-
-  if (is.na(crs(r)))
+  if (is.na(crs(r))) {
     crs(r) <- crs(ref005)
+  }
 
   r[r %in% nodata_vals] <- NA
 
-  bin <- function(rr, codes)
-    classify(rr, cbind(codes, 1), others = 0)
-
-  pW <- resample(bin(r, vals_water), ref005, method = "average")
-  pI <- resample(bin(r, vals_ice),   ref005, method = "average")
+  pW <- resample(classify(r, cbind(vals_water, 1), others = 0), ref005, method = "average")
+  pI <- resample(classify(r, cbind(vals_ice, 1), others = 0), ref005, method = "average")
 
   all_pW[[i]] <- pW
   all_pI[[i]] <- pI
@@ -124,23 +123,24 @@ quicklook_mask_all_aois(
 # -------------------------------------------------------------------------
 # AOI individual quicklooks
 # -------------------------------------------------------------------------
-aoi_out <- file.path(ql_dir, "aois")
-dir.create(aoi_out, recursive = TRUE, showWarnings = FALSE)
 
-aois <- cfg$aois
-pal  <- hcl.colors(2, "batlow")
+
 
 for (nm in names(aois)) {
-
   aoi <- aois[[nm]]
   ext_aoi <- ext(aoi$lon_min, aoi$lon_max, aoi$lat_min, aoi$lat_max)
-
   r_aoi <- crop(abi_mask, ext_aoi, snap = "near")
-
   ofile <- file.path(aoi_out, sprintf("abiotic_mask_%s.png", nm))
-
-  png(ofile, width = 900, height = 900, res = 120)
-  plot(r_aoi, col = pal, axes = TRUE, main = sprintf("Abiotic mask\nAOI: %s", nm))
+  png(ofile,
+      width = 900,
+      height = 900,
+      res = 120)
+  plot(
+    r_aoi,
+    col = pal,
+    axes = TRUE,
+    main = sprintf("Abiotic mask\nAOI: %s", nm)
+  )
   dev.off()
 }
 
@@ -148,8 +148,6 @@ for (nm in names(aois)) {
 # Final reporting
 # -------------------------------------------------------------------------
 p_drop <- global(ifel(abi_mask, 1, 0), "mean", na.rm = TRUE)[1, 1]
-
-gc()
 
 cat(
   glue(
@@ -160,3 +158,4 @@ cat(
     "AOI quicklooks → {aoi_out}\n"
   )
 )
+gc()
