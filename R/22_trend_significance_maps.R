@@ -17,12 +17,12 @@ suppressPackageStartupMessages({
 })
 
 ROOT <- here::here()
-
+terraOptions(memfrac = 0.6)
 # ------------------------------------------------------------------------------
 # USER CONFIG
 # ------------------------------------------------------------------------------
 VARS    <- c("LAI", "FPAR")
-METRICS <- c("yearmean", "yearmax", "yearamp")
+METRICS <- c("yearmean", "yearmax")
 
 MASKS <- c("CCI", "GLC")
 TAU   <- c("tau_0.05", "tau_0.1", "tau_0.2")
@@ -45,33 +45,28 @@ lab_deg <- scales::label_number(suffix = "°")
 # ------------------------------------------------------------------------------
 # Per-pixel trend p-value (AR1-effective sample size correction)
 # ------------------------------------------------------------------------------
-trend_p_ar1 <- function(y) {
-  # y: numeric vector (time series for one pixel)
-  ok <- is.finite(y)
+trend_p_ar1 <- function(y, years) {
+  ok <- is.finite(y) & is.finite(years)
   n  <- sum(ok)
   if (n < MIN_N) return(c(NA_real_, NA_real_, NA_real_))  # slope, p, neff
 
   yy <- y[ok]
-  tt <- seq_len(n)
+  tt <- years[ok]
 
   fit <- try(lm(yy ~ tt), silent = TRUE)
   if (inherits(fit, "try-error")) return(c(NA_real_, NA_real_, NA_real_))
 
   slope <- unname(coef(fit)[2])
-
-  res <- residuals(fit)
+  res   <- residuals(fit)
   if (length(res) < 3) return(c(slope, NA_real_, NA_real_))
 
-  # lag-1 autocorrelation of residuals
   r1 <- suppressWarnings(stats::cor(res[-length(res)], res[-1], use = "complete.obs"))
   if (!is.finite(r1)) r1 <- 0
   r1 <- max(min(r1, 0.99), -0.99)
 
-  # effective sample size (approx)
   neff <- n * (1 - r1) / (1 + r1)
-  neff <- max(neff, 3.1)  # keep df > 1
+  neff <- max(neff, 3.1)
 
-  # inflate SE by sqrt(n / neff)
   se_ols <- summary(fit)$coefficients[2, 2]
   se_adj <- se_ols * sqrt(n / neff)
 
@@ -94,7 +89,7 @@ plot_slope_sig <- function(df, var, metric, domain_lab, SD_K = 2) {
     geom_raster(aes(fill = slope_c, alpha = sig)) +
     geom_sf(data = coast, inherit.aes = FALSE,
             colour = "black", linewidth = 0.2) +
-    coord_sf(xlim = c(-180, 180), ylim = c(-90, 90), expand = FALSE) +
+    coord_equal(expand = FALSE) +
     scale_x_continuous(breaks = seq(-180, 180, 60), labels = lab_deg) +
     scale_y_continuous(breaks = seq(-90, 90, 30), labels = lab_deg) +
     scale_fill_scico(
@@ -105,13 +100,11 @@ plot_slope_sig <- function(df, var, metric, domain_lab, SD_K = 2) {
     ) +
     scale_alpha_manual(values = c(`0` = 0.20, `1` = 1.00), guide = "none") +
     labs(
-      title    = sprintf("%s %s trend (significance faded)", var, metric),
+      title    = sprintf("%s %s trend (AR1 p-values)", var, metric),
       subtitle = domain_lab,
       x = "Longitude", y = "Latitude"
     ) +
-    theme_bw(base_size = 11) +
-    theme(axis.text.y = element_blank(),
-          axis.title.y = element_blank())
+    theme_bw(base_size = 11)
 }
 
 # ------------------------------------------------------------------------------
@@ -121,42 +114,39 @@ run_domain <- function(var, metric, domain, tau = NA, mask = NA) {
 
   if (domain == "unmasked") {
     f_data  <- file.path(IN_UNMASK, sprintf("%s_georef_%s_0p25.nc", var, metric))
-    f_slope <- file.path(IN_UNMASK, sprintf("%s_georef_%s_trend_slope_peryear_0p25.nc", var, metric))
     domain_lab <- "Unmasked (all land)"
     out_base <- file.path(OUTDIR, "unmasked", var, metric)
   } else {
     base <- file.path(ROOT, "output", tau, "eval", sprintf("trend_%s_%s", var, mask))
     f_data  <- file.path(base, sprintf("%s_%s_0p25.nc", var, metric))
-    f_slope <- file.path(base, sprintf("%s_%s_trend_slope_peryear_0p25.nc", var, metric))
     domain_lab <- sprintf("Masked (%s, τ=%s)", mask, sub("tau_", "", tau))
     out_base <- file.path(OUTDIR, "masked", tau, paste0(var, "_", mask), metric)
   }
 
   dir.create(out_base, recursive = TRUE, showWarnings = FALSE)
 
-  if (!file.exists(f_data) || !file.exists(f_slope)) {
-    warning("Missing inputs: ", f_data, " or ", f_slope)
+  if (!file.exists(f_data)) {
+    warning("Missing inputs: ", f_data)
     return(invisible(NULL))
   }
 
   r_data  <- rast(f_data)
-  r_slope <- rast(f_slope)
 
   # compute slope + p + neff from the actual time series (not from stored slope)
   # (keeps p-values coherent even if slope file was computed differently)
   message("Computing p-values: ", domain_lab, " / ", var, " / ", metric)
 
-  r_stats <- terra::app(r_data, fun = trend_p_ar1, cores = NCORES)
-  names(r_stats) <- c("slope_fit", "pval", "neff")
+  yrs <- 1982:(1982 + nlyr(r_data) - 1L)
 
-  # keep your original slope raster (for consistency with earlier figures),
-  # but use p-values from the fit
+  r_stats <- terra::app(r_data, fun = \(x) trend_p_ar1(x, yrs), cores = NCORES)
+  names(r_stats) <- c("slope_fit_peryr", "pval", "neff")
+
   r_pval <- r_stats[["pval"]]
 
-  # significance mask
-  r_sig <- ifel(r_pval < ALPHA, 1, 0)
+  # significance mask (0/1, keep NA where p is NA)
+  r_sig <- ifel(is.na(r_pval), NA_real_, ifel(r_pval < ALPHA, 1, 0))
 
-  # optional FDR (BH) q-values
+  # optional BH q-values (on p-values)
   r_qval <- NULL
   if (USE_FDR) {
     p <- values(r_pval, mat = FALSE)
@@ -165,48 +155,49 @@ run_domain <- function(var, metric, domain, tau = NA, mask = NA) {
     q[ok] <- p.adjust(p[ok], method = "BH")
     r_qval <- r_pval
     values(r_qval) <- q
-    r_sig <- ifel(r_qval < ALPHA, 1, 0)
+    r_sig <- ifel(is.na(r_qval), NA_real_, ifel(r_qval < ALPHA, 1, 0))
   }
 
   # save rasters
-  writeCDF(r_pval, file.path(out_base, sprintf("%s_%s_trend_pval_ar1_0p25.nc", var, metric)),
+  writeCDF(r_stats[["slope_fit_peryr"]],
+           file.path(out_base, sprintf("%s_%s_trend_slope_fit_peryr_ar1_0p25.nc", var, metric)),
            overwrite = TRUE)
-  writeCDF(r_sig,  file.path(out_base, sprintf("%s_%s_trend_sigmask_0p25.nc", var, metric)),
+  writeCDF(r_pval,
+           file.path(out_base, sprintf("%s_%s_trend_pval_ar1_0p25.nc", var, metric)),
            overwrite = TRUE)
   if (!is.null(r_qval)) {
-    writeCDF(r_qval, file.path(out_base, sprintf("%s_%s_trend_qval_bh_0p25.nc", var, metric)),
+    writeCDF(r_qval,
+             file.path(out_base, sprintf("%s_%s_trend_qval_bh_0p25.nc", var, metric)),
              overwrite = TRUE)
   }
+  writeCDF(r_sig,
+           file.path(out_base, sprintf("%s_%s_trend_sigmask_0p25.nc", var, metric)),
+           overwrite = TRUE)
 
-  # map dataframe (slope from your stored slope file; sig from mask)
-  df_slope <- as.data.frame(r_slope, xy = TRUE, na.rm = FALSE)
-  colnames(df_slope)[1:2] <- c("lon", "lat")
-  colnames(df_slope)[3]   <- "slope"
+  # dataframe for plotting (use fitted slope to match p-values)
+  r_plot <- c(r_stats[["slope_fit_peryr"]], r_sig)
+  names(r_plot) <- c("slope", "sig")
 
-  df_sig <- as.data.frame(r_sig, xy = TRUE, na.rm = FALSE)
-  colnames(df_sig)[1:2] <- c("lon", "lat")
-  colnames(df_sig)[3]   <- "sig"
+  df <- as.data.frame(r_plot, xy = TRUE, na.rm = FALSE) |>
+    rename(lon = x, lat = y) |>
+    filter(is.finite(slope), is.finite(sig)) |>
+    mutate(sig = factor(as.integer(sig), levels = c(0, 1)))
 
-  df <- df_slope |>
-    inner_join(df_sig, by = c("lon", "lat")) |>
-    filter(is.finite(slope), is.finite(sig))
-
-  p_map <- plot_slope_sig(df, var, metric, domain_lab, SD_K = SD_K)
-
-  ggsave(
-    file.path(out_base, sprintf("%s_%s_trend_map_sigfaded.png", var, metric)),
-    p_map, width = 7.2, height = 3.8, dpi = 330
-  )
-
-  # global area fraction significant (area-weighted, by latitude)
   df_frac <- df |>
     mutate(w = cos(lat * pi / 180)) |>
+    filter(is.finite(w)) |>
     summarise(
-      frac_sig = sum(w * (sig == 1), na.rm = TRUE) / sum(w, na.rm = TRUE),
+      frac_sig = sum(w * (sig == "1"), na.rm = TRUE) / sum(w, na.rm = TRUE),
       n_pix    = n()
     )
 
   write_csv(df_frac, file.path(out_base, "summary_significance_fraction.csv"))
+
+  domain_lab2 <- sprintf("%s | frac. significant = %.3f", domain_lab, df_frac$frac_sig)
+  p_map <- plot_slope_sig(df, var, metric, domain_lab2, SD_K = SD_K)
+
+  ggsave(file.path(out_base, sprintf("%s_%s_trend_map_sigfaded.png", var, metric)),
+         p_map, width = 7.2, height = 3.8, dpi = 330)
 
   invisible(NULL)
 }

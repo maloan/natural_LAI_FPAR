@@ -41,6 +41,22 @@ suppressPackageStartupMessages({
   library(parallel)
 })
 
+baseline_mean_raster <- function(r_series, years, base_start = BASE_START, base_end = BASE_END) {
+  idx <- which(years >= base_start & years <= base_end)
+  stopifnot(length(idx) > 1)
+  mean(r_series[[idx]], na.rm = TRUE)
+}
+trend_test_hac <- function(df, y = "value", x = "year") {
+
+  fit <- lm(reformulate(x, y), data = df)
+  ct  <- lmtest::coeftest(fit, vcov. = sandwich::NeweyWest(fit))
+  tibble(
+    slope = unname(coef(fit)[2]),
+    p     = ct[2, 4],
+    r2    = summary(fit)$r.squared
+  )
+}
+
 `%||%` <- function(a, b) {
   if (is.null(a)) {
     return(b)

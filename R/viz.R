@@ -40,6 +40,18 @@ suppressPackageStartupMessages({
 source(here("R/utils.R"))
 source(here("R/geom.R"))
 
+theme_pub <- function() {
+  theme_bw(base_size = 12) +
+    theme(
+      panel.grid.major = element_line(color = "grey87", linewidth = 0.3),
+      panel.grid.minor = element_blank(),
+      plot.title       = element_text(size = 13, face = "bold"),
+      plot.subtitle    = element_text(size = 10),
+      axis.title       = element_text(size = 11),
+      axis.text        = element_text(size = 9)
+    )
+}
+lab_deg <- scales::label_number(suffix = "°")
 # ==============================================================================
 # Palettes
 # ==============================================================================
@@ -61,33 +73,57 @@ viz_dir_for <- function(cfg, step_tag) {
   return(d)
 }
 
+quad_palette <- function() {
+  c(
+    Q1_both_pos       = "#0072B2",
+    Q2_both_neg       = "#D55E00",
+    Q3_LAIpos_FPARneg = "#009E73",
+    Q4_LAIneg_FPARpos = "#CC79A7",
+    Q0_weak_or_zero   = "grey70"
+  )
+}
 
 # ==============================================================================
 # Grid and coast overlays
 # ==============================================================================
+plot_map_slope <- function(df, var_name, SD_K = 2, coast = NULL) {
 
-.add_overlays <- function(r,
-                          grid_step = 30,
-                          grid_col = "grey85",
-                          coast_col = "grey25",
-                          lwd = 0.6) {
-  abline(
-    h = seq(-90, 90, by = grid_step),
-    v = seq(-180, 180, by = grid_step),
-    col = grid_col,
-    lwd = lwd
-  )
-  if (.have_maps) {
-    ex <- terra::ext(r)
-    mp <- maps::map(
-      "world",
-      xlim = c(ex[1], ex[2]),
-      ylim = c(ex[3], ex[4]),
-      plot = FALSE
+  if (is.null(coast)) {
+    coast <- rnaturalearth::ne_coastline(
+      scale = 110,
+      returnclass = "sf"
     )
-    lines(mp$x, mp$y, col = coast_col, lwd = lwd)
   }
+
+  sdev  <- sd(df$slope, na.rm = TRUE)
+  clamp <- SD_K * sdev
+  df$slope_clamped <- pmax(pmin(df$slope, clamp), -clamp)
+
+  ggplot(df, aes(lon, lat)) +
+    geom_raster(aes(fill = slope_clamped)) +
+    geom_sf(
+      data = coast,
+      inherit.aes = FALSE,
+      colour = "black",
+      linewidth = 0.2
+    ) +
+    coord_sf(expand = FALSE) +
+    scale_x_continuous(breaks = seq(-180, 180, 60), labels = lab_deg) +
+    scale_y_continuous(breaks = seq(-90, 90, 30), labels = lab_deg) +
+    scale_fill_scico(
+      palette = "bam",
+      name = paste0(var_name, " trend (% yr⁻¹)"),
+      limits  = c(-clamp, clamp),
+      oob     = scales::squish
+    ) +
+    labs(
+      x = "Longitude",
+      y = "Latitude",
+      title = paste0(var_name, " trend (per year)")
+    ) +
+    theme_pub()
 }
+
 
 
 # ==============================================================================

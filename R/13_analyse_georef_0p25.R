@@ -12,9 +12,13 @@ suppressPackageStartupMessages({
   library(sf)
   library(here)
   library(scico)
-  library(ggspatial)
   library(scales)
+  library(lmtest)
+  library(sandwich)
 })
+
+source(here("R", "utils.R"))
+source(here("R", "viz.R"))
 
 # -----------------------------------------------------------------------------
 # USER CONFIGURATION
@@ -22,80 +26,64 @@ suppressPackageStartupMessages({
 VAR <- "LAI"   # LAI or "FPAR"
 ROOT <- here::here()
 SD_K <- 2      # clamp at ±K standard deviations
+BASE_START <- 1982
+BASE_END   <- 2000
 
-metrics <- c("yearmean", "yearmax", "yearamp")
+
+metrics <- c("yearmean", "yearmax")
 
 input_dir <- file.path(ROOT, "analysis", "unmasked", "0p25")
 fig_dir   <- file.path(ROOT, "analysis", "trends_unmasked", VAR)
 dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
 coast <- rnaturalearth::ne_coastline(scale = 110, returnclass = "sf")
-land  <- rnaturalearth::ne_countries(scale = 110, returnclass = "sf")
-grat <- sf::st_graticule(lon = seq(-180, 180, by = 30),
-                         lat = seq(-90, 90, by = 30))
+lab_deg <- label_deg()
+
 
 # -----------------------------------------------------------------------------
 # Helper
 # -----------------------------------------------------------------------------
-theme_pub <- function() {
-  theme_bw(base_size = 12) +
-    theme(
-      panel.grid.major = element_line(color = "grey87", linewidth = 0.3),
-      panel.grid.minor = element_blank(),
-      plot.title       = element_text(size = 13, face = "bold"),
-      plot.subtitle    = element_text(size = 10),
-      axis.title       = element_text(size = 11),
-      axis.text        = element_text(size = 9)
-    )
-}
 
 plot_trend_map <- function(df, metric, trend_label, var_name, SD_K = 2) {
   sdev  <- sd(df$slope, na.rm = TRUE)
   clamp <- SD_K * sdev
   df$slope_clamped <- pmax(pmin(df$slope, clamp), -clamp)
-  lab_deg <- scales::label_number(suffix = "°")
 
   ggplot(df, aes(lon, lat)) +
-    # raster field
     geom_raster(aes(fill = slope_clamped)) +
-    # coastline overlay
-    geom_sf(
-      data = coast,
-      colour = "black",
-      linewidth = 0.2,
-      inherit.aes = FALSE
-    ) +
-    # coordinate system + limits
-    coord_sf(
-      xlim = range(df$lon, na.rm = TRUE),
-      ylim = range(df$lat, na.rm = TRUE),
-      expand = FALSE
-    ) +
+    geom_sf(data = coast, colour = "black", linewidth = 0.15, inherit.aes = FALSE) +
+    coord_sf(xlim = c(-180, 180), ylim = c(-90, 90), expand = FALSE) +
     scale_x_continuous(breaks = seq(-180, 180, 60), labels = lab_deg) +
     scale_y_continuous(breaks = seq(-90, 90, 30), labels = lab_deg) +
     scale_fill_scico(
       palette = "bam",
-      name   = paste0(var_name, " trend (", trend_label, ")"),
+      name = paste0(var_name, " trend (% yr⁻¹, baseline-normalised)"),
       limits = c(-clamp, clamp),
       oob    = scales::squish
     ) +
     labs(
       x = "Longitude",
       y = "Latitude",
-      title    = paste0(var_name, ": ", metric, " trend (", trend_label, ")"),
-    )
+      title = sprintf("%s: %s trend (%s)", var_name, metric, trend_label)
+    ) +
+    theme_pub()
 }
+
 
 plot_zonal <- function(df_zonal, metric, trend_label, var_name) {
   ggplot(df_zonal, aes(slope_mean, lat_band)) +
-    geom_vline(xintercept = 0,
-               color = "grey60",
-               linewidth = 0.35) +
-    geom_path(color = "black", linewidth = 0.55) +
+    geom_vline(xintercept = 0, color = "grey60", linewidth = 0.35) +
+    geom_path(linewidth = 0.7, color = "black") +
+    geom_smooth(method = "lm", se = FALSE, linewidth = 0.6, color = "red") +
+    scale_y_continuous(
+      limits = c(-90, 90),
+      breaks = seq(-90, 90, 30),
+      labels = lab_deg
+    ) +
     labs(
-      x = paste0(var_name, " trend (", trend_label, ")"),
+      x = sprintf("%s trend (%s)", var_name, trend_label),
       y = "Latitude (°)",
-      title = paste0(var_name, ": Zonal mean trend — ", metric),
-      subtitle = "Mean trend for 1° latitude bands"
+      title = sprintf("%s: zonal mean %s trend", var_name, metric),
+      subtitle = "1° latitude bands"
     ) +
     theme_pub()
 }
@@ -124,13 +112,23 @@ for (M in metrics) {
 
   # --- Load annual series -----------------------------------------------------
   r_series <- rast(file_data)
-  years    <- 1982:(1982 + nlyr(r_series) - 1)
+  years    <- BASE_START:(BASE_START + nlyr(r_series) - 1)
+  # --- sanity: baseline years must exist in this file ---
+  if (!any(years >= BASE_START & years <= BASE_END)) {
+    warning("Baseline window not covered by ", basename(file_data), " — skipping.")
+    next
+  }
 
   # --- Global time series -----------------------------------------------------
   glob <- terra::global(r_series, "mean", na.rm = TRUE) |>
     as_tibble() |>
     rename(value = 1) |>
     mutate(year = years)
+
+  # --- relative change (% of baseline mean) ---
+  base_mean <- mean(glob$value[glob$year >= BASE_START & glob$year <= BASE_END], na.rm = TRUE)
+  glob <- glob |> mutate(value = 100 * value / base_mean)
+  sig  <- trend_test_hac(glob)
 
   p_ts <- ggplot(glob, aes(year, value)) +
     geom_line(linewidth = 0.55, color = "black") +
@@ -142,9 +140,12 @@ for (M in metrics) {
     ) +
     labs(
       x = "Year",
-      y = paste0(VAR, " (annual global mean)"),
+      y = sprintf("%s (%% of %d–%d mean)", VAR, BASE_START, BASE_END),
       title = paste0(VAR, ": Global annual mean — ", M),
-      subtitle = sprintf("Period: %d–%d (unmasked 0.25°)", years[1], years[length(years)])
+      subtitle = sprintf(
+        "Relative slope = %.3g %% yr⁻¹, p = %.3f (HAC)",
+        sig$slope, sig$p
+      )
     ) +
     theme_pub()
 
@@ -158,10 +159,23 @@ for (M in metrics) {
 
   # --- Load slope data --------------------------------------------------------
   r_year <- rast(file_slope_year)
-  ref <- rast(file.path(ROOT, "src/ref_0p25.nc"))
-  r_year <- terra::project(r_year, ref)
-  crs(r_year) <- "EPSG:4326"
-  ext(r_year) <- ext(-180, 180, -90, 90)
+  # Require at least N valid baseline years per pixel to define % trends robustly
+  MIN_BASE_YEARS <- 10L
+  idx_base <- which(years >= BASE_START & years <= BASE_END)
+  n_ok_base <- terra::app(r_series[[idx_base]], fun = function(v) sum(is.finite(v)))
+
+  # --- relative trend (% per year) ---
+  r_base <- baseline_mean_raster(r_series, years, BASE_START, BASE_END)
+
+  # Convert absolute slope (units yr^-1) to relative slope (% yr^-1)
+  r_year <- 100 * (r_year / r_base)
+
+  r_year <- ifel(
+    (abs(r_base) < 1e-8) | (n_ok_base < MIN_BASE_YEARS),
+    NA, r_year
+  )
+
+
   df_year <- as.data.frame(r_year, xy = TRUE, na.rm = TRUE)
   colnames(df_year) <- c("lon", "lat", "slope")
 
@@ -180,8 +194,11 @@ for (M in metrics) {
   df_year_zonal <- df_year |>
     mutate(lat_band = floor(lat)) |>
     group_by(lat_band) |>
-    summarise(slope_mean = mean(slope, na.rm = TRUE),
-              .groups = "drop")
+    summarise(
+      slope_mean = weighted.mean(slope, w = cos(lat_band * pi / 180), na.rm = TRUE),
+      .groups = "drop"
+    )
+
   p_z_year <- plot_zonal(df_year_zonal, M, "per year", VAR)
   ggsave(
     file.path(fig_dir, sprintf("%s_%s_zonal_peryear.png", VAR, M)),

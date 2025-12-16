@@ -16,7 +16,6 @@ analyse_dropped_region <- function(VAR,
     library(sf)
     library(rnaturalearth)
     library(scales)
-    library(patchwork)
   })
 
   # ----------------------------------------------------------------------
@@ -28,13 +27,17 @@ analyse_dropped_region <- function(VAR,
   f_geo_slope <- file.path(geo_dir,
                            sprintf("%s_georef_%s_trend_slope_peryear_0p25.nc", VAR, METRIC))
   f_mask_data  <- file.path(eval_dir, sprintf("%s_%s_0p25.nc", VAR, METRIC))
-  f_mask_slope <- file.path(eval_dir,
-                            sprintf("%s_%s_trend_slope_peryear_0p25.nc", VAR, METRIC))
+  files <- c(f_geo_data, f_geo_slope, f_mask_data)
+  if (!all(file.exists(files))) {
+    warning("Missing inputs — skipping ",
+            VAR, " ", METRIC, " ", MASK, " ", TAU)
+    return(invisible(NULL))
+  }
 
   # ----------------------------------------------------------------------
   # Output directory
   # ----------------------------------------------------------------------
-  OUTDIR <- file.path(OUTDIR, sprintf("%s/%s", TAU, VAR))
+  OUTDIR <- file.path(OUTDIR, TAU, VAR, sprintf("%s_%s", METRIC, MASK))
   dir.create(OUTDIR, recursive = TRUE, showWarnings = FALSE)
 
   # ----------------------------------------------------------------------
@@ -63,11 +66,22 @@ analyse_dropped_region <- function(VAR,
   # Build mask indicating DROPPED pixels
   # (present in unmasked but NA in masked)
   # ----------------------------------------------------------------------
-  dropped_mask <- ifel(!is.na(r_geo[[1]]) &
-                         is.na(r_mask[[1]]), 1, NA)
-  # Trend in dropped region only
-  r_dropped_trend <- mask(r_slope, dropped_mask)
+  dropped_mask <- ifel(!is.na(r_geo[[1]]) & is.na(r_mask[[1]]), 1, NA)
+
+  # baseline mean for dropped region
+  r_base <- baseline_mean_raster(r_geo, years, 1982, 2000)
+  r_dropped_trend <- r_slope * dropped_mask
+  EPS <- 1e-8
+  r_dropped_trend <- ifel(abs(r_base) < EPS, NA_real_,
+                          100 * r_dropped_trend / r_base)
+
+
   df_trend <- as.data.frame(r_dropped_trend, xy = TRUE, na.rm = TRUE)
+  if (nrow(df_trend) < 10) {
+    warning("Too few dropped pixels — skipping plots")
+    return(invisible(NULL))
+  }
+
   colnames(df_trend) <- c("lon", "lat", "slope")
   # ----------------------------------------------------------------------
   # 1. Trend map
@@ -76,7 +90,7 @@ analyse_dropped_region <- function(VAR,
   clamp <- SD_K * sdev
   df_trend$slope_clamped <- pmax(pmin(df_trend$slope, clamp), -clamp)
   p_map <- ggplot(df_trend, aes(lon, lat)) +
-    geom_tile(aes(fill = slope_clamped)) +
+    geom_raster(aes(fill = slope_clamped)) +
     geom_sf(
       data = coast,
       color = "black",
@@ -85,7 +99,7 @@ analyse_dropped_region <- function(VAR,
     ) +
     scale_fill_scico(
       palette = "bam",
-      name = sprintf("%s trend (dropped region)", VAR),
+      name = sprintf("%s trend (%% yr⁻¹, rel. to 1982–2000)", VAR),
       limits = c(-clamp, clamp),
       oob = scales::squish
     ) +
@@ -111,10 +125,13 @@ analyse_dropped_region <- function(VAR,
   # ----------------------------------------------------------------------
   # 2. Global mean trend
   # ----------------------------------------------------------------------
-  global_mean_trend <- mean(df_trend$slope, na.rm = TRUE)
+  global_mean_trend <- with(df_trend,
+                            weighted.mean(slope, w = cos(lat * pi / 180), na.rm = TRUE)
+  )
+
   writeLines(
     sprintf(
-      "Global mean trend in dropped region: %.6f per year",
+      "Global mean trend in dropped region: %.6f %% yr-1 (rel. to 1982–2000)",
       global_mean_trend
     ),
     con = file.path(OUTDIR, "summary.txt")
@@ -123,16 +140,17 @@ analyse_dropped_region <- function(VAR,
   # 3. Zonal mean trend
   # ----------------------------------------------------------------------
   df_zonal <- df_trend |>
-    mutate(lat_band = floor(lat)) |>
+    mutate(lat_band = round(lat)) |>
     group_by(lat_band) |>
-    summarise(mean_trend = mean(slope, na.rm = TRUE),
-              .groups = "drop")
+    summarise(
+      mean_trend = weighted.mean(slope, cos(lat * pi / 180), na.rm = TRUE)
+    )
   p_zonal <- ggplot(df_zonal, aes(mean_trend, lat_band)) +
     geom_vline(xintercept = 0, color = "grey60") +
     geom_path(linewidth = 0.7, color = "black") +
     scale_y_continuous(labels = lab_deg) +
     labs(
-      x = sprintf("%s trend (per year)", VAR),
+      x = sprintf("%s trend (%% yr⁻¹)", VAR),
       y = "Latitude (°)",
       title = sprintf("%s %s: Zonal trend of masked-out region", VAR, METRIC)
     ) + theme_pub()
@@ -150,38 +168,36 @@ analyse_dropped_region <- function(VAR,
   # ----------------------------------------------------------------------
   # 4. Time series for the dropped regions
   # ----------------------------------------------------------------------
-  # For each year: mask yearly raster -> compute global mean
-  dropped_ts <- tibble(year = years, value = sapply(1:nlyr(r_geo), function(i) {
-    r_year <- mask(r_geo[[i]], dropped_mask)
-    mean(values(r_year), na.rm = TRUE)
-  }))
+  r_dropped_ts <- r_geo * dropped_mask
+  dropped_ts <- terra::global(r_dropped_ts, "mean", na.rm = TRUE) |>
+    as_tibble() |>
+    rename(value = 1) |>
+    mutate(year = years)
 
-  p_ts <- ggplot(dropped_ts, aes(year, value)) +
-    geom_line(linewidth = 0.55) +
-    geom_smooth(
-      method = "lm",
-      se = FALSE,
-      color = "red",
-      linewidth = 0.55
-    ) +
-    labs(
-      x = "Year",
-      y = sprintf("%s (global mean)", VAR),
-      title = sprintf("%s %s: Annual series (masked-out region)", VAR, METRIC),
-      subtitle = sprintf("%s mask", MASK)
-    ) +
-    theme_pub()
-  ggsave(
-    file.path(
-      OUTDIR,
-      sprintf("timeseries_dropped_%s_%s.png", METRIC, MASK)
-    ),
-    p_ts,
-    width = 6.4,
-    height = 4.2,
-    dpi = 330
-  )
-  message("\nFinished dropped-region analysis: ", OUTDIR)
+  base_ts <- mean(dropped_ts$value[dropped_ts$year <= 2000], na.rm = TRUE)
+
+  if (!is.finite(base_ts) || abs(base_ts) < EPS) {
+    warning("Invalid baseline for dropped-region time series — skipping TS")
+  } else {
+    dropped_ts <- dropped_ts |> mutate(value = 100 * value / base_ts)
+    sig_drop <- trend_test_hac(dropped_ts)
+
+    p_ts <- ggplot(dropped_ts, aes(year, value)) +
+      geom_line(linewidth = 0.55) +
+      geom_smooth(method = "lm", se = FALSE, color = "red", linewidth = 0.55) +
+      labs(
+        x = "Year",
+        y = sprintf("%s (global mean; %% of 1982–2000)", VAR),
+        title = sprintf("%s %s: Annual series (masked-out region)", VAR, METRIC),
+        subtitle = sprintf("%s mask | slope = %.3g %% yr⁻¹, p = %.3f",
+                           MASK, sig_drop$slope, sig_drop$p)
+      ) +
+      theme_pub()
+
+    ggsave(file.path(OUTDIR, sprintf("timeseries_dropped_%s_%s.png", METRIC, MASK)),
+           p_ts, width = 6.4, height = 4.2, dpi = 330)
+  }
+
 }
 # ------------------------------------------------------------------------------
 # Run
