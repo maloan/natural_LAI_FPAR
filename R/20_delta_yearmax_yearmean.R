@@ -35,7 +35,7 @@ for (var in VARS) {
   f_yearmean <- file.path(DIR_UNM,
                           sprintf("%s_georef_yearmean_trend_slope_peryear_0p25.nc", var))
 
-  if (!file.exists(f_yearmax) || !file.exists(f_yearmean)) {
+  if (!file.exists(f_yearmax) | !file.exists(f_yearmean)) {
     warning("Missing trend inputs for: ", var)
     next
   }
@@ -44,35 +44,9 @@ for (var in VARS) {
   r_yearmean <- rast(f_yearmean)
 
   ## --------------------------------------------------------------------------
-  ## Baseline mean (1982–2000) for relative normalisation
+  ## Δ = yearmax – yearmean
   ## --------------------------------------------------------------------------
-  f_base <- file.path(
-    DIR_UNM,
-    sprintf("%s_georef_yearmean_0p25.nc", var)
-  )
-
-  r_base_ts <- rast(f_base)
-  years <- 1982:(1982 + nlyr(r_base_ts) - 1L)
-  idx   <- years >= 1982 & years <= 2000
-  if (!any(idx)) {
-    warning("Baseline period not covered for: ", var)
-    next
-  }
-
-  # Mean annual baseline canopy state
-  r_base <- mean(r_base_ts[[idx]], na.rm = TRUE)
-
-  ## --------------------------------------------------------------------------
-  ## Convert trends to relative (% yr⁻¹)
-  ## --------------------------------------------------------------------------
-  EPS <- 1e-8
-  r_yearmax_rel  <- ifel(abs(r_base) < EPS, NA_real_, 100 * r_yearmax  / r_base)
-  r_yearmean_rel <- ifel(abs(r_base) < EPS, NA_real_, 100 * r_yearmean / r_base)
-
-  ## --------------------------------------------------------------------------
-  ## Δ = relative(yearmax) − relative(yearmean)
-  ## --------------------------------------------------------------------------
-  r_delta <- r_yearmax_rel - r_yearmean_rel
+  r_delta <- r_yearmax - r_yearmean
 
   ## --------------------------------------------------------------------------
   ## Save NetCDF
@@ -102,11 +76,10 @@ for (var in VARS) {
     ) +
     scale_fill_scico(
       palette = "bam",
-      name = expression(Delta*" trend (% yr"^{-1}*")"),
-      limits = c(-lim, lim),
-      oob = scales::squish
+      name = expression(Delta == yearmax - yearmean),
+      limits = c(-lim, lim)
     ) +
-    coord_equal(expand = FALSE) +
+    coord_sf(expand = FALSE) +
     labs(title = sprintf("Δ-trend(yearmax – yearmean) — %s", var),
          subtitle = "Positive = stronger trend in seasonal peak (yearmax)") +
     theme_bw(base_size = 11)

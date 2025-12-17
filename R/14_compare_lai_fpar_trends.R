@@ -14,47 +14,40 @@ suppressPackageStartupMessages({
   library(readr)
   library(scales)
 })
-source(here("R", "utils.R"))
-source(here("R", "viz.R"))
+
 ROOT   <- here::here()
 DIR025 <- file.path(ROOT, "analysis/unmasked/0p25")
 OUTDIR <- file.path(ROOT, "analysis/lai_vs_fpar")
-
-OUTDIR_Q <- file.path(OUTDIR, "quadrants")
-dir.create(OUTDIR_Q, recursive = TRUE, showWarnings = FALSE)
 dir.create(OUTDIR, showWarnings = FALSE, recursive = TRUE)
 
 f_lai  <- file.path(DIR025, "LAI_georef_yearmean_trend_slope_peryear_0p25.nc")
 f_fpar <- file.path(DIR025, "FPAR_georef_yearmean_trend_slope_peryear_0p25.nc")
-f_lai_base  <- file.path(DIR025, "LAI_georef_yearmean_0p25.nc")
-f_fpar_base <- file.path(DIR025, "FPAR_georef_yearmean_0p25.nc")
 
-BASE_START <- 1982
-BASE_END   <- 2000
-coast <- rnaturalearth::ne_coastline(scale = 110, returnclass = "sf")
+# ----------------------------------------------------------------------
+# Theme
+# ----------------------------------------------------------------------
+theme_pub <- function() {
+  theme_bw(base_size = 12) +
+    theme(
+      panel.grid.major = element_line(color = "grey87", linewidth = 0.3),
+      panel.grid.minor = element_blank(),
+      plot.title       = element_text(size = 13, face = "bold"),
+      plot.subtitle    = element_text(size = 10),
+      axis.title       = element_text(size = 11),
+      axis.text        = element_text(size = 9)
+    )
+}
+
+lab_deg <- scales::label_number(suffix = "°")
+coast   <- rnaturalearth::ne_coastline(scale = 110, returnclass = "sf")
 
 # ----------------------------------------------------------------------
 # 1. Load rasters efficiently
 # ----------------------------------------------------------------------
-# Load baseline time series
-r_lai_base  <- rast(f_lai_base)
-r_fpar_base <- rast(f_fpar_base)
+r_lai  <- rast(f_lai)
+r_fpar <- rast(f_fpar)
 
-years_base <- BASE_START:(BASE_START + nlyr(r_lai_base) - 1)
-idx_base   <- which(years_base >= BASE_START & years_base <= BASE_END)
-
-lai_ref  <- mean(r_lai_base[[idx_base]],  na.rm = TRUE)
-fpar_ref <- mean(r_fpar_base[[idx_base]], na.rm = TRUE)
-
-lai_ref  <- ifel(abs(lai_ref)  < 1e-8, NA_real_, lai_ref)
-fpar_ref <- ifel(abs(fpar_ref) < 1e-8, NA_real_, fpar_ref)
-
-tol <- 1e-6
-ok_ref <- is.finite(lai_ref) & is.finite(fpar_ref) & (abs(lai_ref) > tol) & (abs(fpar_ref) > tol)
-
-r_lai  <- ifel(ok_ref, 100 * rast(f_lai)  / lai_ref,  NA_real_)
-r_fpar <- ifel(ok_ref, 100 * rast(f_fpar) / fpar_ref, NA_real_)
-
+# Stack without building a huge df
 r_stack <- c(r_lai, r_fpar)
 names(r_stack) <- c("lai_trend", "fpar_trend")
 
@@ -78,6 +71,7 @@ kendall_tau <- cor(lai, fpar, method = "kendall")
 
 lmfit    <- lm(fpar ~ lai)
 slope    <- coef(lmfit)[2]
+intercept <- coef(lmfit)[1]
 r2       <- summary(lmfit)$r.squared
 rmse     <- sqrt(mean((fpar - predict(lmfit))^2))
 N        <- length(lai)
@@ -106,8 +100,8 @@ p_scatter <- ggplot(df, aes(lai_trend, fpar_trend)) +
               se = FALSE,
               colour = "#0072B2") +
   labs(
-    x = "LAI trend (% yr⁻¹)",
-    y = "fAPAR trend (% yr⁻¹)",
+    x = "LAI trend (per year)",
+    y = "fAPAR trend (per year)",
     title = "Pixel-wise correspondence of LAI and fAPAR trends",
     subtitle = stats_label
   ) +
@@ -124,13 +118,15 @@ ggsave(
 # ----------------------------------------------------------------------
 # 4. Zonal means
 # ----------------------------------------------------------------------
+df_lai_map  <- df |> select(lon, lat, slope = lai_trend)
+df_fpar_map <- df |> select(lon, lat, slope = fpar_trend)
 df <- df |> mutate(lat_band = floor(lat))
 
 df_zonal <- df |>
   group_by(lat_band) |>
   summarise(
-    lai_mean  = weighted.mean(lai_trend,  w = cos(lat * pi / 180), na.rm = TRUE),
-    fpar_mean = weighted.mean(fpar_trend, w = cos(lat * pi / 180), na.rm = TRUE),
+    lai_mean  = mean(lai_trend, na.rm = TRUE),
+    fpar_mean = mean(fpar_trend, na.rm = TRUE),
     .groups = "drop"
   )
 
@@ -145,7 +141,7 @@ p_zonal <- ggplot(df_zonal, aes(lat_band)) +
   scale_x_continuous(labels = lab_deg) +
   labs(
     x = "Latitude",
-    y = "Relative trend (% yr⁻¹)",
+    y = "Trend (per year)",
     title = "Zonal comparison of LAI and fAPAR trends",
     subtitle = "1° zonal means"
   ) +
@@ -162,12 +158,39 @@ ggsave(
 # ----------------------------------------------------------------------
 # 5. Trend maps
 # ----------------------------------------------------------------------
-
+plot_trend_map_fast <- function(df, var_name, SD_K = 5) {
+  sdev  <- sd(df$slope, na.rm = TRUE)
+  clamp <- 2 * sdev
+  df$slope_clamped <- pmax(pmin(df$slope, clamp), -clamp)
+  ggplot(df, aes(lon, lat)) +
+    geom_raster(aes(fill = slope_clamped)) +
+    geom_sf(
+      data = coast,
+      inherit.aes = FALSE,
+      colour = "black",
+      linewidth = 0.2
+    ) +
+    coord_sf(expand = FALSE) +
+    scale_x_continuous(breaks = seq(-180, 180, 60), labels = lab_deg) +
+    scale_y_continuous(breaks = seq(-90, 90, 30), labels = lab_deg) +
+    scale_fill_scico(
+      palette = "bam",
+      name    = paste0(var_name, " trend (per year)"),
+      limits  = c(-clamp, clamp),
+      oob     = scales::squish
+    ) +
+    labs(
+      x = "Longitude",
+      y = "Latitude",
+      title    = paste0(var_name, " trend (per year)")
+    ) +
+    theme_pub()
+}
 
 df_lai_map  <- df |> select(lon, lat, slope = lai_trend)
 df_fpar_map <- df |> select(lon, lat, slope = fpar_trend)
-p_map_lai  <- plot_map_slope(df_lai_map, "LAI")
-p_map_fpar <- plot_map_slope(df_fpar_map, "fAPAR")
+p_map_lai  <- plot_trend_map_fast(df_lai_map, "LAI")
+p_map_fpar <- plot_trend_map_fast(df_fpar_map, "fAPAR")
 ggsave(
   file.path(OUTDIR, "map_lai_trend_peryear.png"),
   p_map_lai,
@@ -198,24 +221,28 @@ cat("Finished: LAI–FPAR trend comparison.\n")
 ## Additional analysis: LAI–fAPAR quadrants & area fractions
 ## =============================================================================
 
+OUTDIR_Q <- file.path(OUTDIR, "quadrants")
+dir.create(OUTDIR_Q, recursive = TRUE, showWarnings = FALSE)
 
-sign_eps <- function(x, eps = 0.01){
+EPS_Q <- 0  # threshold for classifying sign; change if needed (e.g. 1e-4)
+
+sign_eps <- function(x, eps = 0) {
   ifelse(x > eps, 1L, ifelse(x < -eps, -1L, 0L))
 }
 
 df_quad <- df |>
   mutate(
-    lat_band = floor(lat),
-    weight   = cos(lat * pi / 180),
-    s_lai  = sign_eps(lai_trend),
-    s_fpar = sign_eps(fpar_trend),
+    s_lai  = sign_eps(lai_trend, EPS_Q),
+    s_fpar = sign_eps(fpar_trend, EPS_Q),
     quadrant = case_when(
       s_lai ==  1 & s_fpar ==  1 ~ "Q1_both_pos",
       s_lai == -1 & s_fpar == -1 ~ "Q2_both_neg",
       s_lai ==  1 & s_fpar == -1 ~ "Q3_LAIpos_FPARneg",
       s_lai == -1 & s_fpar ==  1 ~ "Q4_LAIneg_FPARpos",
       TRUE                       ~ "Q0_weak_or_zero"
-    )
+    ),
+    weight   = cos(lat * pi / 180),
+    lat_band = floor(lat)
   )
 
 # ----------------------------------------------------------------------
@@ -245,6 +272,8 @@ write_csv(quad_zonal,
 # ----------------------------------------------------------------------
 # 3. Quadrant map
 # ----------------------------------------------------------------------
+coast   <- rnaturalearth::ne_coastline(scale = 110, returnclass = "sf")
+lab_deg <- scales::label_number(suffix = "°")
 
 quad_cols <- c(
   Q1_both_pos         = "#0072B2",
@@ -283,4 +312,55 @@ ggsave(
 )
 
 cat("Saved LAI–fAPAR quadrant analysis to:\n  ", OUTDIR_Q, "\n")
+
+# ----------------------------------------------------------------------
+# Plotting
+# ----------------------------------------------------------------------
+
+
+ROOT   <- here::here()
+INDIR  <- file.path(ROOT, "analysis", "lai_vs_fpar", "quadrants")
+OUTDIR <- file.path(INDIR, "plots")
+dir.create(OUTDIR, recursive = TRUE, showWarnings = FALSE)
+
+df <- read_csv(file.path(INDIR, "quadrant_zonal_fractions.csv"))
+
+theme_pub <- function() {
+  theme_bw(base_size = 12) +
+    theme(
+      panel.grid.major = element_line(color = "grey87", linewidth = 0.3),
+      panel.grid.minor = element_blank(),
+      axis.text = element_text(size = 9),
+      axis.title = element_text(size = 11),
+      plot.title = element_text(size = 13, face = "bold")
+    )
+}
+
+lab_deg <- scales::label_number(suffix = "°")
+
+quad_cols <- c(
+  Q1_both_pos         = "#1b9e77",
+  Q2_both_neg         = "#d95f02",
+  Q3_LAIpos_FPARneg   = "#7570b3",
+  Q4_LAIneg_FPARpos   = "#e7298a",
+  Q0_weak_or_zero     = "grey60"
+)
+
+p <- ggplot(df, aes(lat_band, frac_area, colour = quadrant)) +
+  geom_line(linewidth = 0.8) +
+  scale_colour_manual(values = quad_cols, name = NULL) +
+  scale_x_continuous(labels = lab_deg) +
+  labs(x = "Latitude (°)", y = "Area fraction", title = "Zonal fractions of LAI–fAPAR trend quadrants") +
+  theme_pub() +
+  theme(legend.position = "bottom")
+
+ggsave(
+  file.path(OUTDIR, "lai_fpar_quadrant_zonal.png"),
+  p,
+  width = 7,
+  height = 5,
+  dpi = 330
+)
+
+cat("Saved LAI–fAPAR quadrant zonal plot to:\n  ", OUTDIR, "\n")
 

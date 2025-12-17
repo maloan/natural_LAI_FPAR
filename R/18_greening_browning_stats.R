@@ -21,8 +21,8 @@ VARS    <- c("LAI", "FPAR")
 METRICS <- c("yearmean", "yearmax")
 MASKS   <- c("CCI")
 TAU     <- c("tau_0.05", "tau_0.1", "tau_0.2")
-# Classification threshold: sign-only greening/browning
-EPS <- 0
+
+EPS     <- 0
 
 # -----------------------------------------------------------------------------
 # Helpers
@@ -43,7 +43,7 @@ add_area_weight <- function(df) {
   df |>
     mutate(
       weight = cos(lat * pi / 180),
-      lat_band = round(lat)
+      lat_band = floor(lat)  # 1° bands
     )
 }
 
@@ -226,12 +226,12 @@ df_list <- df_long |>
 for (d in df_list) {
   meta <- d |> slice(1)
 
-  p <- ggplot(d, aes(fraction, lat_band, colour = class)) +
+  p <- ggplot(d, aes(lat_band, fraction, colour = class)) +
     geom_line(linewidth = 0.8) +
     scale_x_continuous(labels = lab_deg) +
     labs(
-      x = "Area fraction",
-      y = "Latitude (°)",
+      x = "Latitude (°)",
+      y = "Area fraction",
       title = sprintf(
         "Zonal fractions: %s %s (%s, MASK=%s, τ=%s)",
         meta$VAR, meta$METRIC, meta$domain, meta$MASK, meta$TAU
@@ -242,9 +242,8 @@ for (d in df_list) {
     theme(legend.position = "bottom")
 
   outf <- sprintf(
-    "%s_%s_%s_%s_%s_zonal_fractions.png",
-    meta$VAR, meta$METRIC, meta$domain, meta$MASK, meta$TAU
-  )
+    "%s_%s_%s_zonal_fractions.png",
+    meta$VAR, meta$METRIC, meta$domain)
 
   ggsave(file.path(OUTDIR, outf), p, width = 6.5, height = 5.0, dpi = 330)
 }

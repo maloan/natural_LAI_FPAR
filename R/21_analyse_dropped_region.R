@@ -1,9 +1,3 @@
-# Interpretation:
-# Δ(yearmax − yearmean) quantifies whether long-term trends in the
-# masked-out (removed) regions are dominated by changes in seasonal
-# peak canopy state rather than changes in the annual mean canopy state.
-# Positive values indicate relatively stronger peak-season trends.
-
 analyse_dropped_region <- function(VAR,
                                    MASK,
                                    TAU = "tau_0.1",
@@ -27,18 +21,13 @@ analyse_dropped_region <- function(VAR,
   eval_dir  <- file.path("output", TAU, "eval", sprintf("trend_%s_%s", VAR, MASK))
 
   f_geo_data  <- file.path(geo_dir, sprintf("%s_georef_yearmean_0p25.nc", VAR))
-  f_mask_data <- file.path(eval_dir, sprintf("%s_%s_0p25.nc", VAR, "yearmean"))
+  f_mask_data <- file.path(eval_dir, sprintf("%s_yearmean_0p25.nc", VAR))
 
   # trend slopes for yearmean and yearmax (georef, unmasked)
   f_geo_slope_yearmean <- file.path(geo_dir,
                                     sprintf("%s_georef_yearmean_trend_slope_peryear_0p25.nc", VAR))
   f_geo_slope_yearmax <- file.path(geo_dir,
                                    sprintf("%s_georef_yearmax_trend_slope_peryear_0p25.nc", VAR))
-  files <- c(f_geo_data, f_mask_data, f_geo_slope_yearmean, f_geo_slope_yearmax)
-  if (!all(file.exists(files))) {
-    warning("Missing inputs — skipping ", VAR, " ", MASK, " ", TAU)
-    return(invisible(NULL))
-  }
 
   # ----------------------------------------------------------------------
   # Output directory
@@ -70,31 +59,10 @@ analyse_dropped_region <- function(VAR,
   r_slope_mean <- rast(f_geo_slope_yearmean)
   r_slope_max  <- rast(f_geo_slope_yearmax)
 
-  # ----------------------------------------------------------------------
-  # Baseline mean (1982–2000) for relative normalisation
-  # ----------------------------------------------------------------------
-  years <- 1982:(1982 + nlyr(r_geo) - 1L)
-  idx   <- years >= 1982 & years <= 2000
-  if (!any(idx)) {
-    warning("Baseline period not covered — skipping ", VAR, " ", MASK, " ", TAU)
-    return(invisible(NULL))
-  }
+  # Δ-trend (global, unmasked): yearmax – yearmean
+  r_delta <- r_slope_max - r_slope_mean
 
-  r_base <- mean(r_geo[[idx]], na.rm = TRUE)
-
-  # ----------------------------------------------------------------------
-  # Convert slopes to relative (% yr⁻¹)
-  # ----------------------------------------------------------------------
-  EPS <- 1e-8
-  r_slope_mean_rel <- ifel(abs(r_base) < EPS, NA_real_,
-                           100 * r_slope_mean / r_base)
-  r_slope_max_rel  <- ifel(abs(r_base) < EPS, NA_real_,
-                           100 * r_slope_max  / r_base)
-
-  # ----------------------------------------------------------------------
-  # Δ-trend = relative(yearmax) − relative(yearmean)
-  # ----------------------------------------------------------------------
-  r_delta <- r_slope_max_rel - r_slope_mean_rel
+  years <- 1982:(1982 + nlyr(r_geo) - 1)
 
   # ----------------------------------------------------------------------
   # Build mask indicating DROPPED pixels
@@ -107,16 +75,17 @@ analyse_dropped_region <- function(VAR,
   r_dropped_delta <- mask(r_delta, dropped_mask)
 
   df_trend <- as.data.frame(r_dropped_delta, xy = TRUE, na.rm = TRUE)
-  if (nrow(df_trend) < 10) { warning("Too few dropped pixels")
-    return(invisible(NULL)) }
-
   colnames(df_trend) <- c("lon", "lat", "delta")
 
   # ----------------------------------------------------------------------
   # 1. Δ-trend map
   # ----------------------------------------------------------------------
+  sdev  <- sd(df_trend$delta, na.rm = TRUE)
+  # clamp <- SD_K * sdev
+  # df_trend$delta_clamped <- pmax(pmin(df_trend$delta, clamp), -clamp)
+
   p_map <- ggplot(df_trend, aes(lon, lat)) +
-    geom_raster(aes(fill = delta)) +
+    # geom_tile(aes(fill = delta_clamped)) +
     geom_sf(
       data = coast,
       color = "black",
@@ -125,22 +94,23 @@ analyse_dropped_region <- function(VAR,
     ) +
     scale_fill_scico(
       palette = "bam",
-      name = expression(Delta*" trend (% yr"^{-1}*")"),
+      name = expression(Delta == yearmax - yearmean),
+      # limits = c(-clamp, clamp),
       oob = scales::squish
     ) +
     scale_x_continuous(breaks = seq(-180, 180, 60), labels = lab_deg) +
     scale_y_continuous(breaks = seq(-90, 90, 30), labels = lab_deg) +
-    coord_equal(expand = FALSE) +
+    coord_sf(expand = FALSE) +
     labs(
       x = "Longitude",
       y = "Latitude",
       title = sprintf(
-        "%s: Δ-trend (yearmax – yearmean) in masked-out region\n(%s, τ = %s)",
-        VAR, MASK, TAU
-      )
-    ) +
-    theme_pub()
-
+        "%s: Δ-trend (yearmax – yearmean) in MASKED-OUT region \n(%s, τ = %s) ",
+        VAR,
+        MASK,
+        TAU
+      ),
+    ) + theme_pub()
 
   ggsave(
     file.path(OUTDIR, sprintf(
@@ -155,14 +125,10 @@ analyse_dropped_region <- function(VAR,
   # ----------------------------------------------------------------------
   # 2. Global mean Δ-trend
   # ----------------------------------------------------------------------
-  global_mean_delta <- with(
-    df_trend,
-    weighted.mean(delta, w = cos(lat * pi / 180), na.rm = TRUE)
-  )
-
+  global_mean_delta <- mean(df_trend$delta, na.rm = TRUE)
   writeLines(
     sprintf(
-      "Global mean Δ-trend (yearmax – yearmean) in dropped region: %.6f %% yr-1",
+      "Global mean Δ-trend (yearmax – yearmean) in dropped region: %.6f per year",
       global_mean_delta
     ),
     con = file.path(OUTDIR, sprintf("summary_delta_%s.txt", MASK))
@@ -172,21 +138,19 @@ analyse_dropped_region <- function(VAR,
   # 3. Zonal mean Δ-trend
   # ----------------------------------------------------------------------
   df_zonal <- df_trend |>
-    mutate(lat_band = round(lat)) |>
+    mutate(lat_band = floor(lat)) |>
     group_by(lat_band) |>
-    summarise(
-      mean_delta = weighted.mean(delta, cos(lat * pi / 180), na.rm = TRUE),
-      .groups = "drop"
-    )
+    summarise(mean_delta = mean(delta, na.rm = TRUE),
+              .groups = "drop")
 
   p_zonal <- ggplot(df_zonal, aes(mean_delta, lat_band)) +
     geom_vline(xintercept = 0, color = "grey60") +
     geom_path(linewidth = 0.7, color = "black") +
     scale_y_continuous(labels = lab_deg) +
     labs(
-      x = "Δ-trend (yearmax – yearmean) (% yr⁻¹)",
+      x = "Δ-trend (yearmax – yearmean) (per year)",
       y = "Latitude (°)",
-      title = sprintf("%s: Zonal Δ-trend in masked-out region (%s)", VAR, MASK)
+      title = sprintf("%s: Zonal Δ-trend in masked-out region (%s)", VAR, MASK),
     ) + theme_pub()
 
   ggsave(
