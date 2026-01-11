@@ -1,5 +1,5 @@
 ## =============================================================================
-# 00_setup.R — Initialize config, reference grids, areas, and AOIs (0.05° / 0.25°)
+# 00_setup.R — Initialize config, reference grids, areas, and AOIs (0.05°/0.25°)
 ## =============================================================================
 
 suppressPackageStartupMessages({
@@ -8,38 +8,24 @@ suppressPackageStartupMessages({
   library(here)
 })
 
-# --- helpers & root ------------------------------------------------------------
-ROOT <- here()   # project root resolved by here()
-
-source(here("R", "utils.R"))
-source(here("R", "io.R"))
-
+source(here("R", "helpers", "utils.R"))
 terraOptions(progress = 1, memfrac = 0.25)
 
-# --- toggles -------------------------------------------------------------------
-RECOMPUTE_REFS  <- as.logical(Sys.getenv("RECOMPUTE_REFS", "FALSE"))
+RECOMPUTE_REFS <- as.logical(Sys.getenv("RECOMPUTE_REFS", "FALSE"))
 RECOMPUTE_AREAS <- as.logical(Sys.getenv("RECOMPUTE_AREAS", "FALSE"))
-RECOMPUTE_AOIS  <- as.logical(Sys.getenv("RECOMPUTE_AOIS", "FALSE"))
-SILENT_TIMING   <- as.logical(Sys.getenv("SILENT_TIMING", "FALSE"))
-GDAL_TILED      <- as.logical(Sys.getenv("GDAL_TILED", "TRUE"))
+RECOMPUTE_AOIS <- as.logical(Sys.getenv("RECOMPUTE_AOIS", "FALSE"))
+GDAL_TILED <- as.logical(Sys.getenv("GDAL_TILED", "TRUE"))
 
 EPSG4326 <- "EPSG:4326"
+RUN_TAG <- Sys.getenv("RUN_TAG", unset = "tau_0.2")
 
-# Central GTiff creation options
 GDAL_OPTS <- {
-  co <- gdal_wopt("FLT4S")$gdal
-  if (!GDAL_TILED)
-    co <- setdiff(co, "TILED=YES")
+  co <- gdal_wopt("FLT4S")
+  if (!GDAL_TILED) co <- setdiff(co, "TILED=YES")
   co
 }
 
-# --- dirs ----------------------------------------------------------------------
-REF_DIR       <- here("src")
-RUN_TAG       <- Sys.getenv("RUN_TAG", unset = "tau_0.2")
-OUT_DIR       <- here("output", RUN_TAG)
-COMMON_OUT_DIR <- here("data")
-
-# input dirs
+# --- paths ---------------------------------------------------------------------
 in_dirs <- list(
   lai_nc_dir       = exp_(here("data-raw", "LAI", "lai_1982-2024")),
   fpar_nc_dir      = exp_(here("data-raw", "FPAR", "fpar_1982-2024")),
@@ -50,171 +36,203 @@ in_dirs <- list(
   bilinear_ref     = exp_(here("src", "refgrid_0p05.nc"))
 )
 
-# canonical output tree
 dirs <- list(
-  ref_dir  = REF_DIR,
-  out_root = OUT_DIR,
-
+  ref_dir = here("src"),
+  out_root = here("output", RUN_TAG),
   eval_dir = here("output", RUN_TAG, "eval"),
-
-  georef_lai_0p05_dir  = here("data", "georef", "georef_lai_0p05"),
+  georef_lai_0p05_dir = here("data", "georef", "georef_lai_0p05"),
   georef_fpar_0p05_dir = here("data", "georef", "georef_fpar_0p05"),
-
-  # fractions + quicklooks
-  cci_out_dir     = here("data", "frac", "cci_frac_0p05"),
-  cci_quick_dir   = here("data", "frac", "cci_frac_0p05", "quicklooks"),
-  glc_out_dir     = here("data", "frac", "GLC_frac_0p05"),
-  glc_quick_dir   = here("data", "frac", "GLC_frac_0p05", "quicklooks"),
-
-  # masks + quicklooks
-  masks_root_dir      = here("output", RUN_TAG, "masks"),
-  masks_cci_dir       = here("output", RUN_TAG, "masks", "mask_cci"),
-  masks_cci_quick_dir = here("output", RUN_TAG, "masks", "mask_cci", "quicklooks"),
-  masks_glc_dir       = here("output", RUN_TAG, "masks", "mask_glc"),
-  masks_glc_quick_dir = here("output", RUN_TAG, "masks", "mask_glc", "quicklooks"),
-  masks_luh_dir       = here("output", RUN_TAG, "masks", "mask_luh"),
-  masks_luh_quick_dir = here("output", RUN_TAG, "masks", "mask_luh", "quicklooks"),
-
-  # masked 0.05°
-  masked_lai_cci_005_dir  = here("output", RUN_TAG, "masked_0p05", "LAI",  "masked_LAI_CCI"),
-  masked_lai_glc_005_dir  = here("output", RUN_TAG, "masked_0p05", "LAI",  "masked_LAI_GLC"),
-  masked_fpar_cci_005_dir = here("output", RUN_TAG, "masked_0p05", "FPAR", "masked_FPAR_CCI"),
-  masked_fpar_glc_005_dir = here("output", RUN_TAG, "masked_0p05", "FPAR", "masked_FPAR_GLC"),
-
-  # masked 0.25°
-  masked_lai_cci_025_dir  = here("output", RUN_TAG, "masked_0p25", "LAI",  "masked_LAI_CCI"),
-  masked_lai_glc_025_dir  = here("output", RUN_TAG, "masked_0p25", "LAI",  "masked_LAI_GLC"),
-  masked_fpar_cci_025_dir = here("output", RUN_TAG, "masked_0p25", "FPAR", "masked_FPAR_CCI"),
-  masked_fpar_glc_025_dir = here("output", RUN_TAG, "masked_0p25", "FPAR", "masked_FPAR_GLC")
+  cci_out_dir = here("data", "frac", "cci_frac_0p05"),
+  cci_quick_dir = here("data", "frac", "cci_frac_0p05", "quicklooks"),
+  glc_out_dir = here("data", "frac", "glc_frac_0p05"),
+  glc_quick_dir = here("data", "frac", "glc_frac_0p05", "quicklooks"),
+  masks_root_dir = here("output", RUN_TAG, "masks"),
+  masks_cci_dir = here("output", RUN_TAG, "masks", "mask_cci"),
+  masks_cci_quick_dir = here(
+    "output", RUN_TAG,
+    "masks", "mask_cci", "quicklooks"
+  ),
+  masks_glc_dir = here("output", RUN_TAG, "masks", "mask_glc"),
+  masks_glc_quick_dir = here(
+    "output", RUN_TAG,
+    "masks", "mask_glc", "quicklooks"
+  ),
+  masks_luh_dir = here("output", RUN_TAG, "masks", "mask_luh"),
+  masks_luh_quick_dir = here(
+    "output", RUN_TAG, "masks",
+    "mask_luh", "quicklooks"
+  ),
+  mask_abiotic_dir = here("output", RUN_TAG, "masks", "mask_abiotic")
 )
 
-# ensure dirs exist
-invisible(lapply(
-  unique(unlist(dirs)),
-  dir.create,
-  recursive = TRUE,
-  showWarnings = FALSE
+# masked dirs (generated without a function)
+for (v in c("LAI", "FPAR")) {
+  for (m in c("CCI", "GLC")) {
+    for (r in c("0p05", "0p25")) {
+      key <- sprintf("masked_%s_%s_%s_dir", tolower(v), tolower(m), r)
+      dirs[[key]] <- here(
+        "output", RUN_TAG,
+        paste0("masked_", r), v,
+        sprintf("masked_%s_%s", v, m)
+      )
+    }
+  }
+}
+
+invisible(lapply(unique(unlist(dirs)), dir.create,
+  recursive = TRUE, showWarnings = FALSE
 ))
 
-# --- write config.yml ----------------------------------------------------------
-cfg_path <- here("config", "config.yml")
-
-cfg <- list()
-cfg$project <- list(
-  run_tag = RUN_TAG,
-  name = "SNU_LAI_FPAR_natmask_global",
-  crs  = EPSG4326,
-  aoi_extent = list(
-    lon_min = 20, lon_max = 140,
-    lat_min = 35, lat_max = 70
+# --- product paths --------------------------------------------------------------
+ref <- list(
+  `0p05` = list(
+    tif = here("src", "ref_0p05.tif"),
+    nc = here("src", "ref_0p05.nc"),
+    nrc = c(3600, 7200), deg = 0.05
   ),
-  years = list(
-    lai_start = 1982, lai_end = 2024,
-    cci_start = 1992, cci_end = 2020,
-    glc_start = 1985, glc_end = 2020
+  `0p25` = list(
+    tif = here("src", "ref_0p25.tif"),
+    nc = here("src", "ref_0p25.nc"),
+    nrc = c(720, 1440), deg = 0.25
   )
 )
+area <- list(
+  `0p05` = list(
+    tif = here("src", "area_0p05_km2.tif"),
+    nc = here("src", "area_0p05_km2.nc"),
+    deg = 0.05
+  ),
+  `0p25` = list(
+    tif = here("src", "area_0p25_km2.tif"),
+    nc = here("src", "area_0p25_km2.nc"),
+    deg = 0.25
+  )
+)
+aoi <- list(
+  `0p05` = list(tif = here("src", "aoi_0p05.tif"), deg = 0.05),
+  `0p25` = list(tif = here("src", "aoi_0p25.tif"), deg = 0.25)
+)
 
-# AOIs
-cfg$aois <- cfg$project$aois <- list(
-  india       = list(lon_min=68, lon_max=98, lat_min=6,  lat_max=37),
-  china       = list(lon_min=73, lon_max=135,lat_min=18, lat_max=54),
-  south_korea = list(lon_min=124,lon_max=131,lat_min=33, lat_max=40),
-  switzerland = list(lon_min=6,  lon_max=11, lat_min=46, lat_max=48),
-  usa         = list(lon_min=-170,lon_max=-65,lat_min=18, lat_max=72),
-  europe      = list(lon_min=-25, lon_max=45, lat_min=33, lat_max=72),
-  se_asia     = list(lon_min=92, lon_max=120,lat_min=-12,lat_max=23),
-  amazon      = list(lon_min=-80,lon_max=-45,lat_min=-20,lat_max=6),
-  australia_se= list(lon_min=134,lon_max=154,lat_min=-40,lat_max=-24),
-  indonesia   = list(lon_min=95, lon_max=141,lat_min=-11,lat_max=6),
-  nile_delta  = list(lon_min=28, lon_max=33, lat_min=29, lat_max=32),
-  pampas      = list(lon_min=-66,lon_max=-57,lat_min=-39,lat_max=-30),
-  corn_belt   = list(lon_min=-105,lon_max=-80,lat_min=35, lat_max=49),
-  uk          = list(lon_min=-10,lon_max=3,  lat_min=49, lat_max=60),
-  west_africa = list(lon_min=-20,lon_max=20, lat_min=0,  lat_max=20),
-  global      = list(lon_min=-180,lon_max=180,lat_min=-90,lat_max=90)
+# --- config (write once) --------------------------------------------------------
+cfg_path <- here("config", "config.yml")
+dir.create(dirname(cfg_path), recursive = TRUE, showWarnings = FALSE)
+
+cfg <- list(
+  project = list(
+    run_tag = RUN_TAG,
+    name = "SNU_LAI_FPAR_natmask_global",
+    crs = EPSG4326,
+    aoi_extent = list(lon_min = 20, lon_max = 140, lat_min = 35, lat_max = 70),
+    years = list(
+      lai_start = 1982, lai_end = 2024,
+      cci_start = 1992, cci_end = 2020,
+      glc_start = 1985, glc_end = 2020
+    )
+  ),
+  aois = list(
+    india = list(lon_min = 68, lon_max = 98, lat_min = 6, lat_max = 37),
+    china = list(lon_min = 73, lon_max = 135, lat_min = 18, lat_max = 54),
+    south_korea = list(
+      lon_min = 124, lon_max = 131,
+      lat_min = 33, lat_max = 40
+    ),
+    switzerland = list(lon_min = 6, lon_max = 11, lat_min = 46, lat_max = 48),
+    usa = list(lon_min = -170, lon_max = -65, lat_min = 18, lat_max = 72),
+    europe = list(lon_min = -25, lon_max = 45, lat_min = 33, lat_max = 72),
+    se_asia = list(lon_min = 92, lon_max = 120, lat_min = -12, lat_max = 23),
+    amazon = list(lon_min = -80, lon_max = -45, lat_min = -20, lat_max = 6),
+    australia_se = list(
+      lon_min = 134, lon_max = 154,
+      lat_min = -40, lat_max = -24
+    ),
+    indonesia = list(lon_min = 95, lon_max = 141, lat_min = -11, lat_max = 6),
+    nile_delta = list(lon_min = 28, lon_max = 33, lat_min = 29, lat_max = 32),
+    pampas = list(lon_min = -66, lon_max = -57, lat_min = -39, lat_max = -30),
+    corn_belt = list(lon_min = -105, lon_max = -80, lat_min = 35, lat_max = 49),
+    uk = list(lon_min = -10, lon_max = 3, lat_min = 49, lat_max = 60),
+    west_africa = list(lon_min = -20, lon_max = 20, lat_min = 0, lat_max = 20),
+    global = list(lon_min = -180, lon_max = 180, lat_min = -90, lat_max = 90)
+  )
 )
 
 cfg$paths <- utils::modifyList(in_dirs, dirs)
 
 cfg$grids <- list(
   grid_005 = list(
-    ref_raster = here("src", "ref_0p05.nc"),
-    resolution_deg = 0.05,
-    extent = c(-180,180,-90,90)
+    ref_raster = ref$`0p05`$nc, area_raster = area$`0p05`$nc,
+    aoi_raster = aoi$`0p05`$tif,
+    resolution_deg = 0.05, extent = c(-180, 180, -90, 90)
   ),
   grid_025 = list(
-    ref_raster = here("src", "ref_0p25.nc"),
-    resolution_deg = 0.25,
-    extent = c(-180,180,-90,90)
+    ref_raster = ref$`0p25`$nc, area_raster = area$`0p25`$nc,
+    aoi_raster = aoi$`0p25`$tif,
+    resolution_deg = 0.25, extent = c(-180, 180, -90, 90)
   )
 )
 
 cfg$variables <- list(
-  produce = list("LAI","FPAR"),
+  produce = list("LAI", "FPAR"),
   lai = list(
-    nc_var_name_primary="LAI",
-    nc_var_name_fallback="auto_first_variable",
-    units="m2 m-2",
-    nc_lon_name="lon", nc_lat_name="lat",
-    nc_time_names=c("time","time_counter")
+    nc_var_name_primary = "LAI", nc_var_name_fallback = "auto_first_variable",
+    units = "m2 m-2", nc_lon_name = "lon", nc_lat_name = "lat",
+    nc_time_names = c("time", "time_counter")
   ),
   fpar = list(
-    nc_var_name_primary="FPAR",
-    nc_var_name_fallback="auto_first_variable",
-    units="1",
-    nc_lon_name="lon", nc_lat_name="lat",
-    nc_time_names=c("time","time_counter")
+    nc_var_name_primary = "FPAR", nc_var_name_fallback = "auto_first_variable",
+    units = "1", nc_lon_name = "lon", nc_lat_name = "lat",
+    nc_time_names = c("time", "time_counter")
   )
 )
 
-cfg$resampling <- list(categorical="near", continuous="bilinear")
+cfg$resampling <- list(categorical = "near", continuous = "bilinear")
 
 cfg$esa_cci <- list(
-  version="v2.0.7",
-  classes=list(
-    nodata=0,
-    cropland=c(10,11,12,20),
-    cls30=30, cls40=40,
-    grassland=130, urban=190,
-    bare=c(200,201,202), water=210,
-    snow_ice=220
+  version = "v2.0.7",
+  classes = list(
+    nodata = 0,
+    cropland = c(10, 11, 12, 20),
+    cls30 = 30,
+    cls40 = 40,
+    grassland = 130,
+    urban = 190,
+    water = 210,
+    snow_ice = 220
   ),
-  mask_window_years = c(1992,2020),
+  mask_window_years = c(1992, 2020),
   clean_majority_threshold = 0.5,
   clean_operator = "<=",
-  weights = list(cls30=0.75, cls40=0.25)
+  weights = list(cls30 = 0.75, cls40 = 0.25)
 )
 
 cfg$glc <- list(
-  product="GLC_FCS30D",
-  tiles_dir=here("data-raw","GLC_FCS30D"),
-  nodata_in=0,
-  classes=list(
-    cropland=c(10,11,12,20),
-    grassland=130, urban=190,
-    bare=c(200,201,202),
-    water=210, snow_ice=220,
-    nodata=c(0,250)
+  product = "GLC_FCS30D",
+  tiles_dir = cfg$paths$glc_dir,
+  nodata_in = 0,
+  classes = list(
+    cropland = c(10, 11, 12, 20),
+    grassland = 130,
+    urban = 190,
+    bare = c(200, 201, 202),
+    water = 210,
+    snow_ice = 220,
+    nodata = c(0, 250)
   ),
-  years=c(1985,1990,1995,2000:2022),
-  mask_window_years=c(1985,2020),
-  clean_majority_threshold=0.5,
-  clean_operator="<="
+  years = c(1985, 1990, 1995, 2000:2022),
+  mask_window_years = c(1985, 2020),
+  clean_majority_threshold = 0.5,
+  clean_operator = "<="
 )
 
 cfg$luh2 <- list(
-  states_nc = here("data-raw","LUH2_v2h","states.nc"),
-  variables=list(
-    cropland_components=c("c3ann","c4ann","c3per","c4per","c3nfx"),
-    pasture="pastr",
-    pasture_range="range",
-    urban="urban"
+  states_nc = here("data-raw", "LUH2_v2h", "states.nc"),
+  variables = list(
+    cropland_components = c("c3ann", "c4ann", "c3per", "c4per", "c3nfx"),
+    pasture = "pastr", pasture_range = "range", urban = "urban"
   )
 )
 
 cfg$thresholds <- list(
-  cu_fraction_max_025 = c(0.03,0.05,0.10,0.20),
+  cu_fraction_max_025 = c(0.03, 0.05, 0.10, 0.20),
   baseline_T = 0.05
 )
 
@@ -230,182 +248,122 @@ cfg$naming <- list(
 
 yaml::write_yaml(cfg, cfg_path)
 
-# --- reference rasters ---------------------------------------------------------
-ref005_path <- here("src", "ref_0p05.tif")
-ref025_path <- here("src", "ref_0p25.tif")
-ref005_nc   <- here("src", "ref_0p05.nc")
-ref025_nc   <- here("src", "ref_0p25.nc")
+# --- build reference rasters + netcdf ------------------------------------------
+for (k in names(ref)) {
+  tif <- ref[[k]]$tif
+  nc <- ref[[k]]$nc
+  nrc <- ref[[k]]$nrc
+  deg <- ref[[k]]$deg
 
-make_ref <- function(nrows, ncols, crs) {
-  r <- rast(nrows=nrows, ncols=ncols,
-            xmin=-180,xmax=180,ymin=-90,ymax=90, crs=crs)
-  values(r) <- NA_real_
-  r
-}
-
-if (RECOMPUTE_REFS || !file.exists(ref005_path)) {
-  writeRaster(
-    make_ref(3600,7200,EPSG4326),
-    ref005_path,
-    overwrite=TRUE,
-    gdal=GDAL_OPTS,
-    description=gtiff_desc(
-      product="ref_grid", grid_deg=0.05,
-      extras=list(empty=TRUE)
+  if (RECOMPUTE_REFS || !file.exists(tif)) {
+    r <- rast(
+      nrows = nrc[1], ncols = nrc[2], xmin = -180, xmax = 180,
+      ymin = -90, ymax = 90, crs = EPSG4326
     )
-  )
-}
-if (RECOMPUTE_REFS || !file.exists(ref025_path)) {
-  writeRaster(
-    make_ref(720,1440,EPSG4326),
-    ref025_path,
-    overwrite=TRUE,
-    gdal=GDAL_OPTS,
-    description=gtiff_desc(
-      product="ref_grid", grid_deg=0.25,
-      extras=list(empty=TRUE)
+    values(r) <- NA_real_
+    writeRaster(
+      r, tif,
+      overwrite = TRUE, gdal = GDAL_OPTS,
+      description = gtiff_desc(
+        product = "ref_grid",
+        grid_deg = deg, extras = list(empty = TRUE)
+      )
     )
-  )
+  }
+  if (RECOMPUTE_REFS || !file.exists(nc)) {
+    writeRaster(rast(tif), nc, overwrite = TRUE, filetype = "CDF")
+  }
 }
 
-if (!file.exists(ref005_nc) || RECOMPUTE_REFS)
-  writeRaster(rast(ref005_path), ref005_nc, overwrite=TRUE, filetype="CDF")
-if (!file.exists(ref025_nc) || RECOMPUTE_REFS)
-  writeRaster(rast(ref025_path), ref025_nc, overwrite=TRUE, filetype="CDF")
-
-# --- area rasters --------------------------------------------------------------
-area005_path <- here("src","area_0p05_km2.tif")
-area025_path <- here("src","area_0p25_km2.tif")
-aoi005_path  <- here("src","aoi_0p05.tif")
-aoi025_path  <- here("src","aoi_0p25.tif")
-area005_nc   <- here("src","area_0p05_km2.nc")
-area025_nc   <- here("src","area_0p25_km2.nc")
-
-if (RECOMPUTE_AREAS || !file.exists(area005_path)) {
-  a005 <- cellSize(rast(ref005_path), unit="km")
-  writeRaster(
-    a005,
-    area005_path,
-    overwrite=TRUE,
-    gdal=GDAL_OPTS,
-    description=gtiff_desc(
-      product="cell_area_km2", grid_deg=0.05,
-      extras=list(source="terra::cellSize(unit='km')")
+# --- build area rasters + netcdf ------------------------------------------------
+for (k in names(area)) {
+  tif <- area[[k]]$tif
+  nc <- area[[k]]$nc
+  deg <- area[[k]]$deg
+  if (RECOMPUTE_AREAS || !file.exists(tif)) {
+    a <- cellSize(rast(ref[[k]]$tif), unit = "km")
+    writeRaster(
+      a, tif,
+      overwrite = TRUE, gdal = GDAL_OPTS,
+      description = gtiff_desc(
+        product = "cell_area_km2", grid_deg = deg,
+        extras = list(source = "terra::cellSize(unit='km')")
+      )
     )
-  )
+  }
+  if (RECOMPUTE_AREAS || !file.exists(nc)) {
+    writeRaster(rast(tif), nc, overwrite = TRUE, filetype = "CDF")
+  }
 }
 
-if (RECOMPUTE_AREAS || !file.exists(area025_path)) {
-  a025 <- cellSize(rast(ref025_path), unit="km")
-  writeRaster(
-    a025,
-    area025_path,
-    overwrite=TRUE,
-    gdal=GDAL_OPTS,
-    description=gtiff_desc(
-      product="cell_area_km2", grid_deg=0.25,
-      extras=list(source="terra::cellSize(unit='km')")
-    )
-  )
-}
-
-if (!file.exists(area005_nc) || RECOMPUTE_AREAS)
-  writeRaster(rast(area005_path), area005_nc, overwrite=TRUE, filetype="CDF")
-if (!file.exists(area025_nc) || RECOMPUTE_AREAS)
-  writeRaster(rast(area025_path), area025_nc, overwrite=TRUE, filetype="CDF")
-
-# --- AOI masks -----------------------------------------------------------------
+# --- build AOI masks ------------------------------------------------------------
 AOI <- cfg$project$aoi_extent
-poly <- as.polygons(ext(AOI$lon_min,AOI$lon_max,AOI$lat_min,AOI$lat_max), crs=EPSG4326)
-aoi_str <- sprintf("lon[%g..%g],lat[%g..%g]",
-                   AOI$lon_min,AOI$lon_max,AOI$lat_min,AOI$lat_max)
+poly <- as.polygons(ext(AOI$lon_min, AOI$lon_max, AOI$lat_min, AOI$lat_max),
+  crs = EPSG4326
+)
+aoi_str <- sprintf(
+  "lon[%g..%g],lat[%g..%g]",
+  AOI$lon_min, AOI$lon_max, AOI$lat_min, AOI$lat_max
+)
 
-if (RECOMPUTE_AOIS || !file.exists(aoi005_path)) {
-  a005 <- rasterize(poly, rast(ref005_path), field=1)
-  writeRaster(
-    a005,
-    aoi005_path,
-    overwrite=TRUE,
-    gdal=GDAL_OPTS,
-    description=gtiff_desc(
-      product="aoi_mask", grid_deg=0.05,
-      extras=list(aoi=aoi_str, inside=1, outside="NA")
+for (k in names(aoi)) {
+  tif <- aoi[[k]]$tif
+  deg <- aoi[[k]]$deg
+  if (RECOMPUTE_AOIS || !file.exists(tif)) {
+    m <- rasterize(poly, rast(ref[[k]]$tif), field = 1)
+    writeRaster(
+      m, tif,
+      overwrite = TRUE, gdal = GDAL_OPTS,
+      description = gtiff_desc(
+        product = "aoi_mask", grid_deg = deg,
+        extras = list(aoi = aoi_str, inside = 1, outside = "NA")
+      )
     )
-  )
-}
-if (RECOMPUTE_AOIS || !file.exists(aoi025_path)) {
-  a025 <- rasterize(poly, rast(ref025_path), field=1)
-  writeRaster(
-    a025,
-    aoi025_path,
-    overwrite=TRUE,
-    gdal=GDAL_OPTS,
-    description=gtiff_desc(
-      product="aoi_mask", grid_deg=0.25,
-      extras=list(aoi=aoi_str, inside=1, outside="NA")
-    )
-  )
+  }
 }
 
-# --- finalize config -----------------------------------------------------------
-cfg <- cfg_read()
-cfg$grids$grid_005$area_raster <- area005_nc
-cfg$grids$grid_025$area_raster <- area025_nc
-cfg$grids$grid_005$aoi_raster  <- aoi005_path
-cfg$grids$grid_025$aoi_raster  <- aoi025_path
-yaml::write_yaml(cfg, here("config","config.yml"))
-
-# --- sanity checks & manifest --------------------------------------------------
-ref005 <- rast(ref005_path)
-ref025 <- rast(ref025_path)
-area005 <- rast(area005_path)
-area025 <- rast(area025_path)
-aoi005  <- rast(aoi005_path)
-aoi025  <- rast(aoi025_path)
-
-is_int_like <- function(x, tol=1e-10) abs(x-round(x)) < tol
-is_snapped  <- function(r, origin_x=-180, origin_y=-90, tol=1e-10) {
-  rx <- res(r)[1]; ry <- res(r)[2]
-  qx <- (xmin(r)-origin_x)/rx
-  qy <- (ymin(r)-origin_y)/ry
-  is_int_like(qx,tol) && is_int_like(qy,tol)
-}
+# --- sanity checks & manifest ---------------------------------------------------
+ref005 <- rast(ref$`0p05`$tif)
+ref025 <- rast(ref$`0p25`$tif)
+area005 <- rast(area$`0p05`$tif)
+area025 <- rast(area$`0p25`$tif)
+aoi005 <- rast(aoi$`0p05`$tif)
+aoi025 <- rast(aoi$`0p25`$tif)
 
 stopifnot(
-  terra::same.crs(ref005,ref025),
-  isTRUE(all.equal(res(ref005)*5, res(ref025))),
-  isTRUE(all.equal(ext(ref005), ext(-180,180,-90,90))),
-  isTRUE(all.equal(ext(ref025), ext(-180,180,-90,90))),
-  is_snapped(ref005), is_snapped(ref025)
+  terra::same.crs(ref005, ref025),
+  isTRUE(all.equal(res(ref005) * 5, res(ref025))),
+  isTRUE(all.equal(ext(ref005), ext(-180, 180, -90, 90))),
+  isTRUE(all.equal(ext(ref025), ext(-180, 180, -90, 90)))
 )
 
 man <- data.frame(
-  file=c(basename(ref005_path),basename(ref025_path)),
-  rows=c(nrow(ref005),nrow(ref025)),
-  cols=c(ncol(ref005),ncol(ref025)),
-  res_x=c(res(ref005)[1],res(ref025)[1]),
-  res_y=c(res(ref005)[2],res(ref025)[2]),
-  xmin=c(xmin(ref005),xmin(ref025)),
-  xmax=c(xmax(ref005),xmax(ref025)),
-  ymin=c(ymin(ref005),ymin(ref025)),
-  ymax=c(ymax(ref005),ymax(ref025)),
-  crs=c(crs(ref005,describe=TRUE), crs(ref025,describe=TRUE)),
-  global_area_km2=c(
-    as.numeric(global(area005,"sum",na.rm=TRUE)[1,1]),
-    as.numeric(global(area025,"sum",na.rm=TRUE)[1,1])
+  file = c(basename(ref$`0p05`$tif), basename(ref$`0p25`$tif)),
+  rows = c(nrow(ref005), nrow(ref025)),
+  cols = c(ncol(ref005), ncol(ref025)),
+  res_x = c(res(ref005)[1], res(ref025)[1]),
+  res_y = c(res(ref005)[2], res(ref025)[2]),
+  xmin = c(xmin(ref005), xmin(ref025)),
+  xmax = c(xmax(ref005), xmax(ref025)),
+  ymin = c(ymin(ref005), ymin(ref025)),
+  ymax = c(ymax(ref005), ymax(ref025)),
+  crs = c(crs(ref005, describe = TRUE), crs(ref025, describe = TRUE)),
+  global_area_km2 = c(
+    as.numeric(global(area005, "sum", na.rm = TRUE)[1, 1]),
+    as.numeric(global(area025, "sum", na.rm = TRUE)[1, 1])
   ),
-  aoi_area_km2=c(
-    as.numeric(global(mask(area005,aoi005),"sum",na.rm=TRUE)[1,1]),
-    as.numeric(global(mask(area025,aoi025),"sum",na.rm=TRUE)[1,1])
+  aoi_area_km2 = c(
+    as.numeric(global(mask(area005, aoi005), "sum", na.rm = TRUE)[1, 1]),
+    as.numeric(global(mask(area025, aoi025), "sum", na.rm = TRUE)[1, 1])
   ),
-  timestamp=format(Sys.time(),"%Y-%m-%d %H:%M:%S")
+  timestamp = format(Sys.time(), "%Y-%m-%d %H:%M:%S")
 )
 
 ea <- man$global_area_km2
-stopifnot(abs(ea[1]-ea[2]) < 1e-2 * ea[1])
+stopifnot(abs(ea[1] - ea[2]) < 1e-2 * ea[1])
 stopifnot(abs(mean(ea) - 510072000) < 2e6)
 
-write.csv(man, here("src","manifest_00.csv"), row.names=FALSE)
+write.csv(man, here("src", "manifest_00.csv"), row.names = FALSE)
 
 gc()
 cat("Done 00_setup.R\n")

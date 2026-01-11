@@ -1,195 +1,140 @@
 ## =============================================================================
-# 06_glc_used_0p05.R — Build “used ≥ N years” mask from GLC_FCS30D yearstack
+# 06_glc_mask_0p05.R — Build “used ≥ N years” mask from GLC_FCS30D yearstack
 ## =============================================================================
 
 suppressPackageStartupMessages({
   library(terra)
-  library(yaml)
-  library(glue)
   library(here)
 })
 
-# --- config & refs -------------------------------------------------------------
-ROOT <- here()
-source(here("R", "utils.R"))
-source(here("R", "io.R"))
-source(here("R", "geom.R"))
-source(here("R", "viz.R"))
-source(here("R", "options.R"))
+source(here("R", "helpers", "utils.R"))
+# source(here("R","helpers", "geom.R"))
+source(here("R", "helpers", "viz.R"))
+source(here("R", "helpers", "options.R"))
 
-cfg  <- cfg_read()
+cfg <- cfg_read()
 opts <- opts_read()
 
-terraOptions(progress = 1, memfrac = 0.25)
+terraOptions(progress = 1, memfrac = 0.9)
 
 SKIP_EXISTING <- as.logical(Sys.getenv("SKIP_EXISTING", "TRUE"))
-OVERWRITE     <- as.logical(Sys.getenv("OVERWRITE", "FALSE"))
-REMAKE_QL     <- as.logical(Sys.getenv("REMAKE_QL", "FALSE"))
+OVERWRITE <- as.logical(Sys.getenv("OVERWRITE", "FALSE"))
+REMAKE_QL <- as.logical(Sys.getenv("REMAKE_QL", "FALSE"))
 
-# --- paths ---------------------------------------------------------------------
-glc_out_dir <- cfg$paths$glc_out_dir
-masks_dir   <- cfg$paths$masks_glc_dir
-ql_dir      <- file.path(masks_dir, "quicklooks")
-
-dir.create(masks_dir, TRUE, showWarnings = FALSE)
-dir.create(ql_dir, TRUE, showWarnings = FALSE)
-
-# --- config / class codes ------------------------------------------------------
 N_YEARS <- as.integer(Sys.getenv("USED_N_YEARS", "3"))
-if (!is.finite(N_YEARS) ||
-    N_YEARS < 1) {
+if (!is.finite(N_YEARS) || N_YEARS < 1) {
   stop("USED_N_YEARS must be a positive integer")
 }
 
-vec_int       <- function(x) {
-  as.integer(unlist(x, use.names = FALSE))
-}
-classes       <- cfg$glc$classes
+glc_out_dir <- cfg$paths$glc_out_dir
+masks_dir <- cfg$paths$masks_glc_dir
+ql_dir <- file.path(masks_dir, "quicklooks")
+dir.create(masks_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(ql_dir, recursive = TRUE, showWarnings = FALSE)
+
+tmpl <- rast(cfg$grids$grid_005$ref_raster)
+
+classes <- cfg$glc$classes
+vec_int <- function(x) as.integer(unlist(x, use.names = FALSE))
 cropland_vals <- vec_int(classes$cropland)
-urban_vals    <- vec_int(classes$urban)
-nodata_vals   <- vec_int(classes$nodata)
+urban_vals <- vec_int(classes$urban)
+nodata_vals <- vec_int(classes$nodata)
 
-# --- template & year window ----------------------------------------------------
-tmpl    <- rast(cfg$grids$grid_005$ref_raster)
-cci_win <- cfg$project$years$cci_start:cfg$project$years$cci_end
-Y1 <- min(cci_win)
-Y2 <- max(cci_win)
+# analysis window (match CCI window)
+yrs <- cfg$project$years$cci_start:cfg$project$years$cci_end
+Y1 <- min(yrs)
+Y2 <- max(yrs)
 
-# --- find yearstack ------------------------------------------------------------
-stack <- file.path(glc_out_dir, "glc_cat_yearstack_0p05.tif")
-stack_path <- stack[file.exists(stack)]
+stack_path <- file.path(glc_out_dir, "glc_cat_yearstack_0p05.tif")
+if (!file.exists(stack_path)) stop("GLC yearstack not found: ", stack_path)
+message("Using GLC yearstack: ", stack_path)
 
-if (!length(stack_path))
-{
-  stop("GLC yearstack not found under: ", glc_out_dir)
-}
-
-stack_path <- stack_path[1]
-cat("Using GLC yearstack: ", stack_path, "\n", sep = "")
-
-# --- read & align --------------------------------------------------------------
 s <- rast(stack_path)
-
-if (is.na(crs(s)))
-{
+if (is.na(crs(s))) {
   crs(s) <- crs(tmpl)
 }
-
 if (!compareGeom(s, tmpl, stopOnError = FALSE)) {
-  message("Resampling yearstack → 0.05° template (near)")
   s <- resample(s, tmpl, method = "near")
 }
-
-if (length(nodata_vals))
-{
+if (length(nodata_vals)) {
   s[s %in% nodata_vals] <- NA
 }
 
-# --- restrict stack to CCI window ---------------------------------------------
-keep_idx <- which(substr(names(s), 2, 5) %in% as.character(cci_win))
+year_from_name <- function(nm) as.integer(substr(nm, 2, 5)) # expects "Y1990"
+layer_years <- vapply(names(s), year_from_name, integer(1))
+keep_idx <- which(layer_years %in% yrs)
 s <- s[[keep_idx]]
-cat("Year window for used-counts: ",
-    Y1,
-    "..",
-    Y2,
-    " (",
-    nlyr(s),
-    " years)\n",
-    sep = "")
+stopifnot(nlyr(s) > 0)
 
-# --- cores ---------------------------------------------------------------------
-ncores <- opts$N_WORKERS
-if (is.null(ncores) || is.na(ncores) || !is.finite(ncores))
-{
-  ncores <- 1L
-}
-ncores <- max(1L, as.integer(ncores))
+message(sprintf(
+  "Year window for used-counts: %d..%d (%d years)",
+  Y1, Y2, nlyr(s)
+))
 
-# --- per-pixel counts & mask ---------------------------------------------------
-cnt_cropland <- app(
-  s,
-  fun  = function(v, vals)
-    sum(v %in% vals, na.rm = TRUE),
-  vals = cropland_vals,
-  cores = ncores
+ncores <- max(1L, as.integer(opts$N_WORKERS %||% 1L))
+
+cnt_cropland <- app(s, function(v, vals) sum(v %in% vals, na.rm = TRUE),
+  vals = cropland_vals, cores = ncores
 )
-
-cnt_urban <- app(
-  s,
-  fun  = function(v, vals)
-    sum(v %in% vals, na.rm = TRUE),
-  vals = urban_vals,
-  cores = ncores
+cnt_urban <- app(s, function(v, vals) sum(v %in% vals, na.rm = TRUE),
+  vals = urban_vals, cores = ncores
 )
 
 names(cnt_cropland) <- "cnt_cropland"
-names(cnt_urban)    <- "cnt_urban"
+names(cnt_urban) <- "cnt_urban"
 
 cnt_total <- cnt_cropland + cnt_urban
-used_geN  <- cnt_total >= N_YEARS
-used_byte <- ifel(used_geN, 1L, 0L)   # 1=drop, 0=keep
+used_byte <- ifel(cnt_total >= N_YEARS, 1L, 0L)
 
-# --- outputs -------------------------------------------------------------------
-out_used   <- file.path(masks_dir,
-                        sprintf("mask_used_ge%d_%d-%d_0p05.tif", N_YEARS, Y1, Y2))
+out_used <- file.path(
+  masks_dir,
+  sprintf(
+    "mask_used_ge%d_%d-%d_0p05.tif",
+    N_YEARS, Y1, Y2
+  )
+)
 out_counts <- file.path(masks_dir, "glc_counts_crop_urban_0p05.tif")
 
-if (!(SKIP_EXISTING && file.exists(out_used)) || OVERWRITE) {
-  writeRaster(
-    used_byte,
-    out_used,
+if (OVERWRITE || !(SKIP_EXISTING && file.exists(out_used))) {
+  writeRaster(used_byte, out_used,
     overwrite = TRUE,
     wopt = wopt_byte(opts$SPEED_OVER_SIZE, na = 255L)
   )
 }
-
-if (!(SKIP_EXISTING && file.exists(out_counts)) || OVERWRITE) {
-  writeRaster(
-    c(cnt_cropland, cnt_urban),
-    out_counts,
+if (OVERWRITE || !(SKIP_EXISTING && file.exists(out_counts))) {
+  writeRaster(c(cnt_cropland, cnt_urban), out_counts,
     overwrite = TRUE,
     wopt = wopt_int(opts$SPEED_OVER_SIZE)
   )
 }
 
-# --- quicklooks ----------------------------------------------------------------
 tag <- sprintf("glc_used_ge%d_%d-%d", N_YEARS, Y1, Y2)
-
-ql_probe <- file.path(ql_dir,
-                      "global",
-                      sprintf("quicklook_mask_global_%s.png", tag))
-
+ql_probe <- file.path(
+  ql_dir, "global",
+  sprintf("quicklook_mask_global_%s.png", tag)
+)
 if (REMAKE_QL || !file.exists(ql_probe)) {
   quicklook_mask_all_aois(
-    mask    = used_byte,
-    title   = sprintf("GLC mask (used ≥ %d years)", N_YEARS),
-    tag     = tag,
-    cfg     = cfg,
+    mask = used_byte,
+    title = sprintf("GLC mask (used ≥ %d years)", N_YEARS),
+    tag = tag,
+    cfg = cfg,
     ql_root = ql_dir,
-    down    = 4L,
-    include_global  = TRUE,
+    down = 4L,
+    include_global = TRUE,
     drop_global_key = FALSE
   )
 }
 
-# --- summary -------------------------------------------------------------------
-p_used_global <- tryCatch(
-  global(ifel(used_byte, 1, 0), "mean", na.rm = TRUE)[1, 1],
-  error = function(e)
-    NA_real_
+p_used_global <- tryCatch(global(used_byte, "mean", na.rm = TRUE)[1, 1],
+  error = function(e) NA_real_
 )
 
-cat(
-  glue(
-    "
-Wrote:
-  - {out_used}
-  - {out_counts}
-Quicklooks in: {ql_dir}
-Used≥{N_YEARS} proportion (global): {sprintf('%.4f', p_used_global)}
-"
-  )
-)
+cat(sprintf(
+  "Wrote:\n  - %s\n  - %s\nQuicklooks in: %s\nUsed≥%d proportion (global):
+  %.4f\n",
+  out_used, out_counts, ql_dir, N_YEARS, p_used_global
+))
 
 gc()
 cat("Done\n")

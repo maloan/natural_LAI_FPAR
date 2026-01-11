@@ -4,53 +4,45 @@
 
 suppressPackageStartupMessages({
   library(terra)
-  library(stringr)
-  library(glue)
   library(here)
 })
 
-# --- config & refs -------------------------------------------------------------
-ROOT <- here()
+source(here("R", "helpers", "utils.R"))
+source(here("R", "helpers", "viz.R"))
+cfg <- cfg_read()
 
-source(here("R", "utils.R"))
-source(here("R", "io.R"))
-source(here("R", "geom.R"))
-source(here("R", "viz.R"))
-source(here("R", "options.R"))
+terraOptions(progress = 1, memfrac = 0.9)
 
-cfg  <- cfg_read()
-opts <- opts_read()
-
-terraOptions(progress = 1, memfrac = 0.25)
-
-tmpl    <- rast(cfg$grids$grid_005$ref_raster)
+tmpl <- rast(cfg$grids$grid_005$ref_raster)
 out_dir <- cfg$paths$masks_cci_dir
-ql_dir  <- file.path(out_dir, "quicklooks")
+ql_dir <- file.path(out_dir, "quicklooks")
+dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(ql_dir, recursive = TRUE, showWarnings = FALSE)
 
-dir.create(out_dir, TRUE, showWarnings = FALSE)
-dir.create(ql_dir, TRUE, showWarnings = FALSE)
+# --- parameters (env-only defaults) -------------------------------------------
+cci_band <- Sys.getenv("CCI_BAND", unset = "frac_fused")
+tau_cci <- as.numeric(Sys.getenv("TAU_CCI", "0.2"))
+k_cci <- as.integer(Sys.getenv("K_CCI", "3"))
 
-USE_FRACTIONAL <- as.logical(Sys.getenv("FRACTIONAL_MASKING", "FALSE"))
-
-# --- helpers ------------------------------------------------------------------
-get2 <- function(lst, nm, default)
-  if (!is.null(lst[[nm]])) lst[[nm]] else default
-
-# --- thresholds / band selection ----------------------------------------------
-mask_cfg   <- get2(cfg, "mask", list())
-cci_band   <- Sys.getenv("CCI_BAND", unset = get2(mask_cfg, "cci_band", "frac_fused"))
-tau_cci    <- as.numeric(Sys.getenv("TAU_CCI", get2(mask_cfg, "tau_cci", 0.1)))
-k_cci      <- as.integer(Sys.getenv("K_CCI", get2(mask_cfg, "k_cci", 3L)))
 SKIP_EXISTING <- as.logical(Sys.getenv("SKIP_EXISTING", "TRUE"))
-REMAKE_QL     <- as.logical(Sys.getenv("REMAKE_QL", "FALSE"))
-cci_years <- get2(mask_cfg, "cci_years", 1992:2020)
+REMAKE_QL <- as.logical(Sys.getenv("REMAKE_QL", "FALSE"))
 
-# --- discover files ------------------------------------------------------------
+cci_years <- cfg$project$years$cci_start:cfg$project$years$cci_end
+
+# --- files --------------------------------------------------------------------
 frac_dir <- cfg$paths$cci_out_dir
-fpaths <- list.files(frac_dir, "ESACCI_frac_\\d{4}_0p05\\.tif$", full.names = TRUE)
+fpaths <- list.files(frac_dir, pattern = "ESACCI_frac_\\d{4}_0p05\\.tif$", full.names = TRUE)
 stopifnot(length(fpaths) > 0)
+years <- as.integer(sub("^.*_(\\d{4})_0p05\\.tif$", "\\1", basename(fpaths)))
+ord <- order(years)
+fpaths <- fpaths[ord]
+years <- years[ord]
 
-# --- validate fractional band --------------------------------------------------
+keep <- years %in% cci_years
+fpaths <- fpaths[keep]
+years <- years[keep]
+stopifnot(length(fpaths) > 0)
+# --- validate band ------------------------------------------------------------
 r0 <- rast(fpaths[1])
 if (!(cci_band %in% names(r0))) {
   if ("frac_fused" %in% names(r0)) {
@@ -61,116 +53,64 @@ if (!(cci_band %in% names(r0))) {
   }
 }
 
-# --- order & subset years ------------------------------------------------------
-years <- as.integer(stringr::str_extract(basename(fpaths), "\\d{4}"))
-ord   <- order(years)
-fpaths <- fpaths[ord]
-years  <- years[ord]
-
-keep <- years %in% cci_years
-fpaths <- fpaths[keep]
-years  <- years[keep]
-stopifnot(length(fpaths) > 0)
-
-y1_cfg <- cfg$project$years$cci_start
-y2_cfg <- cfg$project$years$cci_end
-stopifnot(min(years) >= y1_cfg, max(years) <= y2_cfg)
-
-# --- load fractional CCI stack -------------------------------------------------
-cci_stack <- rast(lapply(fpaths, function(f){ rast(f)[[cci_band]] }))
+# --- load stack ---------------------------------------------------------------
+cci_stack <- rast(lapply(fpaths, function(f) rast(f)[[cci_band]]))
 time(cci_stack) <- years
 
-# --- ensure correct geometry BEFORE using stack --------------------------------
 if (!compareGeom(cci_stack, tmpl, stopOnError = FALSE)) {
   cci_stack <- resample(cci_stack, tmpl, method = "bilinear")
 }
 
-message(
-  sprintf(
-    "CCI stack: band=%s, nlayers=%d, years=[%d..%d], tau=%.3f, k=%d",
-    cci_band, nlyr(cci_stack),
-    min(years), max(years),
-    tau_cci, k_cci
-  )
-)
+nl <- nlyr(cci_stack)
+k_eff <- min(k_cci, nl)
 
-# --- optional: build fractional natural-weight raster --------------------------
-if (USE_FRACTIONAL) {
-  message("Building fractional natural-weight raster...")
+message(sprintf(
+  "CCI stack: band=%s, nlayers=%d, years=[%d..%d], tau=%.3f, k=%d",
+  cci_band, nl, min(years), max(years), tau_cci, k_eff
+))
 
-  w_nat <- get_fractional_used_land(
-    cci_stack = cci_stack,
-    years     = years,
-    tmpl      = tmpl,
-    band      = cci_band
-  )
-
-  out_weight <- file.path(
-    out_dir,
-    sprintf("natural_weight_%s_%d-%d_0p05.tif",
-            cci_band, min(years), max(years))
-  )
-
-  writeRaster(
-    w_nat,
-    out_weight,
-    overwrite = TRUE,
-    gdal   = gdal_wopt("FLT4S")$gdal,
-    NAflag = -9999
-  )
-  message("Written fractional weight raster: ", out_weight)
-}
-
-# --- binary used-land mask (persistence ≥ k) ----------------------------------
+# --- persistence mask ---------------------------------------------------------
 used_year <- cci_stack >= tau_cci
-nl        <- nlyr(used_year)
-k_eff     <- min(k_cci, nl)
-
-mask_log  <- app(used_year, sum, na.rm = TRUE) >= k_eff
+mask_log <- app(used_year, sum, na.rm = TRUE) >= k_eff
 mask_byte <- ifel(mask_log, 1L, 0L)
 
-# --- output filenames ----------------------------------------------------------
 y1 <- min(years)
 y2 <- max(years)
-
 tau_tok <- gsub("\\.", "p", sprintf("%.2f", tau_cci))
 tag <- sprintf("%s_tau%s_k%d_%d-%d", cci_band, tau_tok, k_eff, y1, y2)
 
-out_mask_cci <- file.path(
-  out_dir,
-  sprintf("mask_used_%s_tau%s_k%d_%d-%d_0p05.tif",
-          cci_band, tau_tok, k_eff, y1, y2)
-)
+out_mask_cci <- file.path(out_dir, sprintf(
+  "mask_used_%s_tau%s_k%d_%d-%d_0p05.tif",
+  cci_band, tau_tok, k_eff, y1, y2
+))
 
-# --- write binary mask ---------------------------------------------------------
 if (!(SKIP_EXISTING && file.exists(out_mask_cci))) {
-  writeRaster(
-    mask_byte,
-    out_mask_cci,
+  writeRaster(mask_byte, out_mask_cci,
     overwrite = TRUE,
-    gdal = gdal_wopt("LOG1S")$gdal,
-    NAflag = 255
+    wopt = wopt_byte(opts$SPEED_OVER_SIZE)
   )
 }
 
-# --- quicklooks ----------------------------------------------------------------
+# --- quicklooks ---------------------------------------------------------------
 ql_probe <- file.path(
   ql_dir, "global",
   sprintf("quicklook_mask_global_%s.png", tag)
 )
-
 if (REMAKE_QL || !file.exists(ql_probe)) {
   quicklook_mask_all_aois(
-    mask    = mask_byte,
-    title   = sprintf("CCI mask (%s, \u03C4=%.2f, k=%d)", cci_band, tau_cci, k_eff),
-    tag     = tag,
-    cfg     = cfg,
+    mask = mask_byte,
+    title = sprintf(
+      "CCI mask (%s, \u03C4=%.2f, k=%d)",
+      cci_band, tau_cci, k_eff
+    ),
+    tag = tag,
+    cfg = cfg,
     ql_root = ql_dir,
-    down    = 4L,
-    include_global  = TRUE,
+    down = 4L,
+    include_global = TRUE,
     drop_global_key = FALSE
   )
 }
 
 gc()
-cat(glue("Written: {out_mask_cci}, Quicklooks in: {ql_dir}"))
+cat(sprintf("Written: %s\nQuicklooks in: %s\n", out_mask_cci, ql_dir))

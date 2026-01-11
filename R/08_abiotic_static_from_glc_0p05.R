@@ -1,71 +1,41 @@
 ## =============================================================================
-# 08_abiotic_static_from_glc_0p05.R — Build static abiotic mask from GLC stack
+# 08_abiotic_static_from_glc_0p05.R — Build static abiotic mask from GLC years
+#   Semantics: 1 = drop (abiotic), 0 = keep, 255 = NA
 ## =============================================================================
 
 suppressPackageStartupMessages({
   library(terra)
-  library(stringr)
-  library(glue)
   library(here)
 })
 
-# --- config & refs -------------------------------------------------------------
-ROOT <- here()
+source(here("R", "helpers", "utils.R"))
 
-source(here("R", "utils.R"))
-source(here("R", "io.R"))
-source(here("R", "geom.R"))
-source(here("R", "viz.R"))
-source(here("R", "options.R"))
-
-cfg  <- cfg_read()
-opts <- opts_read()
+cfg <- cfg_read()
 
 terraOptions(progress = 1, memfrac = 0.25)
 
-# --- references & paths --------------------------------------------------------
-ref005  <- rast(cfg$grids$grid_005$ref_raster)
+ref005 <- rast(cfg$grids$grid_005$ref_raster)
 glc_dir <- cfg$paths$glc_dir
 
-# --- thresholds & window -------------------------------------------------------
 TAU_WATER <- as.numeric(Sys.getenv("TAU_WATER", "0.05"))
-TAU_ICE   <- as.numeric(Sys.getenv("TAU_ICE", "0.05"))
+TAU_ICE <- as.numeric(Sys.getenv("TAU_ICE", "0.05"))
 
 Y1 <- as.integer(Sys.getenv("ABIOTIC_Y1", cfg$project$years$glc_start))
 Y2 <- as.integer(Sys.getenv("ABIOTIC_Y2", cfg$project$years$glc_end))
 
-# --- GLC class codes -----------------------------------------------------------
-GLC        <- cfg$glc$classes
+GLC <- cfg$glc$classes
 vals_water <- as.integer(unlist(GLC$water, use.names = FALSE))
-vals_ice   <- as.integer(unlist(GLC$snow_ice, use.names = FALSE))
+vals_ice <- as.integer(unlist(GLC$snow_ice, use.names = FALSE))
 nodata_vals <- as.integer(unlist(GLC$nodata, use.names = FALSE))
 
-# --- discover year files -------------------------------------------------------
-files <- list.files(glc_dir, "\\.tif$", full.names = TRUE)
-stopifnot(length(files) > 0)
-yrs  <- as.integer(str_extract(basename(files), "(19|20)\\d{2}"))
-keep <- which(!is.na(yrs) & yrs >= Y1 & yrs <= Y2)
-files <- files[keep]
-yrs   <- yrs[keep]
-stopifnot(length(files) > 0)
+out_dir <- file.path(cfg$paths$masks_root_dir, "mask_abiotic")
+dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
-# --- prepare accumulation ------------------------------------------------------
-n_years <- 0L
-
-out_dir <- here(cfg$paths$masks_root_dir, "mask_abiotic")
-dir.create(out_dir, TRUE, showWarnings = FALSE)
-
-out_tif <- here(
-  cfg$paths$masks_root_dir,
-  "mask_abiotic",
-  sprintf(
-    "mask_static_abiotic_GLC_%d-%d_tauW%s_tauI%s_tauB%s_0p05.tif",
-    Y1,
-    Y2,
-    gsub("\\.", "p", sprintf("%.2f", as.numeric(TAU_WATER))),
-    gsub("\\.", "p", sprintf("%.2f", as.numeric(TAU_ICE))),
-  )
-)
+tok <- function(x) gsub("\\.", "p", sprintf("%.2f", as.numeric(x)))
+out_tif <- file.path(out_dir, sprintf(
+  "mask_static_abiotic_GLC_%d-%d_tauW%s_tauI%s_0p05.tif",
+  Y1, Y2, tok(TAU_WATER), tok(TAU_ICE)
+))
 
 SKIP_EXISTING <- as.logical(Sys.getenv("SKIP_EXISTING", "TRUE"))
 if (SKIP_EXISTING && file.exists(out_tif)) {
@@ -73,42 +43,61 @@ if (SKIP_EXISTING && file.exists(out_tif)) {
   quit(save = "no")
 }
 
-# --- loop over years -----------------------------------------------------------
-for (f in files) {
-  r <- rast(f)
+# --- discover yearly rasters ---------------------------------------------------
+files <- list.files(glc_dir, pattern = "\\.tif$", full.names = TRUE)
+stopifnot(length(files) > 0L)
 
-  if (is.na(crs(r))) {
-    crs(r) <- crs(ref005)
+get_year <- function(p) {
+  m <- regexpr("(19|20)\\d{2}", basename(p), perl = TRUE)
+  if (m[1] < 0) {
+    return(NA_integer_)
   }
+  as.integer(substr(basename(p), m[1], m[1] + attr(m, "match.length") - 1))
+}
+yrs <- vapply(files, get_year, integer(1))
 
+keep <- which(!is.na(yrs) & yrs >= Y1 & yrs <= Y2)
+files <- files[keep]
+yrs <- yrs[keep]
+stopifnot(length(files) > 0L)
+
+# --- accumulate counts across years -------------------------------------------
+sumW <- NULL
+sumI <- NULL
+n_years <- 0L
+
+for (f in files) {
+  r <- rast(f)[[1]]
+
+  if (is.na(crs(r))) crs(r) <- crs(ref005)
   if (!compareGeom(r, ref005, stopOnError = FALSE)) {
     r <- resample(r, ref005, method = "near")
   }
-
-  if (length(nodata_vals)) {
-    r[r %in% nodata_vals] <- NA
-  }
+  if (length(nodata_vals)) r[r %in% nodata_vals] <- NA
 
   mW <- classify(r, cbind(vals_water, 1), others = 0)
   mI <- classify(r, cbind(vals_ice, 1), others = 0)
 
+  if (is.null(sumW)) {
+    sumW <- mW
+    sumI <- mI
+  } else {
+    sumW <- sumW + mW
+    sumI <- sumI + mI
+  }
+
   n_years <- n_years + 1L
+  gc()
 }
 
-if (n_years == 0L) {
-  stop("No GLC years found in window ", Y1, "-", Y2)
-}
+stopifnot(n_years > 0L)
 
-# --- averages ------------------------------------------------------------------
-pW <- mW / n_years
-pI <- mI / n_years
+pW <- sumW / n_years
+pI <- sumI / n_years
 
-# --- threshold + combine -------------------------------------------------------
-abiotic  <- (pW >= TAU_WATER) | (pI >= TAU_ICE)
-abi_mask <- ifel(abiotic, 1L, 0L)
+abi_mask <- ifel((pW >= TAU_WATER) | (pI >= TAU_ICE), 1L, 0L)
 names(abi_mask) <- "abiotic_drop"
 
-# --- write output --------------------------------------------------------------
 writeRaster(
   abi_mask,
   out_tif,
@@ -117,13 +106,7 @@ writeRaster(
   NAflag = 255
 )
 
-cat(
-  glue(
-    "
-Wrote abiotic overlay: {out_tif}
-Window: {Y1}-{Y2}  (n={n_years} years)
-Thresholds — water={TAU_WATER}, ice={TAU_ICE}
-"
-  )
-)
-gc()
+cat(sprintf(
+  "Wrote: %s\nWindow: %d-%d (n=%d)\nThresholds: water=%.2f, ice=%.2f\n",
+  out_tif, Y1, Y2, n_years, TAU_WATER, TAU_ICE
+))
