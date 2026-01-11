@@ -1,39 +1,98 @@
-# **Natural LAI/FPAR Processing Pipeline**
+# **Natural LAI / fAPAR Processing Pipeline**
 
-A reproducible workflow for generating **natural-vegetation LAI and fAPAR datasets** from satellite observations. The pipeline builds land-use masks (CCI, GLC-FCS30D, LUH2), applies them to monthly LAI/FPAR at 0.05°, and produces area-weighted aggregates at 0.25° for global analyses.
+This repository implements a reproducible workflow for deriving **global
+natural-vegetation LAI and fAPAR datasets** from satellite observations
+by explicitly excluding anthropogenic land-use signals.
+
+Independent land-use masks derived from **ESA-CCI** and **GLC-FCS30D**
+are applied to monthly LAI/fAPAR fields at **0.05°** resolution. Masked
+fields are subsequently aggregated to **0.25°** using explicit area
+weighting, enabling consistent global and regional trend analyses.
+
+------------------------------------------------------------------------
+
+## **Scientific Motivation**
+
+Satellite vegetation products integrate multiple signals, including:
+
+1.  **Ecosystem responses to climate variability and rising CO₂**, and
+2.  **Land-use change and management effects**, such as cropland
+    expansion, irrigation, and urbanisation.
+
+For attribution studies and model evaluation, these signals must be
+disentangled. This workflow isolates the **natural-vegetation
+component** of observed greening and browning by removing anthropogenic
+land cover prior to aggregation and trend estimation.
 
 ------------------------------------------------------------------------
 
 ## **Key Outputs**
 
--   Natural-only LAI and fAPAR time series (monthly)
--   Masked 0.05° fields (LAI/FPAR)
--   Aggregated 0.25° fields using explicit area weights
--   Global trend maps (slope per decade)
--   Difference maps, scatter diagnostics, latitudinal profiles
--   Mask sensitivity and agreement statistics
--   Quicklooks for QA at each stage
+-   Monthly **natural-vegetation LAI and fAPAR** fields (0.05° and
+    0.25°)
+-   Binary land-use masks derived independently from CCI and GLC
+-   Area-weighted global and zonal mean time series
+-   Pixel-wise trend estimates (year-mean and year-maximum)
+-   Masked vs. unmasked trend comparisons
+-   Diagnostics of masked (anthropogenic) regions
+-   Quality-control quicklooks at all major processing stages
 
-All products are stored under:
+All outputs are written to:
 
 ```         
-output/<run_tag>/
+output/<RUN_TAG>/
 ```
+
+where each run tag corresponds to a specific masking configuration.
 
 ------------------------------------------------------------------------
 
 ## **Repository Structure**
 
 ```         
-R/          # Core processing scripts
-config/     # Main config.yml with paths, grids, AOIs, variable limits
-data-raw/   # Raw datasets (CCI, LUH2, GLC-FCS30D, MODIS LAI/FPAR)
-data/       # Harmonized inputs (georeferenced LAI/FPAR, fractional cover)
-output/     # Final masked fields and aggregated results
-analysis/   # Trend computation, plotting scripts, reproducibility Makefiles
-src/        # Reference grids, area rasters, coastline layers, AOIs
-vignettes/  # Walkthrough documentation
+R/            Processing and analysis scripts
+config/       Central configuration (paths, grids, AOIs, thresholds)
+data-raw/     External datasets (not version controlled)
+data/         Harmonised intermediate products
+output/       Masked fields, aggregates, evaluation products
+analysis/     Trend results and figures
+src/          Reference grids, area rasters, AOI masks
+vignettes/    Extended workflow documentation
 ```
+
+------------------------------------------------------------------------
+
+## **Pipeline Overview**
+
+1.  **Setup** Definition of global reference grids (0.05°, 0.25°),
+    cell-area rasters, and AOIs *(00_setup.R)*
+
+2.  **Georeferencing** Alignment of LAI and fAPAR to the canonical 0.05°
+    grid *(01_georef_0p05.R)*
+
+3.  **Land-cover preprocessing**
+
+    -   ESA-CCI: fractional cropland, urban, grass, and bare cover
+    -   GLC-FCS30D: categorical land-cover stacks *(03_cci_frac_0p05.R,
+        05_glc_stack_0p05.R)*
+
+4.  **Mask construction**
+
+    -   Multi-year persistence-based natural-vegetation masks
+    -   Independent implementations for CCI and GLC
+    -   Static abiotic exclusions (water, snow/ice)
+        *(04_cci_mask_0p05.R, 06_glc_mask_0p05.R,
+        07_abiotic_static_from_cci_0p05.R)*
+
+5.  **Mask application** Monthly masking of LAI and fAPAR at 0.05°
+    *(11_apply_mask_0p05.R)*
+
+6.  **Aggregation** Explicit area-weighted aggregation to 0.25°
+    *(12_agg_0p25.R)*
+
+7.  **Analysis** Global, zonal, and pixel-level trend analyses;
+    masked–unmasked comparisons; diagnostics of excluded regions
+    *(Scripts 13–17)*
 
 ------------------------------------------------------------------------
 
@@ -45,100 +104,102 @@ vignettes/  # Walkthrough documentation
 Sys.setenv(SNU_LAI_FPAR_ROOT = "~/path/to/natural_LAI_FPAR")
 ```
 
-### 2. Run the full pipeline
+### 2. Run the full pipeline and analyses
 
 ``` bash
 cd R
-make all-full
+make full-analysis
 ```
 
-This executes mask construction, field masking, aggregation, and trend analysis.
+This executes setup, georeferencing, mask construction, masking,
+aggregation, and trend analysis.
 
-### 3. Run individual steps
+### 3. Run selected stages
 
 ``` bash
-Rscript R/04_glc_mask_0p05.R
-Rscript R/07_apply_mask_0p05.R
-Rscript R/08_agg_0p25.R
+make georef
+make apply-all
+make agg-all
+make analysis
 ```
 
-Environment variables override defaults:
+Mask source and thresholds can be overridden, for example:
 
 ``` bash
-TAU_CCI=0.1 USED_N_YEARS=3 Rscript R/07_apply_mask_0p05.R
+MASKS=CCI TAU_CCI=0.1 make full-pipeline
 ```
 
 ------------------------------------------------------------------------
 
-## **Requirements**
+## **Configuration**
 
--   R ≥ 4.2
--   Core packages: `terra`, `yaml`, `dplyr`, `ggplot2`, `stringr`, `parallel`, `glue`
--   Optional: Python tools for ESA-CCI downloads (`data-raw/ESACCI/`)
--   System libraries: GDAL, PROJ, NetCDF
-
-------------------------------------------------------------------------
-
-## **External Data**
-
-Place raw datasets under:
-
-```         
-data-raw/
-    ESACCI/
-    GLC_FCS30D/
-    LUH2_v2h/
-    LAI/
-    FPAR/
-```
-
-These files are **not tracked by Git**.
-
-Paths to all external data are configured in:
+All paths, grids, AOIs, class definitions, and thresholds are specified
+in:
 
 ```         
 config/config.yml
 ```
 
-------------------------------------------------------------------------
+Core design principles include:
 
-## **Reproducibility Principles**
-
--   Fixed reference grids at 0.05° and 0.25°
--   Categorical data → nearest-neighbour resampling
--   Continuous data → bilinear resampling
--   Explicit area-weighted aggregation (cell areas from `src/`)
--   Provenance metadata and manifest files per stage
--   Quicklook PNGs for masks, fractional cover, and aggregated products
+-   Fixed global grids at 0.05° and 0.25°
+-   Nearest-neighbour resampling for categorical data
+-   Bilinear resampling for continuous variables
+-   Explicit area-weighted aggregation
+-   Fully deterministic, script-driven execution
 
 ------------------------------------------------------------------------
 
-## **Troubleshooting**
+## **Requirements**
 
-### Missing GDAL / NetCDF
+-   **R ≥ 4.2**
+-   Core packages: `terra`, `yaml`, `dplyr`, `ggplot2`, `stringr`,
+    `glue`, `parallel`, `sf`
+-   System libraries: **GDAL**, **PROJ**, **NetCDF**
 
-Install development headers. Example (Ubuntu):
+Example (Ubuntu):
 
 ``` bash
 sudo apt install gdal-bin libgdal-dev libproj-dev libnetcdf-dev
 ```
 
-### Path errors
+------------------------------------------------------------------------
 
-Ensure `SNU_LAI_FPAR_ROOT` is set and that your `config.yml` matches your local directory layout.
+## **External Data**
 
-### Missing raw files
+Raw datasets must be placed manually under:
 
-Check that `data-raw/` contains the expected inputs and subfolders.
+```         
+data-raw/
+  ESACCI/
+  GLC_FCS30D/
+  LUH2_v2h/
+  LAI/
+  FPAR/
+```
+
+These files are not tracked by Git. All dataset paths are defined in
+`config/config.yml`.
+
+------------------------------------------------------------------------
+
+## **Reproducibility and Quality Control**
+
+-   Deterministic processing (no stochastic elements)
+-   Run-tag–scoped outputs
+-   Manifest files recording raster geometry and global summaries
+-   Quicklook PNGs for visual inspection
+-   Independent mask constructions to assess robustness
 
 ------------------------------------------------------------------------
 
 ## **Documentation**
 
-A detailed workflow walkthrough is available in:
+A detailed workflow description is provided in:
 
 ```         
 vignettes/vignette.Rmd
 ```
 
-It covers configuration, execution, AOIs, mask logic, aggregation, and exploratory analysis.
+covering mask logic, AOIs, aggregation methodology, trend
+interpretation, and sensitivity analyses.

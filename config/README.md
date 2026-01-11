@@ -1,52 +1,48 @@
-# **Configuration**
+# **Configuration (`config/`)**
 
-This directory contains the central configuration used by all components of the LAI/FPAR workflow. The file `config.yml` defines paths, grid metadata, temporal coverage, environmental thresholds, and AOI specifications. All R scripts load it at run time via `cfg_read()`.
+This directory contains the **central configuration** for the
+natural-vegetation LAI/FPAR workflow. The file `config.yml` is read by
+all R scripts via `cfg_read()` and defines the project domain, grids,
+paths, and dataset metadata.
+
+------------------------------------------------------------------------
 
 ## **Contents**
 
--   **`config.yml`** Primary project configuration:
+-   **`config.yml`**\
+    Single configuration file specifying:
+    -   project metadata (run tag, CRS, time coverage)
+    -   input and output paths
+    -   canonical 0.05° and 0.25° grids (reference, area, AOI rasters)
+    -   AOI definitions for quicklooks and regional analyses
+    -   land-cover class mappings (ESA-CCI, GLC-FCS30D, LUH2)
+    -   standard file-naming templates
+-   **`README.md`**\
+    Brief description of how configuration is used by the pipeline.
 
-    -   input data locations (CCI, GLC, LUH2, etc.)
-    -   output directories (masks, quicklooks, aggregates, analysis)
-    -   canonical grid definitions for 0.05° and 0.25° (reference rasters and area rasters)
-    -   variable limits for LAI/FPAR clamping
-    -   AOI definitions for global and regional quicklooks
-    -   project time span (e.g., CCI 1992–2020; GLC yearstack range)
+------------------------------------------------------------------------
 
--   **`README.md`** Overview of how configuration variables interact with the pipeline.
+## **Typical adjustments**
 
-## **Customization**
+Most changes are limited to:
 
-Typical adjustments include:
+-   **Paths**: point to local or HPC data locations.
 
--   **Paths** Point to local or HPC data directories for raw CCI, GLC, LUH, and intermediate outputs.
+-   **AOIs**: add or modify regional bounding boxes.
 
--   **AOIs** Add or modify named AOIs to control which regions appear in mask quicklooks and evaluation plots.
+-   **Time ranges**: adjust LAI/FPAR, CCI, or GLC year windows.
 
--   **Thresholds and parameters**
+-   **Class mappings**: update land-cover codes if sources change.
 
-    -   CCI mask thresholds (`tau_cci`, `k_cci`, band selection)
-    -   GLC used-years threshold (`used_n_years`)
-    -   Abiotic limits (`tau_water`, `tau_ice`, `tau_bare`)
-    -   LUH grass–pasture rules (`g_min`, `p_min`, `alpha`)
-    -   Temporal averaging window for LUH (`luh_avg_start`, `luh_avg_end`)
-
--   **Grid metadata** Update reference and area rasters if using alternative resolutions or custom grid definitions.
+------------------------------------------------------------------------
 
 ## **Usage**
 
-All R scripts expect the environment variable:
-
-``` bash
-export SNU_LAI_FPAR_ROOT="path/to/natural_LAI_FPAR"
-```
-
-and load configuration via:
+All scripts load configuration as:
 
 ``` r
 CFG <- cfg_read()
 ```
 
-This ensures consistent behaviour across preprocessing, masking, aggregation, and analysis steps.
-
-------------------------------------------------------------------------
+The file `config.yml` is written and finalised by `R/00_setup.R` and
+should be treated as the authoritative description of a given run tag.
