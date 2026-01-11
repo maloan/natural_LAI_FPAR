@@ -1,5 +1,5 @@
 ---
-title: "Natural-Vegetation LAI/FPAR Masking & Aggregation — Workflow Vignette"
+title: "Natural-Vegetation LAI/FPAR Masking and Aggregation — Workflow Vignette"
 date: "`r format(Sys.time(), '%Y-%m-%d')`"
 output:
   html_document:
@@ -12,18 +12,50 @@ output:
 
 ## **1. Purpose**
 
-This document outlines a reproducible workflow to construct natural-vegetation masks at 0.05°, apply them to monthly LAI/FPAR fields, aggregate masked products to 0.25°, and evaluate the resulting datasets. The pipeline supports multiple mask families:
+This vignette documents the reproducible workflow used to derive
+**natural-vegetation LAI and fAPAR datasets** from long-term satellite
+observations.
 
--   **CCI used-land mask** (τ–k thresholds)
--   **GLC used≥N years mask** (temporal persistence)
--   **LUH pasture–grass overlap mask**
--   **Static abiotic masks** (water/ice/bare)
+The pipeline:
 
-Individual steps are implemented as small scripts using shared utilities (`utils.R`, `geom.R`, `io.R`, `viz.R`, `options.R`, `names.R`). All components run non-interactively and scale to HPC.
+1.  constructs land-use masks at **0.05°** resolution,
+2.  applies these masks to monthly LAI/FPAR fields,
+3.  aggregates masked products to **0.25°** using explicit area
+    weighting, and
+4.  evaluates the resulting datasets through spatial, zonal, and
+    temporal diagnostics.
+
+The goal is to isolate vegetation signals driven by climate and
+atmospheric forcing, while minimising contamination from cropland, urban
+land, managed grassland, and abiotic surfaces.
 
 ------------------------------------------------------------------------
 
-## **2. Minimal setup**
+## **2. Conceptual overview**
+
+The workflow separates **signal preparation** from **evaluation**:
+
+**Preparation**
+
+-   Fixed global grids (0.05°, 0.25°)
+-   Independent land-use masks (CCI, GLC-FCS30D)
+-   Optional abiotic and LUH-based constraints
+-   Mask application to LAI/FPAR
+
+**Evaluation**
+
+-   Area-weighted aggregation
+-   Trend estimation
+-   Mask sensitivity and agreement analysis
+
+All steps are implemented as small, non-interactive R scripts,
+coordinated via a Makefile.
+
+------------------------------------------------------------------------
+
+## **3. Minimal setup**
+
+Set the project root and load core packages:
 
 ``` r
 Sys.setenv(SNU_LAI_FPAR_ROOT = "~/GitHub/natural_LAI_FPAR")
@@ -31,162 +63,198 @@ Sys.setenv(SNU_LAI_FPAR_ROOT = "~/GitHub/natural_LAI_FPAR")
 suppressPackageStartupMessages({
   library(terra)
   library(yaml)
-  library(glue)
-  library(stringr)
-  library(tidyverse)
 })
 ```
 
+The pipeline assumes a working GDAL / NetCDF installation.
+
 ------------------------------------------------------------------------
 
-## **3. Configuration**
+## **4. Configuration**
 
-Edit `config/config.yml` to define:
+All paths, grids, temporal coverage, and dataset-specific parameters are
+defined in:
 
--   **paths**: raw data, intermediate outputs, masked outputs, visualisation directory
--   **grids**: canonical 0.05° and 0.25° grids, including consistent area rasters
--   **project years**: e.g., CCI: 1992–2020
--   **dataset descriptors**: GLC classes, CCI classes, LUH variables
+```         
+config/config.yml
+```
 
-Inspect configuration:
+Key configuration blocks include:
+
+-   **paths** — raw data, intermediate products, outputs
+-   **grids** — canonical 0.05° and 0.25° reference rasters
+-   **project years** — temporal coverage per dataset
+-   **dataset descriptors** — land-cover class definitions
+
+Inspect the configuration:
 
 ``` r
 ROOT <- Sys.getenv("SNU_LAI_FPAR_ROOT")
 CFG  <- yaml::read_yaml(file.path(ROOT, "config", "config.yml"))
-str(CFG$paths)
-str(CFG$grids)
+
+CFG$paths
+CFG$grids
 CFG$project$years
 ```
 
 ------------------------------------------------------------------------
 
-## **4. Environment flags**
+## **5. Environment flags (minimal set)**
 
-Flags control masking parameters, overwrite behaviour, quicklooks, and LUH rules. All accept `TRUE/FALSE`, `1/0`, or `yes/no`.
+Runtime behaviour is controlled via environment variables. In routine
+use, only a small subset is needed.
 
-### Available flags
+Common flags:
 
--   `SKIP_EXISTING`
--   `OVERWRITE`
--   `REMAKE_QL`
--   `USED_N_YEARS`
--   `TAU_CCI`, `K_CCI`, `CCI_BAND`
--   `TAU_WATER`, `TAU_ICE`, `TAU_BARE`
--   `GRASS_SOURCE` (`CCI | GLC_FRAC`)
--   `G_MIN`, `P_MIN`, `ALPHA`
--   `LUH_AVG_START`, `LUH_AVG_END`
+-   `RUN_TAG` — output version identifier (e.g. `tau_0.1`)
+-   `SKIP_EXISTING` — skip existing outputs
+-   `OVERWRITE` — force recomputation
+-   `REMAKE_QL` — regenerate quicklook figures
+-   `APPLY_ABIOTIC_STATIC` — apply water/ice/bare masks
 
 Example:
 
 ``` r
 Sys.setenv(
-  SKIP_EXISTING="TRUE", OVERWRITE="FALSE", REMAKE_QL="TRUE",
-  USED_N_YEARS="3",
-  TAU_CCI="0.10", K_CCI="3", CCI_BAND="frac_fused",
-  TAU_WATER="0.05", TAU_ICE="0.05", TAU_BARE="0.30",
-  GRASS_SOURCE="CCI", G_MIN="0.05", P_MIN="0.20", ALPHA="0.50",
-  LUH_AVG_START="1992", LUH_AVG_END="2020"
+  RUN_TAG = "tau_0.1",
+  SKIP_EXISTING = "TRUE",
+  OVERWRITE = "FALSE",
+  REMAKE_QL = "FALSE",
+  APPLY_ABIOTIC_STATIC = "TRUE"
 )
 ```
 
-------------------------------------------------------------------------
-
-## **5. Workflow overview**
-
-### **1. Mask construction (0.05°)**
-
--   **GLC used≥N mask** `04_glc_mask_0p05.R`
-
--   **Abiotic masks** `05_abiotic_static_from_cci_0p05.R` `05_abiotic_static_from_glc_0p05.R`
-
--   **LUH pasture & overlap masks** `07_luh_use_masks.R` `04_luh_pasture_overlap_025.R` (0.25° + 0.05° replica)
-
-### **2. Apply masks to LAI/FPAR**
-
--   `07_apply_mask_0p05.R` Applies CCI/GLC masks, abiotic overlays, and LUH overlap mask.
-
-### **3. Aggregate to 0.25°**
-
--   `08_agg_0p25.R` Area-weighted aggregation.
-
-### **4. Evaluate**
-
--   `10_eval_masks.R` Mask statistics, Jaccard, sensitivities.
-
--   `11_eval_outputs.R` Figures and diagnostics.
+Most scientific parameters (thresholds, classes, years) are defined in
+`config.yml`, not as environment flags.
 
 ------------------------------------------------------------------------
 
-## **6. Running scripts directly from R**
+## **6. Workflow steps**
+
+### **6.1 Setup and reference grids**
+
+``` bash
+make config
+```
+
+Initialises:
+
+-   reference grids (0.05°, 0.25°),
+-   cell-area rasters,
+-   AOI masks,
+-   a validated `config.yml`.
+
+------------------------------------------------------------------------
+
+### **6.2 Georeferencing LAI and FPAR (0.05°)**
+
+``` bash
+make georef
+```
+
+Monthly LAI and fPAR are regridded to the canonical 0.05° grid with
+consistent orientation, extent, and metadata.
+
+------------------------------------------------------------------------
+
+### **6.3 Land-use mask construction (0.05°)**
+
+Masks are constructed independently from multiple data sources:
+
+-   **ESA-CCI used-land mask**
+-   **GLC-FCS30D used-land mask**
+-   **Static abiotic masks** (water, snow/ice, bare)
+-   **LUH pasture–grass overlap mask** (derived at 0.25°, replicated to
+    0.05°)
+
+``` bash
+make cci-mask
+make glc-mask
+make abiotic
+make luh-overlap
+```
+
+All masks use a binary convention:
+
+-   `1` = drop (non-natural)
+-   `0` = keep (natural)
+
+------------------------------------------------------------------------
+
+### **6.4 Apply masks to LAI/FPAR (0.05°)**
+
+``` bash
+make apply-all
+```
+
+Masks are applied independently to LAI and FPAR for each mask family
+(CCI, GLC), producing masked monthly fields at 0.05°.
+
+------------------------------------------------------------------------
+
+### **6.5 Aggregate to 0.25°**
+
+``` bash
+make agg-all
+```
+
+Masked 0.05° fields are aggregated to 0.25° using **explicit area
+weighting**, preserving consistency across resolutions.
+
+------------------------------------------------------------------------
+
+### **6.6 Evaluation and diagnostics**
+
+``` bash
+make analysis
+```
+
+This step computes:
+
+-   pixel-wise trends,
+-   global and zonal means,
+-   LAI–FPAR consistency diagnostics,
+-   masked vs unmasked comparisons,
+-   mask sensitivity and agreement metrics.
+
+------------------------------------------------------------------------
+
+## **7. Running individual scripts**
+
+Scripts can also be executed directly:
 
 ``` r
-root <- Sys.getenv("SNU_LAI_FPAR_ROOT")
-
-run <- function(script, env=list()) {
+run <- function(script, env = list()) {
   old <- Sys.getenv(names(env), unset = NA_character_)
-  on.exit(mapply(Sys.setenv, names(old), as.list(old)), add=TRUE)
+  on.exit(mapply(Sys.setenv, names(old), as.list(old)), add = TRUE)
   mapply(Sys.setenv, names(env), as.list(env))
-  system2("Rscript", c(file.path(root, "R", script)))
+  system2("Rscript", file.path("R", script))
 }
+
+# Example:
+run("11_apply_mask_0p05.R", env = c(VAR = "LAI", MASK = "CCI"))
 ```
 
-Example workflow (commented):
+------------------------------------------------------------------------
+
+## **8. Inspecting outputs**
+
+Masked products and diagnostics are stored under:
+
+```         
+output/<run_tag>/
+```
+
+Example inspection:
 
 ``` r
-# run("04_glc_mask_0p05.R", env=c(USED_N_YEARS="3"))
+CFG <- yaml::read_yaml(file.path(ROOT, "config", "config.yml"))
 
-# run("05_abiotic_static_from_cci_0p05.R",
-#     env=c(TAU_WATER="0.05", TAU_ICE="0.05", TAU_BARE="0.30"))
+m <- rast(list.files(CFG$paths$masks_cci_dir,
+                     pattern = "mask_.*0p05.tif",
+                     full.names = TRUE)[1])
 
-# run("07_luh_use_masks.R", env=c(LUH_AVG_START="1992", LUH_AVG_END="2020"))
-
-# run("04_luh_pasture_overlap_025.R",
-#     env=c(GRASS_SOURCE="CCI", G_MIN="0.05", P_MIN="0.20", ALPHA="0.50"))
-
-# run("07_apply_mask_0p05.R",
-#     env=c(VAR="FPAR", MASK="CCI",
-#            APPLY_ABIOTIC_STATIC="TRUE", APPLY_LUH_OVERLAP="TRUE"))
-
-# run("08_agg_0p25.R", env=c(VAR="FPAR", MASK="CCI"))
-
-# run("10_eval_masks.R")
-# run("11_eval_outputs.R")
+plot(m, col = c("#f0f0f0", "#d73027"),
+     breaks = c(-0.5, 0.5, 1.5),
+     main = "Used-land mask (1 = drop)")
 ```
-
-------------------------------------------------------------------------
-
-## **7. Inspecting outputs**
-
-``` r
-CFG <- yaml::read_yaml(file.path(root,"config","config.yml"))
-
-m_cci <- rast(list.files(CFG$paths$masks_cci_dir,
-                         "mask_used_.*0p05.tif$", full.names=TRUE)[1])
-m_glc <- rast(list.files(CFG$paths$masks_glc_dir,
-                         "mask_used_ge\\d+_.*0p05.tif$", full.names=TRUE)[1])
-
-plot(m_cci, col=c("#f0f0f0","#d73027"), breaks=c(-0.5,0.5,1.5),
-     main="CCI used-mask (1 = drop)")
-plot(m_glc, col=c("#f0f0f0","#d73027"), breaks=c(-0.5,0.5,1.5),
-     main="GLC used≥N (1 = drop)")
-```
-
-------------------------------------------------------------------------
-
-## **8. Reproducibility notes**
-
--   Masks use a **byte representation** (`1 = drop`, `0 = keep`, `NA = 255` on disk).
-
--   Resampling rules:
-
-    -   categorical → *nearest neighbour*
-    -   continuous → *bilinear*
-    -   aggregation uses **explicit 0.05° area weights**
-
--   File naming follows strict parameter tokens (`tau0p10_k3`, `Gmin0p05_Pmin0p20_alpha0p50`).
-
--   Provenance metadata embedded via `io.R::gtiff_desc()`.
-
--   Scripts generate global/AOI quicklooks for rapid QA.
-
-------------------------------------------------------------------------
