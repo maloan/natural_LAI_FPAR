@@ -109,4 +109,4 @@ Derived products are written to `data/` (intermediate) and `output/`
 -   Reproducibility depends on upstream versions and the local file
     inventory.
 -   The pipeline’s paths, years, and class mappings are defined in
-    `config/config.yml`. \`\`\`
+    `config/config.yml`.
