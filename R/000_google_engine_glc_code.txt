@@ -1,8 +1,8 @@
-// === BASIC: GLC_FCS30D yearly @ 0.05° (mode) =============================
+// ===GLC_FCS30D yearly @ 0.05° =============================
   /// https://code.earthengine.google.com/?scriptPath=users%2Fsat-io%2Fawesome-gee-catalog-examples%3Aglobal-landuse-landcover%2FGLC-FCS30D
   // --- Settings -------------------------------------------------------------
-  var AOI = ee.Geometry.Rectangle([-180, -90, 180, 90], null, false); // change if you want a subregion
-  var MAKE_EXPORTS = false;                      // set true to export
+  var AOI = ee.Geometry.Rectangle([-180, -90, 180, 90], null, false);
+  var MAKE_EXPORTS = false;                     
   var DRIVE_FOLDER = 'GLC_FCS30D_005deg_yearly'; // Drive folder for outputs
   
   // 0.05° grid aligned to -180..180, 90..-90
