@@ -60,10 +60,7 @@ R/
 │   ├── io.R
 │   ├── geom.R
 │   ├── viz.R
-│   ├── plots.R
-│   ├── names.R
-│   ├── options.R
-│   └── load_trends.R
+│   └── options.R
 ```
 
 ------------------------------------------------------------------------
@@ -139,10 +136,8 @@ The `helpers/` scripts are **not meant to be run directly**.
 -   **`utils.R`** – general helpers (timing, config, parallelism)
 -   **`io.R`** – raster I/O, GDAL options, provenance
 -   **`geom.R`** – grid alignment, NetCDF handling, aggregation
--   **`viz.R` / `plots.R`** – consistent plotting utilities
--   **`names.R`** – canonical filename conventions
+-   **`viz.R`** – consistent plotting utilities
 -   **`options.R`** – environment-variable parsing
--   **`load_trends.R`** – unified access to trend outputs
 
 ------------------------------------------------------------------------
 
