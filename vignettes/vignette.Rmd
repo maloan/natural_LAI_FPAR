@@ -6,11 +6,9 @@ output:
     toc: true
     toc_depth: 3
     number_sections: true
-  pdf_document:
-    toc: true
 ---
 
-## **1. Purpose**
+## **Purpose**
 
 This vignette documents the reproducible workflow used to derive
 **natural-vegetation LAI and fAPAR datasets** from long-term satellite
@@ -31,7 +29,7 @@ land, managed grassland, and abiotic surfaces.
 
 ------------------------------------------------------------------------
 
-## **2. Conceptual overview**
+## **Conceptual overview**
 
 The workflow separates **signal preparation** from **evaluation**:
 
@@ -53,11 +51,11 @@ coordinated via a Makefile.
 
 ------------------------------------------------------------------------
 
-## **3. Minimal setup**
+## **Minimal setup**
 
 Set the project root and load core packages:
 
-``` r
+```{r}
 Sys.setenv(SNU_LAI_FPAR_ROOT = "~/GitHub/natural_LAI_FPAR")
 
 suppressPackageStartupMessages({
@@ -70,7 +68,7 @@ The pipeline assumes a working GDAL / NetCDF installation.
 
 ------------------------------------------------------------------------
 
-## **4. Configuration**
+## **Configuration**
 
 All paths, grids, temporal coverage, and dataset-specific parameters are
 defined in:
@@ -88,7 +86,7 @@ Key configuration blocks include:
 
 Inspect the configuration:
 
-``` r
+```{r}
 ROOT <- Sys.getenv("SNU_LAI_FPAR_ROOT")
 CFG  <- yaml::read_yaml(file.path(ROOT, "config", "config.yml"))
 
@@ -99,7 +97,7 @@ CFG$project$years
 
 ------------------------------------------------------------------------
 
-## **5. Environment flags (minimal set)**
+## **Environment flags (minimal set)**
 
 Runtime behaviour is controlled via environment variables. In routine
 use, only a small subset is needed.
@@ -114,7 +112,7 @@ Common flags:
 
 Example:
 
-``` r
+```{r}
 Sys.setenv(
   RUN_TAG = "tau_0.1",
   SKIP_EXISTING = "TRUE",
@@ -129,12 +127,13 @@ Most scientific parameters (thresholds, classes, years) are defined in
 
 ------------------------------------------------------------------------
 
-## **6. Workflow steps**
+## **Workflow steps**
 
-### **6.1 Setup and reference grids**
+### **Setup and reference grids**
 
-``` bash
-make config
+```{bash}
+cd ../R
+make setup
 ```
 
 Initialises:
@@ -146,9 +145,10 @@ Initialises:
 
 ------------------------------------------------------------------------
 
-### **6.2 Georeferencing LAI and FPAR (0.05°)**
+### **Georeferencing LAI and FPAR (0.05°)**
 
-``` bash
+```{bash}
+cd ../R
 make georef
 ```
 
@@ -157,7 +157,7 @@ consistent orientation, extent, and metadata.
 
 ------------------------------------------------------------------------
 
-### **6.3 Land-use mask construction (0.05°)**
+### **Land-use mask construction (0.05°)**
 
 Masks are constructed independently from multiple data sources:
 
@@ -167,11 +167,9 @@ Masks are constructed independently from multiple data sources:
 -   **LUH pasture–grass overlap mask** (derived at 0.25°, replicated to
     0.05°)
 
-``` bash
-make cci-mask
-make glc-mask
-make abiotic
-make luh-overlap
+```{bash}
+cd ../R
+make masks
 ```
 
 All masks use a binary convention:
@@ -181,10 +179,11 @@ All masks use a binary convention:
 
 ------------------------------------------------------------------------
 
-### **6.4 Apply masks to LAI/FPAR (0.05°)**
+### **Apply masks to LAI/FPAR (0.05°)**
 
-``` bash
-make apply-all
+```{bash}
+cd ../R
+make apply
 ```
 
 Masks are applied independently to LAI and FPAR for each mask family
@@ -192,10 +191,10 @@ Masks are applied independently to LAI and FPAR for each mask family
 
 ------------------------------------------------------------------------
 
-### **6.5 Aggregate to 0.25°**
+### **Aggregate to 0.25°**
 
-``` bash
-make agg-all
+```{bash}
+make agg
 ```
 
 Masked 0.05° fields are aggregated to 0.25° using **explicit area
@@ -203,9 +202,9 @@ weighting**, preserving consistency across resolutions.
 
 ------------------------------------------------------------------------
 
-### **6.6 Evaluation and diagnostics**
+### **Evaluation and diagnostics**
 
-``` bash
+```{bash}
 make analysis
 ```
 
@@ -219,25 +218,28 @@ This step computes:
 
 ------------------------------------------------------------------------
 
-## **7. Running individual scripts**
+## **Running individual scripts**
 
 Scripts can also be executed directly:
 
-``` r
+```{r}
 run <- function(script, env = list()) {
   old <- Sys.getenv(names(env), unset = NA_character_)
   on.exit(mapply(Sys.setenv, names(old), as.list(old)), add = TRUE)
   mapply(Sys.setenv, names(env), as.list(env))
   system2("Rscript", file.path("R", script))
 }
+```
 
 # Example:
+
+```{r}
 run("11_apply_mask_0p05.R", env = c(VAR = "LAI", MASK = "CCI"))
 ```
 
 ------------------------------------------------------------------------
 
-## **8. Inspecting outputs**
+## **Inspecting outputs**
 
 Masked products and diagnostics are stored under:
 
@@ -247,7 +249,7 @@ output/<run_tag>/
 
 Example inspection:
 
-``` r
+```{r}
 CFG <- yaml::read_yaml(file.path(ROOT, "config", "config.yml"))
 
 m <- rast(list.files(CFG$paths$masks_cci_dir,
