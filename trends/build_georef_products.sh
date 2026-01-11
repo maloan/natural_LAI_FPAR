@@ -40,7 +40,7 @@ OUT025="$ROOT/analysis/unmasked/0p25"
 REF025="$ROOT/src/ref_0p25.nc"
 
 mkdir -p "$OUT005" "$OUT025"
-
+mkdir -p "$IN_DIR"
 echo "Input directory:       $IN_DIR"
 echo "Output (0.05°):        $OUT005"
 echo "Output (0.25°):        $OUT025"
@@ -182,7 +182,7 @@ declare -a FILES_TO_REMAP=(
 )
 
 START_YEAR=1982
-END_YEAR=2021
+END_YEAR=2024
 EXPECTED_LAYERS=$((END_YEAR - START_YEAR + 1))
 
 for f in "${FILES_TO_REMAP[@]}"; do

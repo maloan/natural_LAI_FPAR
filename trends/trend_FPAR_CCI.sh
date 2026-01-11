@@ -23,8 +23,8 @@ for tif in FPAR_masked_*.tif; do
 done
 
 cd tmp_nc
-cdo -O mergetime FPAR_*_dated.nc ../../FPAR_masked_monthly_0p25.nc
-cd ../..
+cdo -O mergetime FPAR_*_dated.nc ../FPAR_masked_monthly_0p25.nc
+cd ..
 
 rm -r tmp_nc
 
@@ -42,18 +42,20 @@ cdo -O trend FPAR_yearmean_0p25.nc \
     FPAR_yearmean_trend_intercept_0p25.nc \
     FPAR_yearmean_trend_slope_peryear_0p25.nc
 
+# Normalize slope by global mean slope
+cdo -O div FPAR_yearmean_trend_slope_peryear_0p25.nc \
+         -fldmean FPAR_yearmean_trend_slope_peryear_0p25.nc \
+         FPAR_yearmean_trend_slope_peryear_norm_0p25.nc
+
 # Trend on annual max
 cdo -O trend FPAR_yearmax_0p25.nc \
     FPAR_yearmax_trend_intercept_0p25.nc \
     FPAR_yearmax_trend_slope_peryear_0p25.nc
 
-# Yearly minimum
-cdo -O yearmin FPAR_masked_monthly_0p25.nc FPAR_yearmin_0p25.nc
-
-# Trend on minimum
-cdo -O trend FPAR_yearmin_0p25.nc \
-    FPAR_yearmin_trend_intercept_0p25.nc \
-    FPAR_yearmin_trend_slope_peryear_0p25.nc
+# Normalize slope by global mean slope
+cdo -O div FPAR_yearmax_trend_slope_peryear_0p25.nc -fldmean \
+    FPAR_yearmax_trend_slope_peryear_0p25.nc \
+    FPAR_yearmax_trend_slope_peryear_norm_0p25.nc
 
 # Amplitude = max - min
 cdo -O sub FPAR_yearmax_0p25.nc FPAR_yearmin_0p25.nc FPAR_yearamp_0p25.nc
@@ -63,7 +65,11 @@ cdo -O trend FPAR_yearamp_0p25.nc \
     FPAR_yearamp_trend_intercept_0p25.nc \
     FPAR_yearamp_trend_slope_peryear_0p25.nc
 
-mkdir -p ../../../../eval/trend_FPAR_CCI
-mv *.nc ../../../../eval/trend_FPAR_CCI/.
+cdo -O div FPAR_yearamp_trend_slope_peryear_0p25.nc -fldmean \
+    FPAR_yearamp_trend_slope_peryear_0p25.nc \
+    FPAR_yearamp_trend_slope_peryear_norm_0p25.nc
 
-cd ../../../../../../
+mkdir -p ../../eval/trend_FPAR_CCI
+mv *.nc ../../../eval/trend_FPAR_CCI/.
+
+cd ../../../../../trends

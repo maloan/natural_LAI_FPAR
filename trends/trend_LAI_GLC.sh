@@ -23,8 +23,8 @@ for tif in LAI_masked_*.tif; do
 done
 
 cd tmp_nc
-cdo -O mergetime LAI_*_dated.nc ../../LAI_masked_monthly_0p25.nc
-cd ../..
+cdo -O mergetime LAI_*_dated.nc ../LAI_masked_monthly_0p25.nc
+cd ..
 
 rm -r tmp_nc
 
@@ -63,7 +63,7 @@ cdo -O trend LAI_yearamp_0p25.nc \
     LAI_yearamp_trend_intercept_0p25.nc \
     LAI_yearamp_trend_slope_peryear_0p25.nc
 
-mkdir -p ../../../../eval/trend_LAI_GLC
-mv *.nc ../../../../eval/trend_LAI_GLC/.
+mkdir -p ../../../eval/trend_LAI_GLC
+mv *.nc ../../../eval/trend_LAI_GLC/.
 
-cd ../../../../../../
+cd ../../../../../trends

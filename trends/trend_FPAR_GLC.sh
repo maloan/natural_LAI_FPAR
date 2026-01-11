@@ -23,8 +23,8 @@ for tif in FPAR_masked_*.tif; do
 done
 
 cd tmp_nc
-cdo -O mergetime FPAR_*_dated.nc ../../FPAR_masked_monthly_0p25.nc
-cd ../..
+cdo -O mergetime FPAR_*_dated.nc ../FPAR_masked_monthly_0p25.nc
+cd ..
 
 rm -r tmp_nc
 
@@ -63,7 +63,7 @@ cdo -O trend FPAR_yearamp_0p25.nc \
     FPAR_yearamp_trend_intercept_0p25.nc \
     FPAR_yearamp_trend_slope_peryear_0p25.nc
 
-mkdir -p ../../../../eval/trend_FPAR_GLC
-mv *.nc ../../../../eval/trend_FPAR_GLC/.
+mkdir -p ../../../eval/trend_FPAR_GLC
+mv *.nc ../../../eval/trend_FPAR_GLC/.
 
-cd ../../../../../../
+cd ../../../../../trends
