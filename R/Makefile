@@ -1,146 +1,113 @@
 # =============================================================================
-# Paths & tools
+# Makefile — natural_LAI_FPAR
 # =============================================================================
-R    ?= Rscript
-ROOT ?= $(HOME)/GitHub/natural_LAI_FPAR
-WD   ?= $(ROOT)/R
+
+R       ?= Rscript
+ROOT    ?= $(HOME)/GitHub/natural_LAI_FPAR
+WD      := $(ROOT)/R
+
 RUN_TAG ?= tau_0.2
-FRACTIONAL_MASKING ?= TRUE
+TAU_CCI ?= 0.2
+MASKS   ?= CCI GLC
+SKIP_EXISTING?= TRUE
+REMAKE_QL?= FALSE
 
-export RUN_TAG
-export FRACTIONAL_MASKING
+# Minimal environment passed to all scripts
+ENV := RUN_TAG=$(RUN_TAG) TAU_CCI=$(TAU_CCI) MASKS=$(MASKS) REMAKE_QL=$(REMAKE_QL) SKIP_EXISTING=$(SKIP_EXISTING) REMAKE_QL=$(REMAKE_QL)
 
-ENV_COMMON = \
-  SKIP_EXISTING=$(SKIP_EXISTING) \
-  OVERWRITE=$(OVERWRITE) \
-  SILENT_TIMING=$(SILENT_TIMING) \
-  REMAKE_QL=$(REMAKE_QL) \
-  RUN_TAG=$(RUN_TAG)
+# Convenience macro
+run = $(ENV) $(R) $(WD)/$1
 
-# =============================================================================
-# Main target
-# =============================================================================
 .PHONY: all
-all: full-analysis
+all: analysis
 
-# =============================================================================
-# 0. Setup
-# =============================================================================
-.PHONY: config
-config:
-	$(ENV_COMMON) $(R) $(WD)/00_setup.R
+# -----------------------------------------------------------------------------
+# 0) Setup
+# -----------------------------------------------------------------------------
+.PHONY: setup
+setup:
+	$(call run,00_setup.R)
 
-# =============================================================================
-# 1. Georeferencing & base preprocessing
-# =============================================================================
-.PHONY: georef
-georef: config
-	VAR=LAI  $(ENV_COMMON) $(R) $(WD)/01_georef_0p05.R
-	VAR=FPAR $(ENV_COMMON) $(R) $(WD)/01_georef_0p05.R
+# -----------------------------------------------------------------------------
+# 1) Georef + fractions / stacks
+# -----------------------------------------------------------------------------
+.PHONY: georef cci-frac glc-stack prep
+georef: setup
+	VAR=LAI  $(call run,01_georef_0p05.R)
+	VAR=FPAR $(call run,01_georef_0p05.R)
 
-.PHONY: cci-frac
-cci-frac: config
-	$(ENV_COMMON) $(R) $(WD)/03_cci_frac_0p05.R
+cci-frac: setup
+	$(call run,03_cci_frac_0p05.R)
 
-.PHONY: glc-stack
-glc-stack: config
-	$(ENV_COMMON) $(R) $(WD)/05_glc_stack_0p05.R
+glc-stack: setup
+	$(call run,05_glc_stack_0p05.R)
 
-# =============================================================================
-# 2. Masks (CCI, GLC, LUH, abiotic)
-# =============================================================================
-.PHONY: cci-mask
-cci-mask:
-	$(ENV_COMMON) $(R) $(WD)/04_cci_mask_0p05.R
+prep: georef cci-frac glc-stack
 
-.PHONY: glc-mask
-glc-mask:
-	$(ENV_COMMON) $(R) $(WD)/06_glc_mask_0p05.R
+# -----------------------------------------------------------------------------
+# 2) Masks (build all base masks)
+# -----------------------------------------------------------------------------
+.PHONY: masks
+masks:
+	$(call run,04_cci_mask_0p05.R)
+	$(call run,06_glc_mask_0p05.R)
+	$(call run,07_abiotic_static_from_cci_0p05.R)
+	$(call run,10_luh_pasture_overlap_025.R)
 
-.PHONY: abiotic
-abiotic:
-	$(ENV_COMMON) $(R) $(WD)/07_abiotic_static_from_cci_0p05.R
+# -----------------------------------------------------------------------------
+# 3) Apply masks (0.05°) + aggregate (0.25°)
+# -----------------------------------------------------------------------------
+.PHONY: apply agg
+apply:
+	@for m in $(MASKS); do \
+	  echo "== APPLY $$m ==" ; \
+	  MASK=$$m VAR=LAI  $(call run,11_apply_mask_0p05.R) ; \
+	  MASK=$$m VAR=FPAR $(call run,11_apply_mask_0p05.R) ; \
+	done
 
-.PHONY: luh-overlap
-luh-overlap:
-	$(ENV_COMMON) $(R) $(WD)/10_luh_pasture_overlap_025.R
+agg:
+	@for m in $(MASKS); do \
+	  echo "== AGG $$m ==" ; \
+	  MASK=$$m VAR=LAI  $(call run,12_agg_0p25.R) ; \
+	  MASK=$$m VAR=FPAR $(call run,12_agg_0p25.R) ; \
+	done
 
-# =============================================================================
-# 3. Apply masks (0.05°)
-# =============================================================================
-apply-mask-%:
-	VAR=$* $(ENV_COMMON) $(R) $(WD)/11_apply_mask_0p05.R
+# Full data pipeline
+.PHONY: pipeline
+pipeline: prep masks apply agg
 
-# Convenience groups
-.PHONY: apply-all
-apply-all: apply-mask-LAI apply-mask-FPAR
-
-# =============================================================================
-# 4. Aggregate to 0.25°
-# =============================================================================
-agg-%:
-	VAR=$* $(ENV_COMMON) $(R) $(WD)/12_agg_0p25.R
-
-.PHONY: agg-all
-agg-all: agg-LAI agg-FPAR
-
-# =============================================================================
-# 5. Analysis (scripts 13–17)
-# =============================================================================
-.PHONY: analyse-georef
-analyse-georef:
-	$(ENV_COMMON) $(R) $(WD)/13_analyse_georef_0p25.R
-
-.PHONY: compare-trends
-compare-trends:
-	$(ENV_COMMON) $(R) $(WD)/14_compare_lai_fpar_trends.R
-
-.PHONY: analyse-masked-trends
-analyse-masked-trends:
-	$(ENV_COMMON) $(R) $(WD)/15_analyse_masked_trends.R
-
-.PHONY: compare-masked-unmasked
-compare-masked-unmasked:
-	$(ENV_COMMON) $(R) $(WD)/16_compare_masked_unmasked.R
-
-.PHONY: analyse-trend-mask
-analyse-trend-mask:
-	$(ENV_COMMON) $(R) $(WD)/17_analyse_trend_mask.R
-
+# -----------------------------------------------------------------------------
+# 4) Analyses
+# -----------------------------------------------------------------------------
 .PHONY: analysis
-analysis: analyse-georef compare-trends analyse-masked-trends compare-masked-unmasked analyse-trend-mask
+analysis: pipeline
+	$(call run,13_analyse_georef_0p25.R)
+	$(call run,14_compare_lai_fpar_trends.R)
+	$(call run,15_analyse_masked_trends.R)
+	$(call run,16_compare_masked_unmasked.R)
+	$(call run,17_analyse_trend_mask.R)
 
-# =============================================================================
-# 6. Full pipeline
-# =============================================================================
-.PHONY: full-pipeline
-full-pipeline: georef cci-frac glc-stack cci-mask glc-mask abiotic luh-overlap apply-all agg-all
-
-.PHONY: full-analysis
-full-analysis: full-pipeline analysis
-
-# =============================================================================
-# Quicklooks
-# =============================================================================
+# -----------------------------------------------------------------------------
+# Quicklooks (explicit; no extra switches)
+# -----------------------------------------------------------------------------
 .PHONY: ql
 ql:
-	REMAKE_QL=TRUE $(ENV_COMMON) $(R) $(WD)/03_cci_frac_0p05.R
-	REMAKE_QL=TRUE $(ENV_COMMON) $(R) $(WD)/04_cci_mask_0p05.R
-	REMAKE_QL=TRUE $(ENV_COMMON) $(R) $(WD)/05_glc_stack_0p05.R
-	REMAKE_QL=TRUE $(ENV_COMMON) $(R) $(WD)/06_glc_mask_0p05.R
+	REMAKE_QL=TRUE $(call run,03_cci_frac_0p05.R)
+	REMAKE_QL=TRUE $(call run,04_cci_mask_0p05.R)
+	REMAKE_QL=TRUE $(call run,05_glc_stack_0p05.R)
+	REMAKE_QL=TRUE $(call run,06_glc_mask_0p05.R)
 
-# =============================================================================
+# -----------------------------------------------------------------------------
 # Help
-# =============================================================================
+# -----------------------------------------------------------------------------
 .PHONY: help
 help:
 	@echo "Targets:"
-	@echo "  all                 → full pipeline + all analyses"
-	@echo "  georef              → georeference LAI & FPAR"
-	@echo "  cci-frac, glc-stack → preprocessing"
-	@echo "  cci-mask, glc-mask, abiotic, luh-overlap"
-	@echo "  apply-mask-LAI / apply-mask-FPAR"
-	@echo "  agg-LAI / agg-FPAR"
-	@echo "  analysis            → scripts 13–17"
-	@echo "  full-pipeline       → data prep + masking + aggregation"
-	@echo "  full-analysis       → full pipeline + analysis"
+	@echo "  pipeline   -> georef + fractions/stacks + masks + apply + agg"
+	@echo "  analysis   -> pipeline + scripts 13–17 (default via 'all')"
+	@echo "  ql         -> regenerate quicklooks for key steps"
+	@echo ""
+	@echo "Typical runs:"
+	@echo "  make analysis RUN_TAG=tau_0.2"
+	@echo "  make pipeline MASKS='CCI'"
+	@echo "  make pipeline MASKS='GLC'"
