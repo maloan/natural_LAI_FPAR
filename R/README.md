@@ -1,9 +1,3 @@
----
-editor_options: 
-  markdown: 
-    wrap: 72
----
-
 # `R/` — Processing and Analysis Pipeline for Natural LAI / fAPAR
 
 This directory contains the **core processing, masking, aggregation, and
