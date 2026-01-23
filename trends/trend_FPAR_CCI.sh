@@ -1,75 +1,83 @@
-cd ../output/tau_0.2/masked_0p25/FPAR/masked_FPAR_CCI
-ls FPAR_masked_*.tif | head
-rm *.nc
+#!/usr/bin/env bash
+set -euo pipefail
+
+# --- config ---
+VAR="FPAR"
+RES="0p25"
+PATTERN="${VAR}_masked_*.tif"         # e.g., FPAR_masked_198201_0p25.tif
+OUT_MONTHLY="${VAR}_masked_monthly_${RES}.nc"
+
+# thresholds for relative trend (paper definition)
+EPS_FPAR="${EPS_FPAR:-0.02}"
+
+need_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "Missing dependency: $1" >&2; exit 1; }; }
+need_cmd gdal_translate
+need_cmd cdo
+
+# --- 0) build monthly NetCDF with time axis ---
+rm -rf tmp_nc
 mkdir -p tmp_nc
 
-for tif in FPAR_masked_*.tif; do
-  # Extract YYYYMM
+n_tif=$(ls -1 ${PATTERN} 2>/dev/null | wc -l | awk '{print $1}')
+if [[ "$n_tif" -eq 0 ]]; then
+  echo "No files match: ${PATTERN}"
+  exit 1
+fi
+
+echo "Converting ${n_tif} GeoTIFFs -> NetCDF (temporary)..."
+
+for tif in ${PATTERN}; do
   base=$(basename "$tif")
-  yyyymm=${base#FPAR_masked_}
-  yyyymm=${yyyymm%_0p25.tif}   # e.g. 198201
+  yyyymm=${base#${VAR}_masked_}
+  yyyymm=${yyyymm%_${RES}.tif}
 
   year=${yyyymm:0:4}
   mon=${yyyymm:4:2}
 
-  nc_tmp="tmp_nc/FPAR_${yyyymm}.nc"
-  echo "Converting $tif → $nc_tmp"
+  raw_nc="tmp_nc/${VAR}_${yyyymm}.nc"
+  dated_nc="tmp_nc/${VAR}_${yyyymm}_dated.nc"
 
-  # 1) GeoTIFF → NetCDF
-  gdal_translate -of NETCDF "$tif" "$nc_tmp"
-
-  # 2) Set date for CDO (one day per month is fine)
-  cdo -O setdate,${year}-${mon}-01 "$nc_tmp" "tmp_nc/FPAR_${yyyymm}_dated.nc"
+  echo "  ${tif} -> ${dated_nc}"
+  gdal_translate -of NETCDF "$tif" "$raw_nc"
+  cdo -O setdate,${year}-${mon}-01 "$raw_nc" "$dated_nc"
 done
 
-cd tmp_nc
-cdo -O mergetime FPAR_*_dated.nc ../FPAR_masked_monthly_0p25.nc
-cd ..
+echo "Merging monthly time series -> ${OUT_MONTHLY}"
+cdo -O mergetime tmp_nc/${VAR}_*_dated.nc "${OUT_MONTHLY}"
+rm -rf tmp_nc
 
-rm -r tmp_nc
+# --- 1) annual metrics ---
+echo "Computing annual metrics..."
+cdo -O yearmean "${OUT_MONTHLY}" "${VAR}_yearmean_${RES}.nc"
+cdo -O yearmax  "${OUT_MONTHLY}" "${VAR}_yearmax_${RES}.nc"
+cdo -O yearmin  "${OUT_MONTHLY}" "${VAR}_yearmin_${RES}.nc"
+cdo -O sub "${VAR}_yearmax_${RES}.nc" "${VAR}_yearmin_${RES}.nc" "${VAR}_yearamp_${RES}.nc"
 
-# Yearly mean FPAR
-cdo -O yearmean FPAR_masked_monthly_0p25.nc FPAR_yearmean_0p25.nc
+# --- 2) trends (OLS slope per year + intercept) ---
+echo "Computing trends..."
+for MET in yearmean yearmax yearmin yearamp; do
+  cdo -O trend "${VAR}_${MET}_${RES}.nc" \
+    "${VAR}_${MET}_trend_intercept_${RES}.nc" \
+    "${VAR}_${MET}_trend_slope_peryear_${RES}.nc"
+done
 
-cdo -info FPAR_yearmean_0p25.nc
+# --- 3) relative trends (recommended; matches your Methods) ---
+echo "Computing relative trends (slope / local mean level)..."
+for MET in yearmean yearmax yearmin yearamp; do
+  ts="${VAR}_${MET}_${RES}.nc"
+  sl="${VAR}_${MET}_trend_slope_peryear_${RES}.nc"
+  mu="${VAR}_${MET}_meanlevel_${RES}.nc"
+  mask="${VAR}_${MET}_meanlevel_geEPS_${RES}.nc"
+  out="${VAR}_${MET}_trend_relative_peryear_${RES}.nc"
 
-# Yearly max FPAR
-cdo -O yearmax FPAR_masked_monthly_0p25.nc FPAR_yearmax_0p25.nc
+  # mean level over time (per pixel)
+  cdo -O timmean "$ts" "$mu"
+  # validity mask (avoid unstable ratios)
+  cdo -O gec,"${EPS_FPAR}" "$mu" "$mask"
+  # relative trend
+  cdo -O setname,trend_relative -ifthen "$mask" -div "$sl" "$mu" "$out"
 
-cdo -info FPAR_yearmax_0p25.nc
-# Trend on annual mean
-cdo -O trend FPAR_yearmean_0p25.nc \
-    FPAR_yearmean_trend_intercept_0p25.nc \
-    FPAR_yearmean_trend_slope_peryear_0p25.nc
+  rm -f "$mu" "$mask"
+done
 
-# Normalize slope by global mean slope
-cdo -O div FPAR_yearmean_trend_slope_peryear_0p25.nc \
-         -fldmean FPAR_yearmean_trend_slope_peryear_0p25.nc \
-         FPAR_yearmean_trend_slope_peryear_norm_0p25.nc
-
-# Trend on annual max
-cdo -O trend FPAR_yearmax_0p25.nc \
-    FPAR_yearmax_trend_intercept_0p25.nc \
-    FPAR_yearmax_trend_slope_peryear_0p25.nc
-
-# Normalize slope by global mean slope
-cdo -O div FPAR_yearmax_trend_slope_peryear_0p25.nc -fldmean \
-    FPAR_yearmax_trend_slope_peryear_0p25.nc \
-    FPAR_yearmax_trend_slope_peryear_norm_0p25.nc
-
-# Amplitude = max - min
-cdo -O sub FPAR_yearmax_0p25.nc FPAR_yearmin_0p25.nc FPAR_yearamp_0p25.nc
-
-# Trend on amplitude
-cdo -O trend FPAR_yearamp_0p25.nc \
-    FPAR_yearamp_trend_intercept_0p25.nc \
-    FPAR_yearamp_trend_slope_peryear_0p25.nc
-
-cdo -O div FPAR_yearamp_trend_slope_peryear_0p25.nc -fldmean \
-    FPAR_yearamp_trend_slope_peryear_0p25.nc \
-    FPAR_yearamp_trend_slope_peryear_norm_0p25.nc
-
-mkdir -p ../../eval/trend_FPAR_CCI
-mv *.nc ../../../eval/trend_FPAR_CCI/.
-
-cd ../../../../../trends
+echo "Done."
