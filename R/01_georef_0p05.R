@@ -31,10 +31,12 @@ Vcfg <- cfg$variables[[tolower(VAR)]]
 
 paths <- switch(VAR,
   LAI = list(
-    out_dir = cfg$paths$georef_lai_0p05_dir, in_dir = cfg$paths$lai_nc_dir
+    out_dir = cfg$paths$georef_lai_0p05_dir,
+    in_dir = cfg$paths$lai_nc_dir
   ),
   FPAR = list(
-    out_dir = cfg$paths$georef_fpar_0p05_dir, in_dir = cfg$paths$fpar_nc_dir
+    out_dir = cfg$paths$georef_fpar_0p05_dir,
+    in_dir = cfg$paths$fpar_nc_dir
   )
 )
 
@@ -61,7 +63,9 @@ for (f in files) {
   out_tif <- file.path(out_georef, sprintf("%s_%s_0p05.tif", VAR, ym))
   out_png <- file.path(out_quick, sprintf("%s_%s_0p05.png", VAR, ym))
 
-  if (!opts$FORCE && opts$SKIP_EXISTING && file.exists(out_tif)) next
+  if (!opts$FORCE && opts$SKIP_EXISTING && file.exists(out_tif)) {
+    next
+  }
 
   r <- nc_month_to_raster(
     nc_file     = f,
