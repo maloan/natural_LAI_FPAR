@@ -14,18 +14,19 @@ terraOptions(progress = 1, memfrac = 0.25)
 RECOMPUTE_REFS <- as.logical(Sys.getenv("RECOMPUTE_REFS", "FALSE"))
 RECOMPUTE_AREAS <- as.logical(Sys.getenv("RECOMPUTE_AREAS", "FALSE"))
 RECOMPUTE_AOIS <- as.logical(Sys.getenv("RECOMPUTE_AOIS", "FALSE"))
-GDAL_TILED <- as.logical(Sys.getenv("GDAL_TILED", "TRUE"))
 
 EPSG4326 <- "EPSG:4326"
-RUN_TAG <- Sys.getenv("RUN_TAG", unset = "tau_0.2")
+RUN_TAG <- Sys.getenv("RUN_TAG", unset = "tau_0.1")
 
 GDAL_OPTS <- {
   co <- gdal_wopt("FLT4S")
-  if (!GDAL_TILED) co <- setdiff(co, "TILED=YES")
+  if (!GDAL_TILED) {
+    co <- setdiff(co, "TILED=YES")
+  }
   co
 }
 
-# --- paths ---------------------------------------------------------------------
+# --- paths --------------------------------------------------------------------
 in_dirs <- list(
   lai_nc_dir       = exp_(here("data-raw", "LAI", "lai_1982-2024")),
   fpar_nc_dir      = exp_(here("data-raw", "FPAR", "fpar_1982-2024")),
@@ -65,7 +66,7 @@ dirs <- list(
   mask_abiotic_dir = here("output", RUN_TAG, "masks", "mask_abiotic")
 )
 
-# masked dirs (generated without a function)
+# masked dirs
 for (v in c("LAI", "FPAR")) {
   for (m in c("CCI", "GLC")) {
     for (r in c("0p05", "0p25")) {
@@ -83,7 +84,7 @@ invisible(lapply(unique(unlist(dirs)), dir.create,
   recursive = TRUE, showWarnings = FALSE
 ))
 
-# --- product paths --------------------------------------------------------------
+# --- product paths ------------------------------------------------------------
 ref <- list(
   `0p05` = list(
     tif = here("src", "ref_0p05.tif"),
@@ -113,7 +114,7 @@ aoi <- list(
   `0p25` = list(tif = here("src", "aoi_0p25.tif"), deg = 0.25)
 )
 
-# --- config (write once) --------------------------------------------------------
+# --- config (write once) ------------------------------------------------------
 cfg_path <- here("config", "config.yml")
 dir.create(dirname(cfg_path), recursive = TRUE, showWarnings = FALSE)
 
@@ -248,7 +249,7 @@ cfg$naming <- list(
 
 yaml::write_yaml(cfg, cfg_path)
 
-# --- build reference rasters + netcdf ------------------------------------------
+# --- build reference rasters + netcdf -----------------------------------------
 for (k in names(ref)) {
   tif <- ref[[k]]$tif
   nc <- ref[[k]]$nc
@@ -275,7 +276,7 @@ for (k in names(ref)) {
   }
 }
 
-# --- build area rasters + netcdf ------------------------------------------------
+# --- build area rasters + netcdf ----------------------------------------------
 for (k in names(area)) {
   tif <- area[[k]]$tif
   nc <- area[[k]]$nc
@@ -296,7 +297,7 @@ for (k in names(area)) {
   }
 }
 
-# --- build AOI masks ------------------------------------------------------------
+# --- build AOI masks ----------------------------------------------------------
 AOI <- cfg$project$aoi_extent
 poly <- as.polygons(ext(AOI$lon_min, AOI$lon_max, AOI$lat_min, AOI$lat_max),
   crs = EPSG4326
@@ -322,7 +323,7 @@ for (k in names(aoi)) {
   }
 }
 
-# --- sanity checks & manifest ---------------------------------------------------
+# --- sanity checks & manifest -------------------------------------------------
 ref005 <- rast(ref$`0p05`$tif)
 ref025 <- rast(ref$`0p25`$tif)
 area005 <- rast(area$`0p05`$tif)
