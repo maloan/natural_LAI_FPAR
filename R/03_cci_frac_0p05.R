@@ -1,5 +1,6 @@
 ## =============================================================================
-# 03_cci_frac_0p05.R — Aggregate ESA-CCI/C3S land cover to 0.05° fractional cover
+# 03_cci_frac_0p05.R
+# Aggregate ESA-CCI/C3S land cover to 0.05° fractional cover
 ## =============================================================================
 
 suppressPackageStartupMessages({
@@ -43,7 +44,7 @@ gdal_opts <- wopt$gdal
 naflag <- wopt$NAflag %||% -9999
 
 # ------------------------------------------------------------------------------
-# Choose one file per year (prefer C3S over ESACCI if both exist)
+# Choose one file per year
 # ------------------------------------------------------------------------------
 all_files <- list.files(cci_dir, pattern = "\\.tif$", full.names = TRUE)
 if (!length(all_files)) {
@@ -58,7 +59,11 @@ get_year <- function(x) {
   as.integer(substr(basename(x), m[1], m[1] + attr(m, "match.length") - 1))
 }
 get_source_rank <- function(x) {
-  if (grepl("^C3S", basename(x))) 2L else 1L
+  if (grepl("^C3S", basename(x))) {
+    2L
+  } else {
+    1L
+  }
 }
 
 yrs <- vapply(all_files, get_year, integer(1))
@@ -66,15 +71,15 @@ ok <- !is.na(yrs) & yrs >= start_year & yrs <= end_year
 all_files <- all_files[ok]
 yrs <- yrs[ok]
 
-if (!length(all_files)) stop("No CCI GeoTIFFs in year range.")
-
 rank <- vapply(all_files, get_source_rank, integer(1))
 
 # for each year pick file with max rank (C3S preferred); tie-breaker = first
 pick_by_year <- tapply(
   seq_along(all_files),
   yrs,
-  function(idx) idx[which.max(rank[idx])]
+  function(idx) {
+    idx[which.max(rank[idx])]
+  }
 )
 
 plan_year <- as.integer(names(pick_by_year))
