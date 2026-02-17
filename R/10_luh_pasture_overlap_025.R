@@ -18,7 +18,7 @@ cfg <- cfg_read()
 terraOptions(progress = 1, memfrac = 0.25)
 
 # --- params -------------------------------------------------------------------
-GRASS_SOURCE <- toupper(Sys.getenv("GRASS_SOURCE", "CCI")) # CCI | GLC_TEMP
+GRASS_SOURCE <- toupper(Sys.getenv("GRASS_SOURCE", "CCI")) # CCI | GLC
 REMAKE_QL <- as.logical(Sys.getenv("REMAKE_QL", "TRUE"))
 
 G_MIN <- as.numeric(Sys.getenv("G_MIN", "0.1"))
@@ -28,17 +28,14 @@ ALPHA <- as.numeric(Sys.getenv("ALPHA", "0.5"))
 Y0 <- env_get_int("LUH_AVG_START", cfg$project$years$cci_start)
 Y1 <- env_get_int("LUH_AVG_END", cfg$project$years$cci_end)
 
-stopifnot(
-  is.finite(G_MIN), is.finite(P_MIN),
-  is.finite(ALPHA), is.finite(Y0), is.finite(Y1)
-)
-
 ref005 <- rast(cfg$grids$grid_005$ref_raster)
 ref025 <- rast(cfg$grids$grid_025$ref_raster)
 area005 <- rast(cfg$grids$grid_005$area_raster)
 
 out_dir <- file.path(cfg$paths$masks_root_dir, "mask_luh_overlap")
 ql_dir <- file.path(out_dir, "quicklooks")
+aoi_root <- file.path(ql_dir, "aois")
+dir.create(aoi_root, recursive = TRUE, showWarnings = FALSE)
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(ql_dir, recursive = TRUE, showWarnings = FALSE)
 
@@ -59,23 +56,19 @@ grass_005 <- switch(GRASS_SOURCE,
       pattern = "ESACCI_frac_\\d{4}_0p05\\.tif$",
       full.names = TRUE
     )
-    if (!length(ff)) stop("No CCI fraction files in: ", frac_dir)
     yrs <- as.integer(substr(
       basename(ff), regexpr("\\d{4}", basename(ff)),
       regexpr("\\d{4}", basename(ff)) + 3
     ))
     keep <- which(yrs >= Y0 & yrs <= Y1)
-    if (!length(keep)) stop("No CCI fraction years in window ", Y0, "-", Y1)
     stk <- rast(lapply(ff[keep], function(x) rast(x)[["frac_grass"]]))
     mean(stk, na.rm = TRUE)
   },
-  GLC_TEMP = {
+  GLC = {
     p <- file.path(cfg$paths$glc_out_dir, "glc_cat_yearstack_0p05.tif")
-    if (!file.exists(p)) stop("GLC yearstack not found: ", p)
     s <- rast(p)
     yrs <- suppressWarnings(as.integer(substr(names(s), 2, 5)))
     keep <- which(yrs >= Y0 & yrs <= Y1)
-    if (!length(keep)) stop("No GLC years in window ", Y0, "-", Y1)
     grass_vals <- as.integer(
       unlist(cfg$glc$classes$grassland, use.names = FALSE)
     )
@@ -98,15 +91,10 @@ names(grass_025) <- "grass_025"
 
 # --- 3) LUH pasture @0.25° (mean over window) ---------------------------------
 luh_nc <- cfg$luh2$states_nc
-if (!file.exists(luh_nc)) stop("LUH file not found: ", luh_nc)
-
 v_pas <- cfg$luh2$variables$pasture
 pas <- rast(luh_nc, subds = v_pas)
-
 ty <- suppressWarnings(as.integer(time(pas)))
 keep <- which(ty >= Y0 & ty <= Y1)
-if (!length(keep)) stop("No LUH timesteps in window ", Y0, "-", Y1)
-
 pasture_025 <- clamp(mean(pas[[keep]], na.rm = TRUE), 0, 1)
 if (!compareGeom(pasture_025, ref025, stopOnError = FALSE)) {
   pasture_025 <- resample(pasture_025, ref025, method = "bilinear")
@@ -170,9 +158,6 @@ if (REMAKE_QL || !file.exists(ql_global)) {
     )
   )
 }
-
-aoi_root <- file.path(ql_dir, "aois")
-dir.create(aoi_root, recursive = TRUE, showWarnings = FALSE)
 
 for (nm in names(cfg$aois)) {
   a <- cfg$aois[[nm]]
