@@ -8,7 +8,6 @@ suppressPackageStartupMessages({
 })
 
 source(here("R", "helpers", "utils.R"))
-# source(here("R","helpers", "geom.R"))
 source(here("R", "helpers", "viz.R"))
 source(here("R", "helpers", "io.R"))
 source(here("R", "helpers", "options.R"))
