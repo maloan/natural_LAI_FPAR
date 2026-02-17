@@ -20,8 +20,7 @@ dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(ql_dir, recursive = TRUE, showWarnings = FALSE)
 
 # --- parameters (env-only defaults) -------------------------------------------
-cci_band <- Sys.getenv("CCI_BAND", unset = "frac_fused")
-tau_cci <- as.numeric(Sys.getenv("TAU_CCI", "0.2"))
+tau_cci <- as.numeric(Sys.getenv("TAU_CCI", "0.1"))
 k_cci <- as.integer(Sys.getenv("K_CCI", "3"))
 
 SKIP_EXISTING <- as.logical(Sys.getenv("SKIP_EXISTING", "TRUE"))
@@ -31,7 +30,10 @@ cci_years <- cfg$project$years$cci_start:cfg$project$years$cci_end
 
 # --- files --------------------------------------------------------------------
 frac_dir <- cfg$paths$cci_out_dir
-fpaths <- list.files(frac_dir, pattern = "ESACCI_frac_\\d{4}_0p05\\.tif$", full.names = TRUE)
+fpaths <- list.files(
+  frac_dir,
+  pattern = "ESACCI_frac_\\d{4}_0p05\\.tif$", full.names = TRUE
+)
 stopifnot(length(fpaths) > 0)
 years <- as.integer(sub("^.*_(\\d{4})_0p05\\.tif$", "\\1", basename(fpaths)))
 ord <- order(years)
@@ -44,17 +46,9 @@ years <- years[keep]
 stopifnot(length(fpaths) > 0)
 # --- validate band ------------------------------------------------------------
 r0 <- rast(fpaths[1])
-if (!(cci_band %in% names(r0))) {
-  if ("frac_fused" %in% names(r0)) {
-    message("Band '", cci_band, "' not found; using 'frac_fused'.")
-    cci_band <- "frac_fused"
-  } else {
-    stop("Neither requested band nor 'frac_fused' found in: ", fpaths[1])
-  }
-}
 
 # --- load stack ---------------------------------------------------------------
-cci_stack <- rast(lapply(fpaths, function(f) rast(f)[[cci_band]]))
+cci_stack <- rast(lapply(fpaths, function(f) rast(f)[["frac_fused"]]))
 time(cci_stack) <- years
 
 if (!compareGeom(cci_stack, tmpl, stopOnError = FALSE)) {
@@ -66,7 +60,7 @@ k_eff <- min(k_cci, nl)
 
 message(sprintf(
   "CCI stack: band=%s, nlayers=%d, years=[%d..%d], tau=%.3f, k=%d",
-  cci_band, nl, min(years), max(years), tau_cci, k_eff
+  "frac_fused", nl, min(years), max(years), tau_cci, k_eff
 ))
 
 # --- persistence mask ---------------------------------------------------------
@@ -77,11 +71,11 @@ mask_byte <- ifel(mask_log, 1L, 0L)
 y1 <- min(years)
 y2 <- max(years)
 tau_tok <- gsub("\\.", "p", sprintf("%.2f", tau_cci))
-tag <- sprintf("%s_tau%s_k%d_%d-%d", cci_band, tau_tok, k_eff, y1, y2)
+tag <- sprintf("%s_tau%s_k%d_%d-%d", "frac_fused", tau_tok, k_eff, y1, y2)
 
 out_mask_cci <- file.path(out_dir, sprintf(
   "mask_used_%s_tau%s_k%d_%d-%d_0p05.tif",
-  cci_band, tau_tok, k_eff, y1, y2
+  "frac_fused", tau_tok, k_eff, y1, y2
 ))
 
 if (!(SKIP_EXISTING && file.exists(out_mask_cci))) {
@@ -101,7 +95,7 @@ if (REMAKE_QL || !file.exists(ql_probe)) {
     mask = mask_byte,
     title = sprintf(
       "CCI mask (%s, \u03C4=%.2f, k=%d)",
-      cci_band, tau_cci, k_eff
+      "frac_fused", tau_cci, k_eff
     ),
     tag = tag,
     cfg = cfg,
