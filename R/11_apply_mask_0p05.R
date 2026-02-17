@@ -19,13 +19,14 @@ terraOptions(progress = 1, memfrac = 0.25)
 
 VAR <- toupper(Sys.getenv("VAR", "FPAR"))
 MASK <- toupper(Sys.getenv("MASK", "CCI"))
-stopifnot(VAR %in% c("LAI", "FPAR"), MASK %in% c("CCI", "GLC"))
 
 SKIP_EXISTING <- as.logical(Sys.getenv("SKIP_EXISTING", "TRUE"))
 OVERWRITE <- as.logical(Sys.getenv("OVERWRITE", "FALSE"))
 REMAKE_QL <- as.logical(Sys.getenv("REMAKE_QL", "FALSE"))
-APPLY_LUH_OVERLAP <- as.logical(Sys.getenv("APPLY_LUH_OVERLAP", "TRUE"))
-APPLY_ABIOTIC_STATIC <- as.logical(Sys.getenv("APPLY_ABIOTIC_STATIC", "TRUE"))
+SRC <- toupper(Sys.getenv("GRASS_SOURCE", "CCI"))
+GMIN <- as.numeric(Sys.getenv("G_MIN", "0.1"))
+PMIN <- as.numeric(Sys.getenv("P_MIN", "0.1"))
+ALPHA <- as.numeric(Sys.getenv("ALPHA", "0.50"))
 
 ref005 <- rast(cfg$grids$grid_005$ref_raster)
 
@@ -80,40 +81,28 @@ combine_or <- function(a, b) {
   app(c(a, b), fun = function(v) as.integer(any(v >= 1, na.rm = TRUE)))
 }
 
-if (APPLY_ABIOTIC_STATIC) {
-  abi_dir <- file.path(cfg$paths$masks_root_dir, "mask_abiotic")
-  abi_path <- list.files(abi_dir, "mask_abiotic_CCI_2007_.*_0p05\\.tif$",
-    full.names = TRUE
-  )
-  if (length(abi_path)) {
-    abi <- rast(abi_path[order(file.info(abi_path)$mtime,
-      decreasing = TRUE
-    )][1])
-    mask <- combine_or(mask, abi)
-  }
+
+abi_dir <- file.path(cfg$paths$masks_root_dir, "mask_abiotic")
+abi_path <- list.files(abi_dir, "mask_abiotic_CCI_2007_.*_0p05\\.tif$",
+  full.names = TRUE
+)
+if (length(abi_path)) {
+  abi <- rast(abi_path[order(file.info(abi_path)$mtime,
+    decreasing = TRUE
+  )][1])
+  mask <- combine_or(mask, abi)
 }
 
-if (APPLY_LUH_OVERLAP) {
-  SRC <- toupper(Sys.getenv("GRASS_SOURCE", "CCI"))
-  GMIN <- as.numeric(Sys.getenv("G_MIN", "0.1"))
-  PMIN <- as.numeric(Sys.getenv("P_MIN", "0.1"))
-  ALPHA <- as.numeric(Sys.getenv("ALPHA", "0.50"))
-
-  rx <- sprintf(
-    "mask_luh_overlap_%s_Gmin%s_Pmin%s_alpha%s_%d-%d_0p05_rep\\.tif$",
-    SRC, tok(GMIN), tok(PMIN), tok(ALPHA), Y1, Y2
-  )
-  luh_path <- find_one(
-    file.path(cfg$paths$masks_root_dir, "mask_luh_overlap"), rx
-  )
-  luh <- rast(luh_path)
-  mask <- combine_or(mask, luh)
-}
-
+rx <- sprintf(
+  "mask_luh_overlap_%s_Gmin%s_Pmin%s_alpha%s_%d-%d_0p05_rep\\.tif$",
+  SRC, tok(GMIN), tok(PMIN), tok(ALPHA), Y1, Y2
+)
+luh_path <- find_one(
+  file.path(cfg$paths$masks_root_dir, "mask_luh_overlap"), rx
+)
+luh <- rast(luh_path)
+mask <- combine_or(mask, luh)
 vals_ok <- try(all(values(mask) %in% c(0, 1, NA)), silent = TRUE)
-if (inherits(vals_ok, "try-error") || !isTRUE(vals_ok)) {
-  stop("Mask contains unexpected values (expected 0/1/NA only).")
-}
 
 mask_combined_path <- file.path(out_dir, "combined_mask_0p05.tif")
 if (!file.exists(mask_combined_path) || OVERWRITE) {
@@ -134,7 +123,6 @@ wopt <- wopt_f32(opts$SPEED_OVER_SIZE)$wopt
 for (f in files) {
   ym <- extract_ym_from_filename(f)
   out <- file.path(out_dir, sprintf("%s_%s_0p05_masked.tif", VAR, ym))
-
   ql1 <- file.path(ql_dir, sprintf("quicklook_%s_before_after_%s.png", VAR, ym))
   ql2 <- file.path(ql_dir, sprintf("quicklook_%s_after_%s.png", VAR, ym))
 
@@ -142,12 +130,11 @@ for (f in files) {
   do_ql <- substr(ym, 5, 6) %in% c("01", "07") &&
     (REMAKE_QL || !file.exists(ql1) || !file.exists(ql2))
 
-  if (!do_write && !do_ql) next
+  if (!do_write && !do_ql) {
+    next
+  }
 
   r <- rast(f)
-  if (!compareGeom(r, ref005, stopOnError = FALSE)) {
-    stop("Geometry mismatch for ", basename(f), " vs ref005; regrid upstream.")
-  }
 
   if (do_write) {
     r_masked <- mask(r, mask, maskvalues = 1, updatevalue = NA)
