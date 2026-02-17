@@ -30,8 +30,12 @@ ref005 <- rast(cfg$grids$grid_005$ref_raster)
 Vcfg <- cfg$variables[[tolower(VAR)]]
 
 paths <- switch(VAR,
-  LAI  = list(out_dir = cfg$paths$georef_lai_0p05_dir, in_dir = cfg$paths$lai_nc_dir),
-  FPAR = list(out_dir = cfg$paths$georef_fpar_0p05_dir, in_dir = cfg$paths$fpar_nc_dir)
+  LAI = list(
+    out_dir = cfg$paths$georef_lai_0p05_dir, in_dir = cfg$paths$lai_nc_dir
+  ),
+  FPAR = list(
+    out_dir = cfg$paths$georef_fpar_0p05_dir, in_dir = cfg$paths$fpar_nc_dir
+  )
 )
 
 out_georef <- paths$out_dir
@@ -72,7 +76,10 @@ for (f in files) {
   writeRaster(r, out_tif, overwrite = TRUE)
 
   if (REMAKE_QL || !file.exists(out_png)) {
-    write_quicklook_raster(r, out_png, title = sprintf("%s %s (0.05°)", VAR, ym))
+    write_quicklook_raster(
+      r, out_png,
+      title = sprintf("%s %s (0.05°)", VAR, ym)
+    )
   }
 }
 
