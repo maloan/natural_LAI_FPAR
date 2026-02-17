@@ -11,10 +11,6 @@ suppressPackageStartupMessages({
 source(here("R", "helpers", "utils.R"))
 terraOptions(progress = 1, memfrac = 0.25)
 
-RECOMPUTE_REFS <- as.logical(Sys.getenv("RECOMPUTE_REFS", "FALSE"))
-RECOMPUTE_AREAS <- as.logical(Sys.getenv("RECOMPUTE_AREAS", "FALSE"))
-RECOMPUTE_AOIS <- as.logical(Sys.getenv("RECOMPUTE_AOIS", "FALSE"))
-
 EPSG4326 <- "EPSG:4326"
 RUN_TAG <- Sys.getenv("RUN_TAG", unset = "tau_0.1")
 
@@ -256,24 +252,21 @@ for (k in names(ref)) {
   nrc <- ref[[k]]$nrc
   deg <- ref[[k]]$deg
 
-  if (RECOMPUTE_REFS || !file.exists(tif)) {
-    r <- rast(
-      nrows = nrc[1], ncols = nrc[2], xmin = -180, xmax = 180,
-      ymin = -90, ymax = 90, crs = EPSG4326
+
+  r <- rast(
+    nrows = nrc[1], ncols = nrc[2], xmin = -180, xmax = 180,
+    ymin = -90, ymax = 90, crs = EPSG4326
+  )
+  values(r) <- NA_real_
+  writeRaster(
+    r, tif,
+    overwrite = TRUE, gdal = GDAL_OPTS,
+    description = gtiff_desc(
+      product = "ref_grid",
+      grid_deg = deg, extras = list(empty = TRUE)
     )
-    values(r) <- NA_real_
-    writeRaster(
-      r, tif,
-      overwrite = TRUE, gdal = GDAL_OPTS,
-      description = gtiff_desc(
-        product = "ref_grid",
-        grid_deg = deg, extras = list(empty = TRUE)
-      )
-    )
-  }
-  if (RECOMPUTE_REFS || !file.exists(nc)) {
-    writeRaster(rast(tif), nc, overwrite = TRUE, filetype = "CDF")
-  }
+  )
+  writeRaster(rast(tif), nc, overwrite = TRUE, filetype = "CDF")
 }
 
 # --- build area rasters + netcdf ----------------------------------------------
@@ -281,20 +274,17 @@ for (k in names(area)) {
   tif <- area[[k]]$tif
   nc <- area[[k]]$nc
   deg <- area[[k]]$deg
-  if (RECOMPUTE_AREAS || !file.exists(tif)) {
-    a <- cellSize(rast(ref[[k]]$tif), unit = "km")
-    writeRaster(
-      a, tif,
-      overwrite = TRUE, gdal = GDAL_OPTS,
-      description = gtiff_desc(
-        product = "cell_area_km2", grid_deg = deg,
-        extras = list(source = "terra::cellSize(unit='km')")
-      )
+
+  a <- cellSize(rast(ref[[k]]$tif), unit = "km")
+  writeRaster(
+    a, tif,
+    overwrite = TRUE, gdal = GDAL_OPTS,
+    description = gtiff_desc(
+      product = "cell_area_km2", grid_deg = deg,
+      extras = list(source = "terra::cellSize(unit='km')")
     )
-  }
-  if (RECOMPUTE_AREAS || !file.exists(nc)) {
-    writeRaster(rast(tif), nc, overwrite = TRUE, filetype = "CDF")
-  }
+  )
+  writeRaster(rast(tif), nc, overwrite = TRUE, filetype = "CDF")
 }
 
 # --- build AOI masks ----------------------------------------------------------
@@ -310,17 +300,16 @@ aoi_str <- sprintf(
 for (k in names(aoi)) {
   tif <- aoi[[k]]$tif
   deg <- aoi[[k]]$deg
-  if (RECOMPUTE_AOIS || !file.exists(tif)) {
-    m <- rasterize(poly, rast(ref[[k]]$tif), field = 1)
-    writeRaster(
-      m, tif,
-      overwrite = TRUE, gdal = GDAL_OPTS,
-      description = gtiff_desc(
-        product = "aoi_mask", grid_deg = deg,
-        extras = list(aoi = aoi_str, inside = 1, outside = "NA")
-      )
+
+  m <- rasterize(poly, rast(ref[[k]]$tif), field = 1)
+  writeRaster(
+    m, tif,
+    overwrite = TRUE, gdal = GDAL_OPTS,
+    description = gtiff_desc(
+      product = "aoi_mask", grid_deg = deg,
+      extras = list(aoi = aoi_str, inside = 1, outside = "NA")
     )
-  }
+  )
 }
 
 # --- sanity checks & manifest -------------------------------------------------
