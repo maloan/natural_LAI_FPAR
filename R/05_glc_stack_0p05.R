@@ -49,7 +49,9 @@ glc_quicklook_layers <- function(cat_r) {
 
 # --- discover files (base R) --------------------------------------------------
 all_files <- list.files(glc_dir, pattern = "\\.tif$", full.names = TRUE)
-if (!length(all_files)) stop("No GLC GeoTIFFs found in: ", glc_dir)
+if (!length(all_files)) {
+  stop("No GLC GeoTIFFs found in: ", glc_dir)
+}
 
 get_year <- function(p) {
   m <- regexpr("(19|20)\\d{2}", basename(p), perl = TRUE)
@@ -110,7 +112,9 @@ for (i in seq_along(paths)) {
   message("→ Processing ", basename(f))
 
   r <- rast(f)[[1]]
-  if (is.na(crs(r))) crs(r) <- crs(ref005)
+  if (is.na(crs(r))) {
+    crs(r) <- crs(ref005)
+  }
 
   if (!compareGeom(r, ref005, stopOnError = FALSE)) {
     r <- resample(r, ref005, method = "near")
@@ -138,7 +142,7 @@ for (i in seq_along(paths)) {
 
   gc()
 }
-# wopt <- wopt_int(opts$SPEED_OVER_SIZE)
+
 stack <- rast(bands)
 writeRaster(stack, stack_out,
   overwrite = TRUE
