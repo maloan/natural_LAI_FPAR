@@ -1,17 +1,11 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # make_relative_trends_georef.sh
-#
-# Purpose
-#   Create relative (relative-to-local-mean) trend rasters from existing
+#   Create relative (baseline-normalized) trend rasters from existing
 #   UNMASKED / GEOREF 0.25° NetCDF products.
 #
-# Definition (per pixel)
-#   relative_trend [yr^-1] = slope_peryear / mean_level
-#
 # Usage
-#   VARS="LAI FPAR" METRICS="yearmean yearmax yearamp" \
-#   bash make_relative_trends_georef.sh
+#   VARS="LAI FPAR" METRICS="yearmean yearmax yearamp" bash make_relative_trends_georef.sh
 # ==============================================================================
 
 set -euo pipefail
@@ -22,7 +16,7 @@ DIR025="${ROOT}/analysis/unmasked/0p25"
 need_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "Missing dependency: $1" >&2; exit 1; }; }
 need_cmd cdo
 
-# Defaults (override via environment if you want)
+# Defaults
 VARS_ARR=(${VARS:-"LAI FPAR"})
 METRICS_ARR=(${METRICS:-"yearmean yearmax yearmin yearamp"})
 
@@ -32,50 +26,49 @@ EPS_FPAR="${EPS_FPAR:-0.02}"
 cd "$DIR025"
 
 echo "============================================================"
-echo "relative trends from existing GEOREF 0.25° files"
-echo "DIR  = ${DIR025}"
-echo "VARS = ${VARS_ARR[*]}"
-echo "METS = ${METRICS_ARR[*]}"
-echo "EPS  = LAI:${EPS_LAI}  FPAR:${EPS_FPAR}"
+echo "Relative trends from GEOREF 0.25° files"
+echo "DIR   = ${DIR025}"
+echo "VARS  = ${VARS_ARR[*]}"
+echo "METS  = ${METRICS_ARR[*]}"
+echo "EPS   = LAI:${EPS_LAI}  FPAR:${EPS_FPAR}"
+echo "Rule  = reltrend = slope_peryear / meanlevel ; only if meanlevel >= EPS"
 echo "============================================================"
 
 for VAR in "${VARS_ARR[@]}"; do
-  if [[ "$VAR" == "LAI" ]]; then
-    EPS="$EPS_LAI"
-  else
-    EPS="$EPS_FPAR"
-  fi
+  case "$VAR" in
+    LAI)  EPS="$EPS_LAI" ;;
+    FPAR) EPS="$EPS_FPAR" ;;
+    *)    echo "Unknown VAR: $VAR (expected LAI/FPAR)"; exit 1 ;;
+  esac
 
   echo
   echo "=== VAR: $VAR (EPS=$EPS) ==="
-for MET in "${METRICS_ARR[@]}"; do
-  mu="${VAR}_georef_${MET}_0p25.nc"
-  sl="${VAR}_georef_${MET}_trend_slope_peryear_0p25.nc"
-  out="${VAR}_georef_${MET}_trend_relative_peryear_0p25.nc"
-  mu_mean="${VAR}_georef_${MET}_meanlevel_0p25.nc"
 
-  if [[ ! -f "$mu" || ! -f "$sl" ]]; then
-    echo "  [skip] ${MET}: missing $( [[ -f "$mu" ]] || echo "$mu" ) $( [[ -f "$sl" ]] || echo "$sl" )"
-    continue
-  fi
+  for MET in "${METRICS_ARR[@]}"; do
+    ts="${VAR}_georef_${MET}_0p25.nc"
+    sl="${VAR}_georef_${MET}_trend_slope_peryear_0p25.nc"
 
-  echo "  meanlevel: timmean(${mu}) -> ${mu_mean}"
-  cdo -O timmean "$mu" "$mu_mean"
+    meanlevel="${VAR}_georef_${MET}_meanlevel_0p25.nc"
+    mask="${VAR}_georef_${MET}_meanlevel_ge${EPS}_mask_0p25.nc"
+    out="${VAR}_georef_${MET}_trend_relative_peryear_0p25.nc"
 
-  echo "  relative: ${sl} / ${mu_mean} -> ${out}"
-  cdo -O setname,slope \
-    -ifthen -gec,"${EPS}" "$mu_mean" \
-    -div "$sl" "$mu_mean" \
-    "$out"
+    if [[ ! -f "$ts" || ! -f "$sl" ]]; then
+      echo "  [skip] ${MET}: missing file(s): $( [[ -f "$ts" ]] || echo "$ts" ) $( [[ -f "$sl" ]] || echo "$sl" )"
+      continue
+    fi
 
-  # Optional: remove the intermediate file if you don't need it
-rm -f "$mu_mean"
+    echo "  meanlevel: timmean(${ts}) -> ${meanlevel}"
+    cdo -O timmean "$ts" "$meanlevel"
+
+    echo "  mask: meanlevel >= ${EPS} -> ${mask}"
+    cdo -O gec,"${EPS}" "$meanlevel" "$mask"
+
+    echo "  reltrend: (slope / meanlevel) masked -> ${out}"
+    # ratio first, then mask; set output variable name to reflect meaning
+    cdo -O setname,trend_relative \
+      -ifthen "$mask" \
+      -div "$sl" "$meanlevel" \
+      "$out"
+  done
 done
 
-done
-
-echo
-echo "Done. Wrote:"
-echo "  *_georef_*_trend_relative_peryear_0p25.nc"
-echo "in:"
-echo "  ${DIR025}"
