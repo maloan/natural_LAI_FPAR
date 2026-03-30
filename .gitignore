@@ -25,7 +25,7 @@ data-raw/LUH2_v2h/
 !/data/README.md
 /analysis/**
 !/analysis/README.md
-/config/**
+/config/config.yaml
 !/config/README.md
 
 # =============================================================================
