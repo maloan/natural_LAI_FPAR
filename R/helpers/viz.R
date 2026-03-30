@@ -1,3 +1,4 @@
+
 ## =============================================================================
 # viz.R — Visualization and quicklook utilities for LAI/FPAR and mask products
 ## =============================================================================
@@ -36,6 +37,11 @@ col_na <- "#bdbdbd"
   # `r` kept for backward compatibility; not used.
   .add_graticule()
   .add_coastlines()
+}
+
+.add_axis_labels <- function(line_x = 2, line_y = 2) {
+  mtext("Longitude (°E)", 1, line = line_x)
+  mtext("Latitude (°N)", 2, line = line_y)
 }
 
 
@@ -87,8 +93,7 @@ quicklook_before_after <- function(rb, ra, ym, title, ql_dir, down = 2L) {
     legend = TRUE
   )
   .add_overlays(rb)
-  mtext("Longitude (°E)", 1, line = 2)
-  mtext("Latitude (°N)", 2, line = 2)
+  .add_axis_labels()
 
   terra::plot(
     ra,
@@ -99,8 +104,7 @@ quicklook_before_after <- function(rb, ra, ym, title, ql_dir, down = 2L) {
     legend = TRUE
   )
   .add_overlays(ra)
-  mtext("Longitude (°E)", 1, line = 2)
-  mtext("Latitude (°N)", 2, line = 2)
+  .add_axis_labels()
 
   mtext("Masked 0.05° quicklook", 3, outer = TRUE, cex = 1.05)
   invisible(out)
@@ -134,8 +138,7 @@ quicklook_after_full <- function(ra, ym, title, ql_dir, down = 2L) {
     legend = TRUE
   )
   .add_overlays(rr)
-  mtext("Longitude (°E)", 1, line = 2)
-  mtext("Latitude (°N)", 2, line = 2)
+  .add_axis_labels()
   invisible(out)
 }
 
@@ -175,8 +178,7 @@ ql_write_two_panels <- function(r,
     main = sprintf("Cropland — %s %d", title, year)
   )
   .add_overlays(r)
-  mtext("Longitude (°E)", 1, line = -1)
-  mtext("Latitude (°N)", 2, line = 2)
+  .add_axis_labels(line_x = -1)
 
   terra::plot(
     r[["frac_urban"]],
@@ -189,8 +191,7 @@ ql_write_two_panels <- function(r,
     main = sprintf("Urban — %s %d", title, year)
   )
   .add_overlays(r)
-  mtext("Longitude (°E)", 1, line = -1)
-  mtext("Latitude (°N)", 2, line = 2)
+  .add_axis_labels(line_x = -1)
 
   mtext(
     "ESA-CCI/C3S → 0.05° fractional cover quicklook", 3,
