@@ -8,45 +8,53 @@
 .Rproj.user/
 
 # =============================================================================
-# External / Raw Data (heavy files, managed separately)
+# External / Raw Data (large files, managed separately)
 # =============================================================================
 data-raw/ESACCI/ESACCI_1992-2020/
-data-raw/FPAR/fpar_1982-2021/
-data-raw/LAI/lai_1982-2021/
+data-raw/FPAR/fpar_1982-2024/
+data-raw/LAI/lai_1982-2024/
 data-raw/GLC_FCS30D/
 data-raw/LUH2_v2h/
 
 # =============================================================================
-# Generated Output & Analysis (preserve README files)
+# Generated Output & Analysis (preserve README files only)
 # =============================================================================
-/output/*
+/output/**
 !/output/README.md
-/data/*
+/data/**
 !/data/README.md
-/analysis/*
+/analysis/**
 !/analysis/README.md
 
 # =============================================================================
 # Intermediate & Temporary Files
 # =============================================================================
 *.swp
+*.swo
 *.tmp
 *~
+.#*
 *_cache/
+*_files/
 /cache/
+.Rout
 
 # =============================================================================
-# R Package Build Artifacts
+# Build, Package & Lock Files
 # =============================================================================
-/*.tar.gz
-/*.Rcheck/
+*.tar.gz
+*.zip
+*.Rcheck/
 *-Ex.R
+.lock
+renv.lock
+*.log
 
 # =============================================================================
 # Generated Documentation
 # =============================================================================
-vignettes/*.html
-vignettes/*.pdf
+vignettes/**/*.html
+vignettes/**/*.pdf
 *.utf8.md
 *.knit.md
 
@@ -65,9 +73,3 @@ Thumbs.db
 # Local Environment Configuration
 # =============================================================================
 .Renviron
-
-# =============================================================================
-# Build Artifacts & Lock Files
-# =============================================================================
-manifest.csv
-.lock
