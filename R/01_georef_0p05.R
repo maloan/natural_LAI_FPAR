@@ -20,26 +20,20 @@ terraOptions(progress = 1, memfrac = 0.25)
 # ------------------------------------------------------------------------------
 # Config
 # ------------------------------------------------------------------------------
-VAR <- toupper(Sys.getenv("VAR", "FPAR"))
-stopifnot(VAR %in% c("LAI", "FPAR"))
+var <- toupper(Sys.getenv("var", "FPAR"))
+stopifnot(var %in% c("LAI", "FPAR"))
 
-REMAKE_QL <- as.logical(Sys.getenv("REMAKE_QL", "FALSE"))
-wopt <- wopt_f32(opts$SPEED_OVER_SIZE)
+var_lower <- tolower(var)
+wopt <- wopt_f32(opts$speed_over_size)
 
 ref005 <- rast(cfg$grids$grid_005$ref_raster)
-Vcfg <- cfg$variables[[tolower(VAR)]]
+vcfg <- cfg$variables[[var_lower]]
 
-paths <- switch(VAR,
-  LAI  = list(out_dir = cfg$paths$georef_lai_0p05_dir, in_dir = cfg$paths$lai_nc_dir),
-  FPAR = list(out_dir = cfg$paths$georef_fpar_0p05_dir, in_dir = cfg$paths$fpar_nc_dir)
-)
+# Dynamically construct paths using config keys
+out_georef <- cfg$paths[[sprintf("georef_%s_0p05_dir", var_lower)]]
+nc_dir <- cfg$paths[[sprintf("%s_nc_dir", var_lower)]]
 
-out_georef <- paths$out_dir
-out_quick <- file.path(out_georef, "quicklooks")
-nc_dir <- paths$in_dir
-
-dir.create(out_georef, recursive = TRUE, showWarnings = FALSE)
-dir.create(out_quick, recursive = TRUE, showWarnings = FALSE)
+lapply(c(out_georef), dir.create, recursive = TRUE, showWarnings = FALSE)
 
 # ------------------------------------------------------------------------------
 # Inputs
@@ -54,26 +48,23 @@ stopifnot(length(files) > 0L)
 for (f in files) {
   ym <- extract_ym_from_filename(f)
 
-  out_tif <- file.path(out_georef, sprintf("%s_%s_0p05.tif", VAR, ym))
-  out_png <- file.path(out_quick, sprintf("%s_%s_0p05.png", VAR, ym))
+  out_tif <- file.path(out_georef, sprintf("%s_%s_0p05.tif", var, ym))
 
-  if (!opts$FORCE && opts$SKIP_EXISTING && file.exists(out_tif)) next
+  if (!opts$force && opts$skip_existing && file.exists(out_tif)) {
+    next
+  }
 
   r <- nc_month_to_raster(
     nc_file     = f,
     ym          = ym,
-    VAR         = VAR,
-    Vcfg        = Vcfg,
+    var         = var,
+    vcfg        = vcfg,
     ref         = ref005,
     method      = "bilinear",
     strict_time = TRUE
   )
 
   writeRaster(r, out_tif, overwrite = TRUE)
-
-  if (REMAKE_QL || !file.exists(out_png)) {
-    write_quicklook_raster(r, out_png, title = sprintf("%s %s (0.05°)", VAR, ym))
-  }
 }
 
 gc()
