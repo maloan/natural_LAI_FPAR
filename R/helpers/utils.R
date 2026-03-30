@@ -1,3 +1,4 @@
+
 ## =============================================================================
 ## utils.R — General-purpose helpers (config, tokens, IO discovery)
 ## =============================================================================
@@ -16,11 +17,11 @@ exp_ <- function(p) {
 }
 
 cfg_read <- function() {
-  ROOT <- exp_(Sys.getenv(
+  root <- exp_(Sys.getenv(
     "SNU_LAI_FPAR_ROOT",
     unset = "~/GitHub/natural_LAI_FPAR"
   ))
-  yaml::read_yaml(file.path(ROOT, "config", "config.yml"))
+  yaml::read_yaml(file.path(root, "config", "config.yml"))
 }
 
 # ------------------------------------------------------------------------------
@@ -38,12 +39,12 @@ extract_ym_from_filename <- function(p) {
     s
   }
 }
-pick_varname <- function(nc, cfg_vars, VAR) {
+pick_varname <- function(nc, cfg_vars, var) {
   vars <- names(nc$var)
-  primary <- cfg_vars$nc_var_name_primary %||% VAR
+  primary <- cfg_vars$nc_var_name_primary %||% var
   fallback <- cfg_vars$nc_var_name_fallback %||% "auto_first_variable"
 
-  var_u <- toupper(VAR)
+  var_u <- toupper(var)
   extras <- switch(var_u,
     LAI  = c("lai", "LAI", "Leaf_Area_Index"),
     FPAR = c("FPAR", "fPAR", "fpar", "Fpar"),
@@ -97,14 +98,14 @@ find_one <- function(dir, pattern) {
 # # NetCDF lon/lat extraction (requires ncdf4 handle)
 # # ------------------------------------------------------------------------------
 #
-get_lonlat <- function(nc, Vcfg) {
+get_lonlat <- function(nc, vcfg) {
   # nc is expected to be an ncdf4 object (already opened)
   if (!requireNamespace("ncdf4", quietly = TRUE)) {
     stop("Package 'ncdf4' is required for get_lonlat().", call. = FALSE)
   }
 
-  loncand <- unique(c(Vcfg$nc_lon_name, "lon", "longitude", "LONGITUDE"))
-  latcand <- unique(c(Vcfg$nc_lat_name, "lat", "latitude", "LATITUDE"))
+  loncand <- unique(c(vcfg$nc_lon_name, "lon", "longitude", "LONGITUDE"))
+  latcand <- unique(c(vcfg$nc_lat_name, "lat", "latitude", "LATITUDE"))
 
   lonv <- latv <- NULL
 
@@ -136,23 +137,6 @@ get_lonlat <- function(nc, Vcfg) {
       }
     }
   }
-  # Fall back to variables
-  if (is.null(lonv)) {
-    for (nm in loncand) {
-      if (!is.null(nc$var[[nm]])) {
-        lonv <- ncdf4::ncvar_get(nc, nm)
-        break
-      }
-    }
-  }
-  if (is.null(latv)) {
-    for (nm in latcand) {
-      if (!is.null(nc$var[[nm]])) {
-        latv <- ncdf4::ncvar_get(nc, nm)
-        break
-      }
-    }
-  }
 
   list(lon = lonv, lat = latv)
 }
@@ -160,16 +144,6 @@ get_lonlat <- function(nc, Vcfg) {
 # ------------------------------------------------------------------------------
 # Raster helpers
 # ------------------------------------------------------------------------------
-gdal_wopt <- function(dtype = "FLT4S",
-                      compress = "DEFLATE",
-                      threads = "AUTO") {
-  thr <- if (identical(threads, "AUTO")) {
-    "NUM_THREADS=ALL_CPUS"
-  } else {
-    sprintf("NUM_THREADS=%s", threads)
-  }
-}
-
 align_to <- function(r, ref, method = c("near", "bilinear")) {
   method <- match.arg(method)
   if (terra::compareGeom(r, ref, stopOnError = FALSE)) {
