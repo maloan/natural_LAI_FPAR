@@ -17,10 +17,10 @@ edited manually.
 data/
 ├── frac/
 │   ├── cci_frac_0p05/
-│   └── GLC_frac_0p05/
+│   └── glc_frac_0p05/
 └── georef/
-├── georef_lai_0p05/
-└── georef_fpar_0p05/
+    ├── georef_lai_0p05/
+    └── georef_fpar_0p05/
 ```
 
 ------------------------------------------------------------------------
@@ -32,56 +32,45 @@ data/
 Fractional cover layers at **0.05°**, derived from categorical
 land-cover maps.
 
--   **`cci_frac_0p05/`**\
-    Cropland, urban, grass, and fused-class fractions derived from
-    ESA-CCI / C3S land cover.
+- **`cci_frac_0p05/`**: Cropland, urban, grass, and fused-class fractions derived from ESA-CCI / C3S land cover.
+- **`glc_frac_0p05/`**: Equivalent products derived from GLC_FCS30D.
 
--   **`GLC_frac_0p05/`**\
-    Equivalent fractional products derived from GLC_FCS30D.
-
-**Purpose** - Construction of *used-land* masks (threshold- and
-persistence-based). - Sensitivity tests comparing CCI- vs GLC-derived
-land-use information. - Diagnostic plots and consistency checks.
+**Purpose**
+- Construction of land-cover masks (threshold- and persistence-based)
+- Sensitivity tests comparing CCI- vs GLC-derived land-use information
+- Diagnostic plots and consistency checks
 
 ------------------------------------------------------------------------
 
-### **2) Georeferenced LAI / fAPAR (`georef/`)**
+### **2) Georeferenced LAI / FPAR (`georef/`)**
 
-Monthly LAI and fAPAR fields at **0.05°**, aligned to the project’s
+Monthly LAI and FPAR fields at **0.05°**, aligned to the project's
 canonical grid.
 
--   **`georef_lai_0p05/`**\
-    LAI monthly rasters after reprojection, snapping, and extent
-    correction.
+- **`georef_lai_0p05/`**: LAI monthly rasters after reprojection, snapping, and extent correction.
+- **`georef_fpar_0p05/`**: FPAR monthly rasters processed identically.
 
--   **`georef_fpar_0p05/`**\
-    fAPAR monthly rasters processed identically.
-
-**Processing steps include** - reprojection to EPSG:4326, - strict
-alignment to the 0.05° reference grid, - consistent global extent, -
-restoration of a continuous monthly time axis.
+**Processing steps include**
+- Reprojection to EPSG:4326
+- Strict alignment to the 0.05° reference grid
+- Consistent global extent
+- Restoration of a continuous monthly time axis
 
 These products are the **direct inputs** to masking
 (`11_apply_mask_0p05.R`) and subsequent aggregation to 0.25°.
 
 ------------------------------------------------------------------------
 
-## **Conventions and guarantees**
+## **Conventions**
 
--   File naming follows the rules defined in `R/names.R`.
--   CRS, resolution, and extent conform exactly to the reference grids
-    defined in `config/config.yml`.
--   Raster types are chosen conservatively (byte for masks, float for
-    continuous fields).
--   Once written, files in `data/` are treated as immutable;
-    regeneration requires rerunning the corresponding preprocessing
-    scripts.
+- CRS, resolution, and extent conform exactly to the reference grids defined in `config/config.yml`
+- Once written, files in `data/` are treated as immutable; regeneration requires rerunning the corresponding preprocessing scripts
 
 ------------------------------------------------------------------------
 
 ## **Role in the workflow**
 
-`data/` serves as the **boundary between raw inputs and analysis**: -
-upstream scripts populate this directory, - downstream scripts assume
-its presence and consistency, - no analysis results are written here
-(those belong in `output/` and `analysis/`).
+`data/` serves as the **boundary between raw inputs and analysis**:
+- Upstream scripts populate this directory
+- Downstream scripts assume its presence and consistency
+- No analysis results are written here (those belong in `output/` and `analysis/`)
