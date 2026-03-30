@@ -13,7 +13,7 @@ SKIP_EXISTING?= TRUE
 REMAKE_QL?= FALSE
 
 # Minimal environment passed to all scripts
-ENV := RUN_TAG=$(RUN_TAG) TAU_CCI=$(TAU_CCI) MASKS=$(MASKS) REMAKE_QL=$(REMAKE_QL) SKIP_EXISTING=$(SKIP_EXISTING) REMAKE_QL=$(REMAKE_QL)
+ENV := RUN_TAG=$(RUN_TAG) TAU_CCI=$(TAU_CCI) REMAKE_QL=$(REMAKE_QL) SKIP_EXISTING=$(SKIP_EXISTING)
 
 # Convenience macro
 run = $(ENV) $(R) $(WD)/$1
@@ -68,6 +68,8 @@ apply:
 agg:
 	@for m in $(MASKS); do \
 	  echo "== AGG $$m ==" ; \
+	  MASK=$$m VAR=LAI  $(call run,12_agg_0p5.R) ; \
+	  MASK=$$m VAR=FPAR $(call run,12_agg_0p5.R) ; \
 	  MASK=$$m VAR=LAI  $(call run,12_agg_0p25.R) ; \
 	  MASK=$$m VAR=FPAR $(call run,12_agg_0p25.R) ; \
 	done
@@ -78,15 +80,10 @@ pipeline: prep masks apply agg
 
 # -----------------------------------------------------------------------------
 # 4) Analyses
-# -----------------------------------------------------------------------------
+analysis: pipeline
 .PHONY: analysis
 analysis: pipeline
 	$(call run,13_analyse_georef_0p25.R)
-	$(call run,14_compare_lai_fpar_trends.R)
-	$(call run,15_analyse_masked_trends.R)
-	$(call run,16_compare_masked_unmasked.R)
-	$(call run,17_analyse_trend_mask.R)
-
 # -----------------------------------------------------------------------------
 # Quicklooks (explicit; no extra switches)
 # -----------------------------------------------------------------------------
@@ -103,11 +100,11 @@ ql:
 .PHONY: help
 help:
 	@echo "Targets:"
-	@echo "  pipeline   -> georef + fractions/stacks + masks + apply + agg"
-	@echo "  analysis   -> pipeline + scripts 13–17 (default via 'all')"
+	@echo "  pipeline   -> setup + prep (georef+fractions+stacks) + masks + apply + agg"
+	@echo "  analysis   -> pipeline (analysis scripts are in R/analysis folder)"
 	@echo "  ql         -> regenerate quicklooks for key steps"
 	@echo ""
 	@echo "Typical runs:"
-	@echo "  make analysis RUN_TAG=tau_0.2"
+	@echo "  make pipeline RUN_TAG=tau_0.2"
 	@echo "  make pipeline MASKS='CCI'"
 	@echo "  make pipeline MASKS='GLC'"
