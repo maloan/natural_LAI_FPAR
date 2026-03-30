@@ -8,31 +8,24 @@ suppressPackageStartupMessages({
 })
 
 # --- repo helpers --------------------------------------------------------------
-# ROOT <- here()
-
 source(here("R", "helpers", "utils.R"))
 source(here("R", "helpers", "io.R"))
-# source(here("R", "helpers","geom.R"))
-source(here("R", "helpers", "viz.R"))
 source(here("R", "helpers", "options.R"))
-#
+
 cfg <- cfg_read()
 opts <- opts_read()
 
 terraOptions(progress = 1, memfrac = 0.25)
 
 # ------------------------------------------------------------------------------
-# Env / switches
+# Env
 # ------------------------------------------------------------------------------
-SKIP_EXISTING <- as.logical(Sys.getenv("SKIP_EXISTING", "FALSE"))
-OVERWRITE <- as.logical(Sys.getenv("OVERWRITE", "FALSE"))
-REMAKE_QL <- as.logical(Sys.getenv("REMAKE_QL", "FALSE"))
+skip_existing <- as_bool(Sys.getenv("skip_existing"), default = FALSE)
+overwrite <- as_bool(Sys.getenv("overwrite"), default = FALSE)
+remake_ql <- as_bool(Sys.getenv("remake_ql"), default = FALSE)
 
-VAR <- toupper(Sys.getenv("VAR", "FPAR")) # LAI|FPAR
-MASK <- toupper(Sys.getenv("MASK", "CCI")) # CCI|GLC
-
-stopifnot(VAR %in% c("LAI", "FPAR"))
-stopifnot(MASK %in% c("CCI", "GLC"))
+var <- toupper(Sys.getenv("var", "FPAR")) # LAI|FPAR
+mask <- toupper(Sys.getenv("mask", "CCI")) # CCI|GLC
 
 # ------------------------------------------------------------------------------
 # Refs and weights
@@ -46,10 +39,10 @@ if (!compareGeom(area005, ref005, stopOnError = FALSE)) {
 }
 
 # ------------------------------------------------------------------------------
-# IO dirs / patterns
+# dirs
 # ------------------------------------------------------------------------------
-key_in <- sprintf("masked_%s_%s_0p05_dir", tolower(VAR), tolower(MASK))
-key_out <- sprintf("masked_%s_%s_0p25_dir", tolower(VAR), tolower(MASK))
+key_in <- sprintf("masked_%s_%s_0p05_dir", tolower(var), tolower(mask))
+key_out <- sprintf("masked_%s_%s_0p25_dir", tolower(var), tolower(mask))
 
 in_dir <- cfg$paths[[key_in]]
 out_dir <- cfg$paths[[key_out]]
@@ -57,28 +50,23 @@ out_dir <- cfg$paths[[key_out]]
 stopifnot(is.character(in_dir), length(in_dir) == 1, nzchar(in_dir))
 stopifnot(is.character(out_dir), length(out_dir) == 1, nzchar(out_dir))
 
-patt <- sprintf("^%s_.*_\\d{6}_0p05_masked\\.tif$", VAR)
-ql_title <- VAR
+patt <- sprintf("^%s_.*_\\d{6}_0p05_masked\\.tif$", var)
+ql_title <- var
 
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 qdir <- file.path(out_dir, "quicklooks")
 dir.create(qdir, recursive = TRUE, showWarnings = FALSE)
-#
+
 # ------------------------------------------------------------------------------
-# Discover inputs
+# inputs
 # ------------------------------------------------------------------------------
 stopifnot(dir.exists(in_dir))
 files <- sort(list.files(in_dir, pattern = patt, full.names = TRUE))
-if (!length(files)) {
-  stop("No inputs found in: ", in_dir, call. = FALSE)
-}
 
 # ------------------------------------------------------------------------------
-# Quicklook helper (global)
+# Quicklook helper
 # ------------------------------------------------------------------------------
-quicklook_025 <- function(r025, ym, down = 1L, title = ql_title) {
-  rr <- if (down > 1L) aggregate(r025, down, mean, na.rm = TRUE) else r025
-
+quicklook_025 <- function(r025, ym, title = ql_title) {
   out_png <- file.path(qdir, sprintf("quicklook_%s_0p25_%s.png", title, ym))
   png(out_png, width = 1400, height = 700, res = 120)
   op <- par(oma = c(0, 0, 2.2, 0), mar = c(3, 3, 3, 6))
@@ -91,14 +79,14 @@ quicklook_025 <- function(r025, ym, down = 1L, title = ql_title) {
   )
 
   terra::plot(
-    rr,
+    r025,
     main   = sprintf("%s 0.25° %s", title, ym),
     col    = pal_green(64),
     colNA  = col_na,
     axes   = TRUE,
     legend = TRUE
   )
-  .add_overlays(rr)
+  .add_overlays(r025)
   mtext("Longitude (°E)", 1, line = 2)
   mtext("Latitude (°N)", 2, line = 2)
   mtext("Area-weighted aggregation to 0.25°", 3, outer = TRUE, cex = 1.05)
@@ -111,15 +99,16 @@ quicklook_025 <- function(r025, ym, down = 1L, title = ql_title) {
 # ------------------------------------------------------------------------------
 for (f in files) {
   ym <- extract_ym_from_filename(f)
-  out <- file.path(out_dir, sprintf("%s_masked_%s_0p25.tif", VAR, ym))
-
-  do_write <- OVERWRITE || !file.exists(out) || !SKIP_EXISTING
+  out <- file.path(out_dir, sprintf("%s_masked_%s_0p25.tif", var, ym))
+  do_write <- overwrite || !file.exists(out) || !skip_existing
   do_ql <- (substr(ym, 5, 6) %in% c("01", "07")) &&
-    (REMAKE_QL || !file.exists(file.path(
+    (remake_ql || !file.exists(file.path(
       qdir, sprintf("quicklook_%s_0p25_%s.png", ql_title, ym)
     )))
 
-  if (!do_write && !do_ql) next
+  if (!do_write && !do_ql) {
+    next
+  }
 
   if (do_write) {
     r <- rast(f)
@@ -137,7 +126,7 @@ for (f in files) {
     if (!compareGeom(r025, ref025, stopOnError = FALSE)) {
       r025 <- resample(r025, ref025, method = "near")
     }
-    wopt <- wopt_f32(opts$SPEED_OVER_SIZE)$wopt
+    wopt <- wopt_f32(opts$speed_over_size)
     writeRaster(
       r025,
       out,
@@ -152,11 +141,11 @@ for (f in files) {
   }
 
   if (do_ql) {
-    quicklook_025(r025, ym, down = 1L, title = ql_title)
+    quicklook_025(r025, ym, title = ql_title)
   }
 
   gc()
 }
 
 gc()
-message("Aggregated monthly ", VAR, " written to: ", out_dir)
+message("Aggregated monthly ", var, " written to: ", out_dir)
