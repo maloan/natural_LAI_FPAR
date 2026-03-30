@@ -1,5 +1,5 @@
 ## =============================================================================
-# 02_apply_abiotic_only_0p05.R — Apply abiotic (water/ice) drop mask to
+# 08_apply_abiotic_only_0p05.R — Apply abiotic (water/ice) drop mask to
 # georeferenced monthly LAI/FPAR at 0.05°
 ## =============================================================================
 

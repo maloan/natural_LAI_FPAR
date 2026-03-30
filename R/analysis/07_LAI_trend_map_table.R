@@ -127,7 +127,6 @@ plot_map <- function(df, zcol, lims, title = NULL, fill_title = NULL, df_grey = 
     theme_map()
 }
 
-
 # ---- load rasters ------------------------------------------------------------
 abs_unm <- rast(f_abs_unm)[[1]]
 abs_msk <- rast(f_abs_msk)[[1]]

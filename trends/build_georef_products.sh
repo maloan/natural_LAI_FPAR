@@ -1,5 +1,5 @@
 ## =============================================================================
-# build_georef_products.sh — Full LAI/FPAR georeferenced workflow
+# build_georef_products.sh — Full LAI/FPAR georeferenced workflow (deduplicated)
 #
 # Usage
 #   ./build_georef_products.sh LAI 0p05
