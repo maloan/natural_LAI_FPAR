@@ -25,6 +25,8 @@ data-raw/LUH2_v2h/
 !/data/README.md
 /analysis/**
 !/analysis/README.md
+/config/**
+!/config/README.md
 
 # =============================================================================
 # Intermediate & Temporary Files
