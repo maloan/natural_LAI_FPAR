@@ -1,11 +1,11 @@
-# **Natural LAI / fAPAR Processing Pipeline**
+# **Natural LAI / FPAR Processing Pipeline**
 
 This repository implements a reproducible workflow for deriving **global
-natural-vegetation LAI and fAPAR datasets** from satellite observations
+natural-vegetation LAI and FPAR datasets** from satellite observations
 by explicitly excluding anthropogenic land-use signals.
 
 Independent land-use masks derived from **ESA-CCI** and **GLC-FCS30D**
-are applied to monthly LAI/fAPAR fields at **0.05°** resolution. Masked
+are applied to monthly LAI/FPAR fields at **0.05°** resolution. Masked
 fields are subsequently aggregated to **0.25°** using explicit area
 weighting, enabling consistent global and regional trend analyses.
 
@@ -17,7 +17,7 @@ Satellite vegetation products integrate multiple signals, including:
 
 1.  **Ecosystem responses to climate variability and rising CO₂**, and
 2.  **Land-use change and management effects**, such as cropland
-    expansion, irrigation, and urbanisation.
+    expansion, irrigation, and urbanization.
 
 For attribution studies and model evaluation, these signals must be
 disentangled. This workflow isolates the **natural-vegetation
@@ -28,7 +28,7 @@ land cover prior to aggregation and trend estimation.
 
 ## **Key Outputs**
 
--   Monthly **natural-vegetation LAI and fAPAR** fields (0.05° and
+-   Monthly **natural-vegetation LAI and FPAR** fields (0.05° and
     0.25°)
 -   Binary land-use masks derived independently from CCI and GLC
 -   Area-weighted global and zonal mean time series
@@ -53,7 +53,7 @@ where each run tag corresponds to a specific masking configuration.
 R/            Processing and analysis scripts
 config/       Central configuration (paths, grids, AOIs, thresholds)
 data-raw/     External datasets (not version controlled)
-data/         Harmonised intermediate products
+data/         Harmonized intermediate products
 output/       Masked fields, aggregates, evaluation products
 analysis/     Trend results and figures
 src/          Reference grids, area rasters, AOI masks
@@ -67,7 +67,7 @@ vignettes/    Extended workflow documentation
 1.  **Setup** Definition of global reference grids (0.05°, 0.25°),
     cell-area rasters, and AOIs *(00_setup.R)*
 
-2.  **Georeferencing** Alignment of LAI and fAPAR to the canonical 0.05°
+2.  **Georeferencing** Alignment of LAI and FPAR to the canonical 0.05°
     grid *(01_georef_0p05.R)*
 
 3.  **Land-cover preprocessing**
@@ -84,7 +84,7 @@ vignettes/    Extended workflow documentation
         *(04_cci_mask_0p05.R, 06_glc_mask_0p05.R,
         07_abiotic_static_from_cci_0p05.R)*
 
-5.  **Mask application** Monthly masking of LAI and fAPAR at 0.05°
+5.  **Mask application** Monthly masking of LAI and FPAR at 0.05°
     *(11_apply_mask_0p05.R)*
 
 6.  **Aggregation** Explicit area-weighted aggregation to 0.25°
@@ -104,29 +104,31 @@ vignettes/    Extended workflow documentation
 Sys.setenv(SNU_LAI_FPAR_ROOT = "~/path/to/natural_LAI_FPAR")
 ```
 
-### 2. Run the full pipeline and analyses
+### 2. Run the full pipeline
 
 ``` bash
 cd R
-make full-analysis
+make pipeline
 ```
 
-This executes setup, georeferencing, mask construction, masking,
-aggregation, and trend analysis.
+This sequentially executes setup, georeferencing, land-cover preprocessing, mask construction, masking, and aggregation.
 
-### 3. Run selected stages
+### 3. Run individual stages
 
 ``` bash
-make georef
-make apply-all
-make agg-all
-make analysis
+make setup          # Initialize reference grids and configuration
+make prep           # Georeferencing + land-cover preprocessing
+make masks          # Construct masks (CCI, GLC, abiotic)
+make apply          # Apply masks to monthly data
+make agg            # Aggregate to 0.25°
+make analysis       # Run analysis scripts
+make ql             # Regenerate quicklooks
 ```
 
-Mask source and thresholds can be overridden, for example:
+Mask source and thresholds can be customized, for example:
 
 ``` bash
-MASKS=CCI TAU_CCI=0.1 make full-pipeline
+make pipeline MASKS=CCI TAU_CCI=0.1
 ```
 
 ------------------------------------------------------------------------
@@ -152,9 +154,8 @@ Core design principles include:
 
 ## **Requirements**
 
--   **R ≥ 4.2**
--   Core packages: `terra`, `yaml`, `dplyr`, `ggplot2`, `stringr`,
-    `glue`, `parallel`, `sf`
+-   **R ≥ 4.1**
+-   Core packages: `terra`, `sf`, `tidyverse`, `ncdf4`, `parallel`
 -   System libraries: **GDAL**, **PROJ**, **NetCDF**
 
 Example (Ubuntu):
@@ -198,8 +199,7 @@ These files are not tracked by Git. All dataset paths are defined in
 A detailed workflow description is provided in:
 
 ```         
-vignettes/vignette.Rmd
+vignettes/vignette.md
 ```
 
-covering mask logic, AOIs, aggregation methodology, trend
-interpretation, and sensitivity analyses.
+See also the individual README files in each subdirectory for specific documentation.
