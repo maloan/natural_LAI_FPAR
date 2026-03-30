@@ -1,5 +1,6 @@
 ## =============================================================================
-# 03_cci_frac_0p05.R — Aggregate ESA-CCI/C3S land cover to 0.05° fractional cover
+# 03_cci_frac_0p05.R
+# Aggregate ESA-CCI/C3S land cover to 0.05° fractional cover
 ## =============================================================================
 
 suppressPackageStartupMessages({
@@ -9,6 +10,7 @@ suppressPackageStartupMessages({
 
 source(here("R", "helpers", "utils.R"))
 source(here("R", "helpers", "io.R"))
+source(here("R", "helpers", "options.R"))
 
 cfg <- cfg_read()
 
@@ -20,66 +22,49 @@ dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 tmpl <- rast(cfg$grids$grid_005$ref_raster)
 
-REMAKE_ALL <- as.logical(Sys.getenv("REMAKE_ALL", "FALSE"))
-SKIP_EXISTING <- as.logical(Sys.getenv("SKIP_EXISTING", "TRUE"))
+remake_all <- as_bool(Sys.getenv("remake_all"), default = FALSE)
+skip_existing <- as_bool(Sys.getenv("skip_existing"), default = TRUE)
 
-ESACCI <- cfg$esa_cci$classes
-nodata_vals <- unique(c(ESACCI$nodata, 255))
+esa_cci <- cfg$esa_cci$classes
+nodata_vals <- unique(c(esa_cci$nodata, 255))
 
 groups <- Filter(Negate(is.null), list(
-  cropland  = ESACCI$cropland,
-  urban     = ESACCI$urban,
-  cls30     = ESACCI$cls30,
-  cls40     = ESACCI$cls40,
-  grassland = ESACCI$grassland
+  cropland  = esa_cci$cropland,
+  urban     = esa_cci$urban,
+  cls30     = esa_cci$cls30,
+  cls40     = esa_cci$cls40,
+  grassland = esa_cci$grassland
 ))
 
 start_year <- cfg$project$years$cci_start
 end_year <- cfg$project$years$cci_end
 
-# Precompute write options once
-wopt <- wopt_f32(FALSE)
-gdal_opts <- wopt$gdal
-naflag <- wopt$NAflag %||% -9999
+# Precompute write options and GDAL settings once
+gdal_opts <- gdal_co_f32(FALSE)
 
-# ------------------------------------------------------------------------------
-# Choose one file per year (prefer C3S over ESACCI if both exist)
-# ------------------------------------------------------------------------------
+# Choose one file per year (extract year and source rank)
 all_files <- list.files(cci_dir, pattern = "\\.tif$", full.names = TRUE)
 if (!length(all_files)) {
   stop("No CCI GeoTIFFs found in: ", cci_dir)
 }
 
-get_year <- function(x) {
-  m <- regexpr("(19|20)\\d{2}", basename(x), perl = TRUE)
-  if (m[1] < 0) {
-    return(NA_integer_)
-  }
-  as.integer(substr(basename(x), m[1], m[1] + attr(m, "match.length") - 1))
-}
-get_source_rank <- function(x) {
-  if (grepl("^C3S", basename(x))) 2L else 1L
-}
-
-yrs <- vapply(all_files, get_year, integer(1))
+# Extract years from filenames (first 4 characters are year YYYY)
+basenames <- basename(all_files)
+yrs <- as.integer(substr(basenames, 1, 4))
 ok <- !is.na(yrs) & yrs >= start_year & yrs <= end_year
 all_files <- all_files[ok]
 yrs <- yrs[ok]
+basenames <- basenames[ok]
 
-if (!length(all_files)) stop("No CCI GeoTIFFs in year range.")
+# Rank by source (C3S preferred = 2, others = 1)
+rank <- ifelse(grepl("^C3S", basenames), 2L, 1L)
 
-rank <- vapply(all_files, get_source_rank, integer(1))
-
-# for each year pick file with max rank (C3S preferred); tie-breaker = first
-pick_by_year <- tapply(
-  seq_along(all_files),
-  yrs,
-  function(idx) idx[which.max(rank[idx])]
-)
-
-plan_year <- as.integer(names(pick_by_year))
-plan_path <- all_files[unlist(pick_by_year, use.names = FALSE)]
-o_tif <- file.path(out_dir, sprintf("ESACCI_frac_%d_0p05.tif", plan_year))
+# For each year pick file with highest rank (C3S preferred); tie-breaker = first
+file_groups <- split(seq_along(all_files), yrs)
+pick_indices <- sapply(file_groups, \(idx) idx[which.max(rank[idx])])
+plan_year <- as.integer(names(pick_indices))
+plan_path <- all_files[pick_indices]
+out_tif <- file.path(out_dir, sprintf("ESACCI_frac_%d_0p05.tif", plan_year))
 
 # ------------------------------------------------------------------------------
 # Main loop
@@ -87,9 +72,9 @@ o_tif <- file.path(out_dir, sprintf("ESACCI_frac_%d_0p05.tif", plan_year))
 for (i in seq_along(plan_year)) {
   yr <- plan_year[i]
   f <- plan_path[i]
-  ot <- o_tif[i]
+  ot <- out_tif[i]
 
-  if (SKIP_EXISTING && file.exists(ot) && !REMAKE_ALL) {
+  if (skip_existing && file.exists(ot) && !remake_all) {
     message("✓ Year ", yr, " already complete — skipping.")
     next
   }
@@ -123,7 +108,7 @@ for (i in seq_along(plan_year)) {
 
   out <- c(frac_fused, frac_grass)
 
-  writeRaster(out, ot, overwrite = TRUE, gdal = gdal_opts, NAflag = naflag)
+  writeRaster(out, ot, overwrite = TRUE, gdal = gdal_opts, NAflag = -9999)
 
   rm(r, m_stack, frac, out)
   gc()
