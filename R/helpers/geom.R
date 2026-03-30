@@ -231,8 +231,8 @@ agg005_to_025_aw <- function(r005, area005, ref025) {
 
 nc_month_to_raster <- function(nc_file,
                                ym,
-                               VAR,
-                               Vcfg,
+                               var,
+                               vcfg,
                                ref,
                                method = "bilinear",
                                extent_global = terra::ext(-180, 180, -90, 90),
@@ -246,12 +246,12 @@ nc_month_to_raster <- function(nc_file,
   stopifnot(inherits(ref, "SpatRaster"))
   stopifnot(is.character(ym), nchar(ym) >= 6)
 
-  VAR <- toupper(VAR)
+  var <- toupper(var)
 
   nc <- ncdf4::nc_open(nc_file)
   on.exit(ncdf4::nc_close(nc), add = TRUE)
 
-  varnm <- pick_varname(nc, Vcfg, VAR)
+  varnm <- pick_varname(nc, vcfg, var)
 
   arr <- ncdf4::ncvar_get(nc, varnm)
   arr <- extract_time_slice(arr, varnm, nc, ym)
@@ -263,7 +263,7 @@ nc_month_to_raster <- function(nc_file,
     if (isTRUE(strict_time)) stop(msg, call. = FALSE) else return(NULL)
   }
 
-  ll <- get_lonlat(nc, Vcfg)
+  ll <- get_lonlat(nc, vcfg)
 
   if (length(dim(arr)) == 2L && !is.null(ll$lon) && !is.null(ll$lat)) {
     arr <- transpose_lonlat(arr, length(ll$lon), length(ll$lat))
@@ -280,3 +280,4 @@ nc_month_to_raster <- function(nc_file,
   r <- rotate_if_360(r, lon_vals = ll$lon)
   align_to(r, ref, method = method)
 }
+
