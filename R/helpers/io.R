@@ -1,3 +1,4 @@
+
 ## =============================================================================
 ## io.R — Input/output utilities for reproducible GeoTIFF and metadata handling
 ## =============================================================================
@@ -5,24 +6,23 @@
 # GDAL creation options
 # ------------------------------------------------------------------------------
 
-gdal_co_int <- function(speed_over_size = FALSE) {
+gdal_co <- function(predictor = 2L, speed_over_size = FALSE) {
   base <- c("TILED=YES", "BIGTIFF=IF_SAFER")
   comp <- if (isTRUE(speed_over_size)) {
     "COMPRESS=LZW"
   } else {
     "COMPRESS=DEFLATE"
   }
-  c(base, comp, "PREDICTOR=2", "NUM_THREADS=ALL_CPUS")
+  c(base, comp, sprintf("PREDICTOR=%d", predictor), "NUM_THREADS=ALL_CPUS")
+}
+
+# Legacy wrappers for backward compatibility
+gdal_co_int <- function(speed_over_size = FALSE) {
+  gdal_co(predictor = 2L, speed_over_size = speed_over_size)
 }
 
 gdal_co_f32 <- function(speed_over_size = FALSE) {
-  base <- c("TILED=YES", "BIGTIFF=IF_SAFER")
-  comp <- if (isTRUE(speed_over_size)) {
-    "COMPRESS=LZW"
-  } else {
-    "COMPRESS=DEFLATE"
-  }
-  c(base, comp, "PREDICTOR=3", "NUM_THREADS=ALL_CPUS")
+  gdal_co(predictor = 3L, speed_over_size = speed_over_size)
 }
 
 # ------------------------------------------------------------------------------
