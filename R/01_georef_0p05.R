@@ -7,9 +7,11 @@ suppressPackageStartupMessages({
   library(here)
 })
 
-source(here("R", "helpers", "utils.R"))
+source(here("R", "helpers", "paths.R"))
+source(here("R", "helpers", "files.R"))
+source(here("R", "helpers", "netcdf.R"))
 source(here("R", "helpers", "io.R"))
-source(here("R", "helpers", "geom.R"))
+source(here("R", "helpers", "netcdf_raster.R"))
 source(here("R", "helpers", "options.R"))
 
 cfg <- cfg_read()
