@@ -1,5 +1,5 @@
 ## =============================================================================
-# 08_apply_abiotic_only_0p05.R — Apply abiotic (water/ice) drop mask to
+# Step 07 — Apply non-vegetated (water/ice) drop mask to
 # georeferenced monthly LAI/FPAR at 0.05°
 ## =============================================================================
 
@@ -8,7 +8,9 @@ suppressPackageStartupMessages({
   library(here)
 })
 
-source(here("R", "helpers", "utils.R"))
+source(here("R", "helpers", "paths.R"))
+source(here("R", "helpers", "files.R"))
+source(here("R", "helpers", "netcdf.R"))
 source(here("R", "helpers", "io.R"))
 source(here("R", "helpers", "options.R"))
 
@@ -27,14 +29,14 @@ var_lower <- tolower(var)
 in_dir <- cfg$paths[[sprintf("georef_%s_0p05_dir", var_lower)]]
 
 # non-vegetated mask
-abi_mask_path <- file.path(
-  cfg$paths$mask_abiotic_dir,
-  "mask_abiotic_CCI_2007_tauW0p05_tauI0p05_0p05.tif"
+nonveg_mask_path <- file.path(
+  cfg$paths$mask_nonvegetated_dir,
+  "mask_nonvegetated_CCI_2007_tauW0p05_tauI0p05_0p05.tif"
 )
-abi_mask <- rast(abi_mask_path)
+nonveg_mask <- rast(nonveg_mask_path)
 
 # Output directory
-out_dir <- file.path(cfg$paths$out_root, "abiotic_only_0p05", var)
+out_dir <- file.path(cfg$paths$out_root, "nonvegetated_only_0p05", var)
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 wopt <- wopt_f32(opts$speed_over_size)
@@ -52,22 +54,22 @@ files <- sort(list.files(
 # ------------------------------------------------------------------------------
 for (f in files) {
   ym <- extract_ym_from_filename(f)
-  out <- file.path(out_dir, sprintf("%s_%s_0p05_masked_abiotic.tif", var, ym))
+  out <- file.path(out_dir, sprintf("%s_%s_0p05_masked_nonvegetated.tif", var, ym))
 
   if (opts$skip_existing && file.exists(out)) {
     next
   }
 
   r <- rast(f)
-  if (!compareGeom(r, abi_mask, stopOnError = FALSE)) {
-    r <- resample(r, abi_mask, method = "bilinear")
+  if (!compareGeom(r, nonveg_mask, stopOnError = FALSE)) {
+    r <- resample(r, nonveg_mask, method = "bilinear")
   }
 
-  r <- mask(r, abi_mask, maskvalues = 1, updatevalue = NA)
+  r <- mask(r, nonveg_mask, maskvalues = 1, updatevalue = NA)
   writeRaster(r, out, overwrite = TRUE, wopt = wopt)
 
   message("Wrote: ", out)
 }
 
 gc()
-message(sprintf("Finished abiotic-only masking (0.05°): %s", var))
+message(sprintf("Finished non-vegetated-only masking (0.05°): %s", var))
