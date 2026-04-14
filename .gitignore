@@ -26,6 +26,7 @@ data-raw/LUH2_v2h/
 /analysis/**
 !/analysis/README.md
 /config/**
+config/config.yml
 !/config/README.md
 /paper/**
 
@@ -76,3 +77,4 @@ Thumbs.db
 # Local Environment Configuration
 # =============================================================================
 .Renviron
+
