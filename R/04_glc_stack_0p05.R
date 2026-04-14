@@ -1,5 +1,5 @@
 ## =============================================================================
-# 05_glc_stack_0p05.R — Build annual GLC_FCS30D categorical yearstack (0.05°)
+# 04_glc_stack_0p05.R — Build annual GLC_FCS30D categorical yearstack (0.05°)
 ## =============================================================================
 
 suppressPackageStartupMessages({
@@ -7,8 +7,10 @@ suppressPackageStartupMessages({
   library(here)
 })
 
-source(here("R", "helpers", "utils.R"))
-source(here("R", "helpers", "viz.R"))
+source(here("R", "helpers", "paths.R"))
+source(here("R", "helpers", "files.R"))
+source(here("R", "helpers", "netcdf.R"))
+source(here("R", "helpers", "plotting.R"))
 source(here("R", "helpers", "io.R"))
 source(here("R", "helpers", "options.R"))
 
