@@ -6,8 +6,8 @@ R       ?= Rscript
 ROOT    ?= $(HOME)/GitHub/natural_LAI_FPAR
 WD      := $(ROOT)/R
 
-RUN_TAG ?= tau_0.2
-TAU_CCI ?= 0.2
+RUN_TAG ?= tau_0.1
+TAU_CCI ?= 0.1
 MASKS   ?= CCI GLC
 SKIP_EXISTING?= TRUE
 REMAKE_QL?= FALSE
@@ -37,10 +37,10 @@ georef: setup
 	VAR=FPAR $(call run,01_georef_0p05.R)
 
 cci-frac: setup
-	$(call run,03_cci_frac_0p05.R)
+	$(call run,02_cci_frac_0p05.R)
 
 glc-stack: setup
-	$(call run,05_glc_stack_0p05.R)
+	$(call run,04_glc_stack_0p05.R)
 
 prep: georef cci-frac glc-stack
 
@@ -49,10 +49,10 @@ prep: georef cci-frac glc-stack
 # -----------------------------------------------------------------------------
 .PHONY: masks
 masks:
-	$(call run,04_cci_mask_0p05.R)
-	$(call run,06_glc_mask_0p05.R)
-	$(call run,07_abiotic_static_from_cci_0p05.R)
-	$(call run,10_luh_pasture_overlap_025.R)
+	$(call run,03_cci_mask_0p05.R)
+	$(call run,05_glc_mask_0p05.R)
+	$(call run,06_nonveg_static_from_cci_0p05.R)
+	$(call run,09_luh_pasture_overlap_0p25.R)
 
 # -----------------------------------------------------------------------------
 # 3) Apply masks (0.05°) + aggregate (0.25°)
@@ -61,17 +61,17 @@ masks:
 apply:
 	@for m in $(MASKS); do \
 	  echo "== APPLY $$m ==" ; \
-	  MASK=$$m VAR=LAI  $(call run,11_apply_mask_0p05.R) ; \
-	  MASK=$$m VAR=FPAR $(call run,11_apply_mask_0p05.R) ; \
+	  MASK=$$m VAR=LAI  $(call run,10_apply_mask_0p05.R) ; \
+	  MASK=$$m VAR=FPAR $(call run,10_apply_mask_0p05.R) ; \
 	done
 
 agg:
 	@for m in $(MASKS); do \
 	  echo "== AGG $$m ==" ; \
-	  MASK=$$m VAR=LAI  $(call run,12_agg_0p5.R) ; \
-	  MASK=$$m VAR=FPAR $(call run,12_agg_0p5.R) ; \
-	  MASK=$$m VAR=LAI  $(call run,12_agg_0p25.R) ; \
-	  MASK=$$m VAR=FPAR $(call run,12_agg_0p25.R) ; \
+	  MASK=$$m VAR=LAI  $(call run,11_agg_0p5.R) ; \
+	  MASK=$$m VAR=FPAR $(call run,11_agg_0p5.R) ; \
+	  MASK=$$m VAR=LAI  $(call run,11_agg_0p25.R) ; \
+	  MASK=$$m VAR=FPAR $(call run,11_agg_0p25.R) ; \
 	done
 
 # Full data pipeline
@@ -83,16 +83,16 @@ pipeline: prep masks apply agg
 analysis: pipeline
 .PHONY: analysis
 analysis: pipeline
-	$(call run,13_analyse_georef_0p25.R)
+	$(R) $(WD)/analysis/00_area_validdomain_after_nonvegetated.R
 # -----------------------------------------------------------------------------
 # Quicklooks (explicit; no extra switches)
 # -----------------------------------------------------------------------------
 .PHONY: ql
 ql:
-	REMAKE_QL=TRUE $(call run,03_cci_frac_0p05.R)
-	REMAKE_QL=TRUE $(call run,04_cci_mask_0p05.R)
-	REMAKE_QL=TRUE $(call run,05_glc_stack_0p05.R)
-	REMAKE_QL=TRUE $(call run,06_glc_mask_0p05.R)
+	REMAKE_QL=TRUE $(call run,02_cci_frac_0p05.R)
+	REMAKE_QL=TRUE $(call run,03_cci_mask_0p05.R)
+	REMAKE_QL=TRUE $(call run,04_glc_stack_0p05.R)
+	REMAKE_QL=TRUE $(call run,05_glc_mask_0p05.R)
 
 # -----------------------------------------------------------------------------
 # Help
@@ -105,6 +105,6 @@ help:
 	@echo "  ql         -> regenerate quicklooks for key steps"
 	@echo ""
 	@echo "Typical runs:"
-	@echo "  make pipeline RUN_TAG=tau_0.2"
+	@echo "  make pipeline RUN_TAG=tau_0.1"
 	@echo "  make pipeline MASKS='CCI'"
 	@echo "  make pipeline MASKS='GLC'"
