@@ -1,5 +1,5 @@
 ## =============================================================================
-# 07_abiotic_static_from_cci.R — Build abiotic mask for ONE year (0.05°)
+# Step 06 — Build non-vegetated mask for one year (0.05°)
 ## =============================================================================
 
 suppressPackageStartupMessages({
@@ -7,7 +7,9 @@ suppressPackageStartupMessages({
   library(here)
 })
 
-source(here("R", "helpers", "utils.R"))
+source(here("R", "helpers", "paths.R"))
+source(here("R", "helpers", "files.R"))
+source(here("R", "helpers", "netcdf.R"))
 source(here("R", "helpers", "io.R"))
 source(here("R", "helpers", "options.R"))
 
@@ -24,18 +26,18 @@ tau_ice <- as.numeric(Sys.getenv("tau_ice", "0.05"))
 skip_existing <- as_bool(Sys.getenv("skip_existing"), default = FALSE)
 year <- as.integer(Sys.getenv("year", "2007"))
 
-out_dir <- file.path(cfg$paths$masks_root_dir, "mask_abiotic")
+out_dir <- file.path(cfg$paths$masks_root_dir, "mask_nonvegetated")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 tau_w_tok <- gsub("\\.", "p", sprintf("%.2f", tau_water))
 tau_i_tok <- gsub("\\.", "p", sprintf("%.2f", tau_ice))
 
 out_tif <- file.path(out_dir, sprintf(
-  "mask_abiotic_CCI_%d_tauW%s_tauI%s_0p05.tif", year, tau_w_tok, tau_i_tok
+  "mask_nonvegetated_CCI_%d_tauW%s_tauI%s_0p05.tif", year, tau_w_tok, tau_i_tok
 ))
 
 if (skip_existing && file.exists(out_tif)) {
-  message("✓ Abiotic mask already exists — skipping: ", out_tif)
+  message("✓ Non-vegetated mask already exists — skipping: ", out_tif)
   return(invisible(NULL))
 }
 
@@ -48,9 +50,13 @@ nodata_vals <- unique(c(as.integer(unlist(esa_cci$nodata)), 255L))
 files <- list.files(cci_dir, pattern = "\\.tif$", full.names = TRUE)
 basenames <- basename(files)
 
-# Extract years from filenames
-yrs <- as.integer(substr(basenames, 1, 4))
+# Extract years from filenames (format: *-P1Y-YYYY-v*)
+yrs <- as.integer(sub(".*-P1Y-([0-9]{4})-.*", "\\1", basenames))
 cand <- files[!is.na(yrs) & yrs == year]
+
+if (length(cand) == 0) {
+  stop("No CCI files found for year ", year, " in ", cci_dir)
+}
 
 # Rank by source (C3S preferred = 2, others = 1)
 cand_rank <- ifelse(grepl("^C3S", basename(cand)), 2L, 1L)
@@ -73,18 +79,18 @@ pI <- resample(classify(r, cbind(vals_ice, 1), others = 0), ref005, method = "av
 water_drop <- ifel(pW >= tau_water, 1L, 0L)
 ice_drop <- ifel(pI >= tau_ice, 1L, 0L)
 both_drop <- ifel(water_drop & ice_drop, 1L, 0L)
-abi_mask_combined <- ifel(water_drop | ice_drop, 1L, 0L)
+nonveg_mask_combined <- ifel(water_drop | ice_drop, 1L, 0L)
 
 # Write component rasters
-writeRaster(c(water_drop, ice_drop, both_drop, abi_mask_combined),
-  file.path(out_dir, sprintf("abiotic_components_%d_0p05.tif", year)),
+writeRaster(c(water_drop, ice_drop, both_drop, nonveg_mask_combined),
+  file.path(out_dir, sprintf("nonvegetated_components_%d_0p05.tif", year)),
   overwrite = TRUE, wopt = wopt_byte(FALSE, na = 255L)
 )
 
 # Write final combined mask
-names(abi_mask_combined) <- "abiotic_drop"
+names(nonveg_mask_combined) <- "nonvegetated_drop"
 writeRaster(
-  abi_mask_combined,
+  nonveg_mask_combined,
   out_tif,
   overwrite = TRUE,
   wopt = wopt_byte(FALSE, na = 255L)
