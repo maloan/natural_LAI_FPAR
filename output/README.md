@@ -1,79 +1,61 @@
-# **Final Outputs (`output/`)**
+# Final Outputs (output)
 
-This directory contains all **generated products** from the
-natural-vegetation LAI/FPAR workflow. Outputs are organised by **run
-tag** (e.g. `tau_0.05`, `tau_0.1`, `tau_0.2`), where each run tag
-corresponds to a specific masking configuration and parameter set.
+This folder contains all generated products from the natural vegetation LAI/FPAR workflow.
+Outputs are organized by run tag (for example tau_0.05, tau_0.1, tau_0.2), where each run tag represents a specific masking setup.
 
-All downstream analyses and figures draw exclusively from this
-directory.
+Downstream analysis and figures are built from files in this directory.
 
-------------------------------------------------------------------------
+## Top-Level Layout
 
-## **Top-level structure**
-
-```         
+```text
 output/
 ├── georef_biotic/
 └── tau_<run_tag>/
 ```
 
-### **`georef_biotic/`**
+### georef_biotic
 
-Georeferenced, *unmasked* LAI and FPAR fields at 0.05°. These serve as
-the common baseline for all masking and aggregation steps.
+Georeferenced, unmasked LAI and FPAR fields at 0.05 degrees.
+These act as the baseline for masking and aggregation.
 
-------------------------------------------------------------------------
+## What Is Inside Each tau_<run_tag>
 
-## **Per-run-tag contents**
+Each run-tag directory contains the core processing outputs:
 
-Each `tau_<run_tag>/` directory contains the following subdirectories.
+### masked_0p05
 
-### **1. `masked_0p05/`**
+Masked monthly LAI and FPAR at native 0.05 degree resolution.
 
-Masked monthly LAI and FPAR fields at native **0.05°** resolution.
+- Separate LAI and FPAR subfolders.
+- Masks reflect the selected setup (CCI or GLC).
+- Optional exclusions can include static abiotic masks and LUH pasture/grass overlap filtering.
 
--   Separate subfolders for `LAI/` and `FPAR/`
+These files are the immediate inputs to aggregation.
 
--   Masks applied according to the selected configuration (CCI or GLC),
-    with optional:
+### masked_0p25
 
-    -   static abiotic exclusions,
-    -   LUH pasture–grass overlap removal
+Area-weighted monthly aggregates on the 0.25 degree grid.
 
--   Used as the direct input for spatial aggregation
+- Aggregated from 0.05 degree products.
+- Includes eval outputs with summary checks and diagnostics.
+- Used for trend, zonal, and global analyses.
 
-------------------------------------------------------------------------
+### masks
 
-### **2. `masked_0p25/`**
+Binary masks used in the workflow (1 = drop, 0 = keep):
 
-Area-weighted aggregates on the **0.25°** grid.
+- mask_cci: CCI used-land masks.
+- mask_glc: GLC persistence masks.
+- mask_luh: LUH pasture/rangeland masks.
+- mask_luh_overlap: Pasture-grass overlap masks.
+- mask_abiotic: Static water, ice, and bare-ground masks.
 
--   Monthly LAI and FPAR fields aggregated from 0.05°
--   Includes an `eval/` subdirectory with summaries and diagnostics
--   Forms the basis for all trend, zonal, and global analyses
+Most masks are generated at 0.05 degree and propagated to 0.25 degree when required.
 
-------------------------------------------------------------------------
+### eval
 
-### **3. `masks/`**
+Evaluation and trend products derived from masked 0.25 degree fields.
 
-Binary mask layers used in the workflow (`1 = drop`, `0 = keep`):
-
--   **`mask_cci/`** – CCI used-land masks
--   **`mask_glc/`** – GLC used-land persistence masks
--   **`mask_luh/`** – LUH pasture / rangeland masks
--   **`mask_luh_overlap/`** – pasture–grass overlap masks
--   **`mask_abiotic/`** – static water, ice, and bare-ground masks
-
-Masks are stored primarily at **0.05°** and replicated to **0.25°**
-where needed.
-
-------------------------------------------------------------------------
-
-### **4. `eval/`**
-
-Evaluation and trend products derived from masked 0.25° fields.
-
--   Trend maps and statistics for LAI and FPAR
--   Separate outputs for CCI- and GLC-based masking
--   Inputs to figures, tables, and manuscript analyses
+- Trend maps and summary statistics for LAI and FPAR.
+- Separate outputs by masking source (CCI and GLC).
+- Direct inputs to manuscript figures and tables.
