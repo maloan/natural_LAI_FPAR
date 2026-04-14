@@ -29,6 +29,7 @@ data-raw/LUH2_v2h/
 config/config.yml
 !/config/README.md
 /paper/**
+src/manifest_00.csv
 
 # =============================================================================
 # Intermediate & Temporary Files
