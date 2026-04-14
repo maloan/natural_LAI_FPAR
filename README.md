@@ -47,7 +47,7 @@ vignettes/    Extended documentation
 2. Georeference monthly LAI/FPAR (01_georef_0p05.R).
 3. Prepare land-cover inputs (02_cci_frac_0p05.R, 04_glc_stack_0p05.R).
 4. Build masks (03_cci_mask_0p05.R, 05_glc_mask_0p05.R,
-   06_abiotic_static_from_cci_0p05.R).
+    06_nonveg_static_from_cci_0p05.R).
 5. Apply masks and aggregate (10_apply_mask_0p05.R,
    11_agg_0p25.R and 11_agg_0p5.R).
 6. Run trend and diagnostic analysis scripts in R/analysis/.

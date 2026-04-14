@@ -28,7 +28,7 @@ Masked monthly LAI and FPAR at native 0.05 degree resolution.
 
 - Separate LAI and FPAR subfolders.
 - Masks reflect the selected setup (CCI or GLC).
-- Optional exclusions can include static abiotic masks and LUH pasture/grass overlap filtering.
+- Optional exclusions can include static non-vegetated masks and LUH pasture/grass overlap filtering.
 
 These files are the immediate inputs to aggregation.
 
@@ -48,7 +48,7 @@ Binary masks used in the workflow (1 = drop, 0 = keep):
 - mask_glc: GLC persistence masks.
 - mask_luh: LUH pasture/rangeland masks.
 - mask_luh_overlap: Pasture-grass overlap masks.
-- mask_abiotic: Static water, ice, and bare-ground masks.
+- mask_nonvegetated: Static water, ice, and bare-ground masks.
 
 Most masks are generated at 0.05 degree and propagated to 0.25 degree when required.
 

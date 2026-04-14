@@ -22,7 +22,7 @@ The pipeline follows six broad steps:
 1. Setup and reference-grid creation.
 2. Georeferencing of raw LAI/FPAR inputs.
 3. Land-cover preprocessing (CCI and GLC).
-4. Mask construction (used land plus abiotic filters).
+4. Mask construction (used land plus non-vegetated filters).
 5. Mask application and spatial aggregation.
 6. Trend and diagnostic analysis.
 
@@ -39,8 +39,8 @@ R/
 ├── 03_cci_mask_0p05.R
 ├── 04_glc_stack_0p05.R
 ├── 05_glc_mask_0p05.R
-├── 06_abiotic_static_from_cci_0p05.R
-├── 07_apply_abiotic_only_0p05.R
+├── 06_nonveg_static_from_cci_0p05.R
+├── 07_apply_nonveg_only_0p05.R
 ├── 08_luh_use_masks.R
 ├── 09_luh_pasture_overlap_0p25.R
 ├── 10_apply_mask_0p05.R
@@ -73,12 +73,12 @@ R/
 
 - 03_cci_mask_0p05.R: Creates CCI-based used-land masks.
 - 05_glc_mask_0p05.R: Creates GLC-based persistence masks.
-- 06_abiotic_static_from_cci_0p05.R: Builds static abiotic masks.
+- 06_nonveg_static_from_cci_0p05.R: Builds static non-vegetated masks.
 - 09_luh_pasture_overlap_0p25.R: Adds LUH2 pasture-overlap diagnostics.
 
 ### Masking and aggregation
 
-- 07_apply_abiotic_only_0p05.R: Applies abiotic exclusions.
+- 07_apply_nonveg_only_0p05.R: Applies non-vegetated exclusions.
 - 08_luh_use_masks.R: Processes LUH2 layers used by masking.
 - 10_apply_mask_0p05.R: Applies selected masks to monthly LAI/FPAR.
 - 11_agg_0p5.R: Aggregates to 0.5 degree.

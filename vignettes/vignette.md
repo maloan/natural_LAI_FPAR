@@ -56,7 +56,7 @@ Scripts:
 
 - [R/03_cci_mask_0p05.R](../R/03_cci_mask_0p05.R)
 - [R/05_glc_mask_0p05.R](../R/05_glc_mask_0p05.R)
-- [R/06_abiotic_static_from_cci_0p05.R](../R/06_abiotic_static_from_cci_0p05.R)
+- [R/06_nonveg_static_from_cci_0p05.R](../R/06_nonveg_static_from_cci_0p05.R)
 - [R/09_luh_pasture_overlap_0p25.R](../R/09_luh_pasture_overlap_0p25.R)
 
 Mask convention:
