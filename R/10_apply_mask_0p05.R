@@ -1,5 +1,5 @@
 ## =============================================================================
-# 11_apply_mask_0p05.R — Apply drop masks to monthly LAI/FPAR at 0.05°
+# 10_apply_mask_0p05.R — Apply drop masks to monthly LAI/FPAR at 0.05°
 ## =============================================================================
 
 suppressPackageStartupMessages({
@@ -7,8 +7,10 @@ suppressPackageStartupMessages({
   library(here)
 })
 
-source(here("R", "helpers", "utils.R"))
-source(here("R", "helpers", "viz.R"))
+source(here("R", "helpers", "paths.R"))
+source(here("R", "helpers", "files.R"))
+source(here("R", "helpers", "netcdf.R"))
+source(here("R", "helpers", "plotting.R"))
 source(here("R", "helpers", "io.R"))
 source(here("R", "helpers", "options.R"))
 
@@ -16,12 +18,18 @@ cfg <- cfg_read()
 opts <- opts_read()
 terraOptions(progress = 1, memfrac = 0.25)
 
-var <- toupper(Sys.getenv("var", "FPAR"))
-mask <- toupper(Sys.getenv("mask", "CCI"))
+var <- toupper(Sys.getenv("var", "LAI"))
+mask_kind <- toupper(Sys.getenv("mask", "GLC"))
+if (!var %in% c("LAI", "FPAR")) {
+  stop("Unsupported var: ", var, ". Use LAI or FPAR")
+}
+if (!mask_kind %in% c("CCI", "GLC")) {
+  stop("Unsupported mask: ", mask_kind, ". Use CCI or GLC")
+}
 
 skip_existing <- as_bool(Sys.getenv("skip_existing"), default = TRUE)
 overwrite <- as_bool(Sys.getenv("overwrite"), default = FALSE)
-src <- toupper(Sys.getenv("grass_source", "CCI"))
+src <- mask_kind
 g_min <- as.numeric(Sys.getenv("g_min", "0.1"))
 p_min <- as.numeric(Sys.getenv("p_min", "0.1"))
 alpha <- as.numeric(Sys.getenv("alpha", "0.50"))
@@ -33,7 +41,7 @@ in_dir <- if (var == "LAI") {
 } else {
   cfg$paths$georef_fpar_0p05_dir
 }
-out_dir <- switch(mask,
+out_dir <- switch(mask_kind,
   CCI = if (var == "LAI") {
     cfg$paths$masked_lai_cci_0p05_dir
   } else {
@@ -55,7 +63,7 @@ year_2 <- cfg$project$years$cci_end
 # Format parameter values for filename matching
 tok <- function(x) gsub("\\.", "p", sprintf("%.2f", as.numeric(x)))
 
-mask_path <- if (mask == "CCI") {
+mask_path <- if (mask_kind == "CCI") {
   find_one(
     cfg$paths$masks_cci_dir,
     sprintf("mask_used_.*_%d-%d_0p05\\.tif$", year_1, year_2)
@@ -68,10 +76,11 @@ mask_path <- if (mask == "CCI") {
   )
 }
 
-mask <- rast(mask_path)
-if (!compareGeom(mask, ref005, stopOnError = FALSE)) {
-  mask <- resample(mask, ref005, method = "near")
+drop_mask <- rast(mask_path)
+if (!compareGeom(drop_mask, ref005, stopOnError = FALSE)) {
+  drop_mask <- resample(drop_mask, ref005, method = "near")
 }
+stopifnot(compareGeom(drop_mask, ref005, stopOnError = FALSE))
 
 combine_or <- function(a, b) {
   if (!compareGeom(b, a, stopOnError = FALSE)) {
@@ -80,13 +89,13 @@ combine_or <- function(a, b) {
   app(c(a, b), fun = function(v) as.integer(any(v >= 1, na.rm = TRUE)))
 }
 
-abi_dir <- file.path(cfg$paths$masks_root_dir, "mask_abiotic")
-abi_path <- list.files(abi_dir, "mask_abiotic_CCI_2007_.*_0p05\\.tif$",
+nonveg_dir <- file.path(cfg$paths$masks_root_dir, "mask_nonvegetated")
+nonveg_path <- list.files(nonveg_dir, "mask_nonvegetated_CCI_2007_.*_0p05\\.tif$",
   full.names = TRUE
 )
-if (length(abi_path)) {
-  abi <- rast(abi_path[order(file.info(abi_path)$mtime, decreasing = TRUE)][1])
-  mask <- combine_or(mask, abi)
+if (length(nonveg_path)) {
+  nonveg <- rast(nonveg_path[order(file.info(nonveg_path)$mtime, decreasing = TRUE)][1])
+  drop_mask <- combine_or(drop_mask, nonveg)
 }
 
 rx <- sprintf(
@@ -97,12 +106,15 @@ luh_path <- find_one(
   file.path(cfg$paths$masks_root_dir, "mask_luh_overlap"), rx
 )
 luh <- rast(luh_path)
-mask <- combine_or(mask, luh)
-vals_ok <- try(all(values(mask) %in% c(0, 1, NA)), silent = TRUE)
+drop_mask <- combine_or(drop_mask, luh)
+vals_ok <- try(all(values(drop_mask) %in% c(0, 1, NA)), silent = TRUE)
+if (inherits(vals_ok, "try-error") || !isTRUE(vals_ok)) {
+  stop("Combined mask has values outside {0,1,NA}")
+}
 
 mask_combined_path <- file.path(out_dir, "combined_mask_0p05.tif")
 if (!file.exists(mask_combined_path) || overwrite) {
-  writeRaster(mask, mask_combined_path,
+  writeRaster(drop_mask, mask_combined_path,
     overwrite = TRUE,
     wopt = wopt_byte(opts$speed_over_size, na = 255L)
   )
@@ -125,7 +137,7 @@ for (f in files) {
   r <- rast(f)
 
   if (do_write) {
-    r_masked <- mask(r, mask, maskvalues = 1, updatevalue = NA)
+    r_masked <- terra::mask(r, drop_mask, maskvalues = 1, updatevalue = NA)
     writeRaster(r_masked, out, overwrite = TRUE, wopt = wopt)
   }
 }
