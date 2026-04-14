@@ -34,6 +34,10 @@ src/ref_*.nc
 src/area_*.tif
 src/area_*.nc
 src/manifest_00.csv
+src/aoi_*.tif
+src/cor_twi_vegh_5km_mosaic.nc
+src/ne_110m_coastline.gpkg
+src/valid_tiles_info_0p05_full_10deg.rds
 
 # =============================================================================
 # Intermediate & Temporary Files
