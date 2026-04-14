@@ -30,9 +30,7 @@ IN_DIR="$ROOT/output/georef_biotic/georef_biotic_${VAR}_${RES005}"
 OUT005="$ROOT/analysis/unmasked/${RES005}"
 OUT025="$ROOT/analysis/unmasked/0p25"
 REF025="$ROOT/src/ref_0p25.nc"
-need_cmd Rscript
-MK_SCRIPT="$ROOT/R/helpers/mk_sig_mask.R"
-[[ -f "$MK_SCRIPT" ]] || { echo "Missing MK script: $MK_SCRIPT" >&2; exit 1; }
+[[ -f "$REF025" ]] || { echo "Missing 0.25 reference grid: $REF025" >&2; exit 1; }
 
 mkdir -p "$IN_DIR" "$OUT005" "$OUT025"
 
@@ -45,7 +43,6 @@ echo "----------------------------------------------------------"
 # ------------------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------------------
-need_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "Missing dependency: $1" >&2; exit 1; }; }
 need_cmd gdal_translate
 need_cmd cdo
 
@@ -86,17 +83,22 @@ rm -rf "$TMP_DIR"
 mkdir -p "$TMP_DIR"
 
 shopt -s nullglob
-tifs=( "${VAR}"_*_"${RES005}_masked_abiotic.tif" )
+tifs=( "${VAR}"_*_"${RES005}_masked_nonvegetated.tif" )
 if [[ "${#tifs[@]}" -eq 0 ]]; then
-  echo "No input GeoTIFFs found matching: ${VAR}_*_${RES005}_masked_abiotic.tif" >&2
+  echo "No input GeoTIFFs found matching: ${VAR}_*_${RES005}_masked_nonvegetated.tif" >&2
   exit 1
 fi
 
 for tif in "${tifs[@]}"; do
   base=$(basename "$tif")
-  # Expect: VAR_YYYYMM_RES005.tif
+  # Expect: VAR_YYYYMM_RES005_masked_nonvegetated.tif
   yyyymm=${base#${VAR}_}
-  yyyymm=${yyyymm%_${RES005}.tif}
+  yyyymm=${yyyymm%_${RES005}_masked_nonvegetated.tif}
+
+  if [[ ! "$yyyymm" =~ ^[0-9]{6}$ ]]; then
+    echo "Unexpected filename format: $base" >&2
+    exit 1
+  fi
 
   year=${yyyymm:0:4}
   mon=${yyyymm:4:2}
@@ -164,7 +166,19 @@ echo "----------------------------------------------------------"
 # ------------------------------------------------------------------------------
 echo "Step 5: Moving 0.05° NetCDF outputs → $OUT005"
 
-mv ./*.nc "$OUT005"/
+for f in \
+  "$MONTHLY_005" \
+  "$YEARMEAN_005" "$YEARMAX_005" "$YEARMIN_005" "$YEARAMP_005" \
+  "${VAR}_georef_yearmean_trend_intercept_${RES005}.nc" \
+  "${VAR}_georef_yearmean_trend_slope_peryear_${RES005}.nc" \
+  "${VAR}_georef_yearmax_trend_intercept_${RES005}.nc" \
+  "${VAR}_georef_yearmax_trend_slope_peryear_${RES005}.nc" \
+  "${VAR}_georef_yearmin_trend_intercept_${RES005}.nc" \
+  "${VAR}_georef_yearmin_trend_slope_peryear_${RES005}.nc" \
+  "${VAR}_georef_yearamp_trend_intercept_${RES005}.nc" \
+  "${VAR}_georef_yearamp_trend_slope_peryear_${RES005}.nc"; do
+  [[ -f "$f" ]] && mv "$f" "$OUT005/"
+done
 rm -rf "$TMP_DIR"
 
 # ------------------------------------------------------------------------------
