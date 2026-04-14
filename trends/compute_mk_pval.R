@@ -12,14 +12,19 @@ suppressPackageStartupMessages({
 })
 
 # ---- config
-mode <- "masked"
-var <- "LAI"
-metric <- "yearmean"
+mode <- Sys.getenv("RUN_MODE", "unmasked")
+var <- Sys.getenv("VAR", "LAI")
+metric <- Sys.getenv("METRIC", "yearmax")
 
-tau <- "tau_0.1"
-mask <- "CCI"
+tau <- Sys.getenv("RUN_TAG", "tau_0.1")
+mask <- Sys.getenv("MASK", "CCI")
 
-fill_value <- -9999
+# Optional explicit fill value override; leave NA to rely on NetCDF metadata.
+fill_value <- NA_real_
+
+if (!mode %in% c("masked", "unmasked")) {
+  stop("mode must be 'masked' or 'unmasked', got: ", mode)
+}
 
 # ---- paths
 if (mode == "unmasked") {
@@ -42,8 +47,6 @@ if (mode == "unmasked") {
     sprintf("trend_%s_%s", var, mask),
     sprintf("%s_%s_trend_mk_pval_0p25.nc", var, metric)
   )
-} else {
-  stop("mode must be 'masked' or 'unmasked'")
 }
 
 if (!file.exists(f_ts)) stop("Input time stack not found: ", f_ts)
@@ -54,7 +57,14 @@ message("Output: ", out_p)
 
 # ---- load & prep -------------------------------------------------------------
 r <- terra::rast(f_ts)
-r[r == fill_value] <- NA
+
+if (terra::nlyr(r) < 3) {
+  stop("Input time stack must have at least 3 layers, got: ", terra::nlyr(r))
+}
+
+if (is.finite(fill_value)) {
+  r[r == fill_value] <- NA
+}
 
 # ---- pixel function (Mann–Kendall p-value)
 mk_p_fun <- function(y) {
