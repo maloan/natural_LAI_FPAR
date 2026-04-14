@@ -121,6 +121,7 @@ for (i in seq_along(plan_year)) {
   names(frac_grass) <- "frac_grass"
 
   out <- c(frac_fused, frac_grass)
+  names(out) <- c("frac_fused", "frac_grass")
 
   writeRaster(out, ot, overwrite = TRUE, gdal = gdal_opts, NAflag = -9999)
 
