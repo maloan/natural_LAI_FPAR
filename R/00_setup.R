@@ -55,7 +55,7 @@ dirs <- list(
     "output", run_tag, "masks",
     "mask_luh", "quicklooks"
   ),
-  mask_abiotic_dir = here("output", run_tag, "masks", "mask_abiotic")
+  mask_nonvegetated_dir = here("output", run_tag, "masks", "mask_nonvegetated")
 )
 
 # masked dirs
