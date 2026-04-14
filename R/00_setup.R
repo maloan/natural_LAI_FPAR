@@ -8,7 +8,9 @@ suppressPackageStartupMessages({
   library(here)
 })
 
-source(here("R", "helpers", "utils.R"))
+source(here("R", "helpers", "paths.R"))
+source(here("R", "helpers", "files.R"))
+source(here("R", "helpers", "netcdf.R"))
 source(here("R", "helpers", "io.R"))
 terraOptions(progress = 1, memfrac = 0.25)
 
@@ -128,7 +130,7 @@ cfg$grids <- list(
   ),
   grid_05 = list(
     ref_raster = ref$`0p5`$nc, area_raster = area$`0p5`$nc
-  ),
+  )
 )
 
 cfg$variables <- list(
@@ -250,7 +252,7 @@ man <- data.frame(
   xmax = sapply(ref_rasts, xmax),
   ymin = sapply(ref_rasts, ymin),
   ymax = sapply(ref_rasts, ymax),
-  crs = sapply(ref_rasts, \(r) crs(r, describe = TRUE)),
+  crs = sapply(ref_rasts, \(r) crs(r)),
   global_area_km2 = sapply(area_rasts, \(a) as.numeric(global(a, "sum", na.rm = TRUE)[1, 1])),
   timestamp = format(Sys.time(), "%Y-%m-%d %H:%M:%S")
 )
