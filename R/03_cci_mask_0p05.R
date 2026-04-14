@@ -1,5 +1,5 @@
 ## =============================================================================
-# 04_cci_mask_0p05.R — Build conservative CCI/C3S “used-land” mask (0.05°)
+# 03_cci_mask_0p05.R — Build conservative CCI/C3S “used-land” mask (0.05°)
 ## =============================================================================
 
 suppressPackageStartupMessages({
@@ -7,10 +7,11 @@ suppressPackageStartupMessages({
   library(here)
 })
 
-source(here("R", "helpers", "utils.R"))
+source(here("R", "helpers", "paths.R"))
+source(here("R", "helpers", "files.R"))
+source(here("R", "helpers", "netcdf.R"))
 source(here("R", "helpers", "io.R"))
 source(here("R", "helpers", "options.R"))
-source(here("R", "helpers", "viz.R"))
 cfg <- cfg_read()
 opts <- opts_read()
 
@@ -23,8 +24,7 @@ dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 # --- parameters (env-only defaults) -------------------------------------------
 tau_cci <- as.numeric(Sys.getenv("tau_cci", "0.1"))
 k_cci <- as.integer(Sys.getenv("k_cci", "3"))
-skip_existing <- as_bool(Sys.getenv("skip_existing"), default = TRUE)
-remake_ql <- as_bool(Sys.getenv("remake_ql"), default = FALSE)
+skip_existing <- as_bool(Sys.getenv("skip_existing"), default = FALSE)
 
 cci_years <- cfg$project$years$cci_start:cfg$project$years$cci_end
 band_name <- "frac_fused"
@@ -50,7 +50,20 @@ years <- years[keep]
 stopifnot(length(fpaths) > 0)
 
 # --- load stack ---------------------------------------------------------------
-cci_stack <- rast(lapply(fpaths, function(f) rast(f)[[band_name]]))
+cci_stack <- rast(lapply(fpaths, function(f) {
+  r <- rast(f)
+  if (!band_name %in% names(r)) {
+    if (nlayers(r) == 2L) {
+      names(r) <- c("frac_fused", "frac_grass")
+    } else {
+      stop(sprintf(
+        "Band '%s' not found in %s; available bands: %s",
+        band_name, basename(f), paste(names(r), collapse = ", ")
+      ))
+    }
+  }
+  r[[band_name]]
+}))
 time(cci_stack) <- years
 
 if (!compareGeom(cci_stack, tmpl, stopOnError = FALSE)) {
