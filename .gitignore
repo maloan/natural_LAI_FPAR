@@ -29,6 +29,10 @@ data-raw/LUH2_v2h/
 config/config.yml
 !/config/README.md
 /paper/**
+src/ref_*.tif
+src/ref_*.nc
+src/area_*.tif
+src/area_*.nc
 src/manifest_00.csv
 
 # =============================================================================
