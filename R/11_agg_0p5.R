@@ -1,5 +1,5 @@
 ## =============================================================================
-# 12_agg_0p5.R — Area-weighted aggregation of masked LAI/FPAR (0.05° → 0.5°)
+# 11_agg_0p5.R — Area-weighted aggregation of masked LAI/FPAR (0.05° → 0.5°)
 ## =============================================================================
 
 suppressPackageStartupMessages({
@@ -8,7 +8,9 @@ suppressPackageStartupMessages({
 })
 
 # --- repo helpers --------------------------------------------------------------
-source(here("R", "helpers", "utils.R"))
+source(here("R", "helpers", "paths.R"))
+source(here("R", "helpers", "files.R"))
+source(here("R", "helpers", "netcdf.R"))
 source(here("R", "helpers", "io.R"))
 source(here("R", "helpers", "options.R"))
 
@@ -22,7 +24,6 @@ terraOptions(progress = 1, memfrac = 0.25)
 # ------------------------------------------------------------------------------
 skip_existing <- as_bool(Sys.getenv("skip_existing"), default = FALSE)
 overwrite <- as_bool(Sys.getenv("overwrite"), default = FALSE)
-remake_ql <- as_bool(Sys.getenv("remake_ql"), default = FALSE)
 
 var <- toupper(Sys.getenv("var", "FPAR")) # LAI|FPAR
 mask <- toupper(Sys.getenv("mask", "CCI")) # CCI|GLC
@@ -45,7 +46,7 @@ out_dir <- cfg$paths[[key_out]]
 
 stopifnot(is.character(in_dir), length(in_dir) == 1, nzchar(in_dir), dir.exists(in_dir))
 stopifnot(is.character(out_dir), length(out_dir) == 1, nzchar(out_dir))
-patt <- sprintf("^%s_.*_\\d{6}_0p05_masked\\.tif$", var)
+patt <- sprintf("^%s_\\d{6}_0p05_masked\\.tif$", var)
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 # ------------------------------------------------------------------------------
@@ -53,6 +54,7 @@ dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 # ------------------------------------------------------------------------------
 stopifnot(dir.exists(in_dir))
 files <- sort(list.files(in_dir, pattern = patt, full.names = TRUE))
+stopifnot(length(files) > 0L)
 
 # --- loop ---
 for (f in files) {
