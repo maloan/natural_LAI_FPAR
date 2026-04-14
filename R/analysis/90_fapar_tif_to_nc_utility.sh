@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# fapar_tif_to_nc.sh
+# 90_fapar_tif_to_nc_utility.sh
 # Convert monthly masked fPAR GeoTIFFs (0.5°) -> single monthly NetCDF (1982–2024)
 # ==============================================================================
 
