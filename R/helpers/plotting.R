@@ -386,17 +386,25 @@ write_quicklook_raster <- function(r,
   invisible(TRUE)
 }
 
-theme_pub <- function() {
+theme_pub <- function(base_size = 12, include_legend = FALSE, include_strip = FALSE) {
   .plot_require_gg()
-  theme_bw(base_size = 12) +
-    theme(
-      panel.grid.major = element_line(color = "grey87", linewidth = 0.3),
-      panel.grid.minor = element_blank(),
-      plot.title       = element_text(size = 13, face = "bold"),
-      plot.subtitle    = element_text(size = 10),
-      axis.title       = element_text(size = 11),
-      axis.text        = element_text(size = 9)
-    )
+  theme_list <- list(
+    panel.grid.major = element_line(color = "grey88", linewidth = 0.25),
+    panel.grid.minor = element_blank(),
+    plot.title       = element_text(size = base_size + 1, face = "bold"),
+    plot.subtitle    = element_text(size = 10),
+    axis.title       = element_text(size = base_size - 1),
+    axis.text        = element_text(size = 9)
+  )
+  if (include_strip) {
+    theme_list$strip.text <- element_text(size = 10, face = "bold")
+  }
+  if (include_legend) {
+    theme_list$legend.position <- "bottom"
+    theme_list$legend.box <- "vertical"
+    theme_list$legend.text <- element_text(size = 9)
+  }
+  theme_bw(base_size = base_size) + theme(!!!theme_list)
 }
 
 lab_deg <- function() {
