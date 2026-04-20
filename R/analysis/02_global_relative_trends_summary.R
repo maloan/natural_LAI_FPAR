@@ -12,21 +12,22 @@ suppressPackageStartupMessages({
 })
 
 # ---- config ------------------------------------------------------------------
-tau <- Sys.getenv("RUN_TAG", "tau_0.05")
+cci_taus <- c("tau_0.05", "tau_0.1", "tau_0.2")
+glc_run_tag <- Sys.getenv("GLC_RUN_TAG", "tau_0.1")
 
 dir_unmask <- here("analysis", "unmasked", "0p25")
-dir_eval <- here("output", tau, "eval")
 
-outdir <- here("analysis", "results", "global_mean_relative_trends", tau)
+outdir <- here("analysis", "results", "global_mean_relative_trends", "overview")
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
 vars <- c("LAI", "FPAR")
 metrics <- c("yearmean", "yearmax")
+scenario_order <- c("Unmasked", "CCI tau=0.05", "CCI tau=0.1", "CCI tau=0.2", "GLC")
 
-case_labels <- c(
-  unmasked   = "Unmasked (post-non-vegetated)",
-  masked_CCI = "Natural-only (CCI-based)",
-  masked_GLC = "Natural-only (GLC-based)"
+scenario_spec <- tibble(
+  scenario = scenario_order,
+  source = c("unmasked", "CCI", "CCI", "CCI", "GLC"),
+  run_tag = c(NA_character_, cci_taus, glc_run_tag)
 )
 
 # ---- valid-domain area raster --------------------------------
@@ -66,11 +67,26 @@ mk_table_yearmean <- function(tab, var_keep) {
     transmute(
       Variable = as.character(.data$variable),
       Metric = as.character(.data$metric),
-      Domain = as.character(.data$case_label),
+      Domain = as.character(.data$scenario),
+      `Run tag` = as.character(.data$run_tag),
       `Effective area (million km²)` = .data$area_km2 / 1e6,
       `Global mean relative trend (% yr^-1)` = .data$reltrend_pct_per_year,
         effective_area_pct = 100 * .data$area_km2 / area_dom_total
     )
+}
+
+trend_path <- function(var, met, source, run_tag = NULL) {
+  if (identical(source, "unmasked")) {
+    file.path(
+      dir_unmask,
+      sprintf("%s_georef_%s_trend_relative_peryear_0p25.nc", var, met)
+    )
+  } else {
+    file.path(
+      here("output", run_tag, "eval", sprintf("trend_%s_%s", var, source)),
+      sprintf("%s_%s_trend_relative_peryear_0p25.nc", var, met)
+    )
+  }
 }
 
 # ---- compute long table ------------------------------------------------------
@@ -78,49 +94,29 @@ rows <- list()
 
 for (var in vars) {
   for (met in metrics) {
-    f_U <- file.path(
-      dir_unmask,
-      sprintf("%s_georef_%s_trend_relative_peryear_0p25.nc", var, met)
-    )
-    f_C <- file.path(
-      dir_eval, sprintf("trend_%s_%s", var, "CCI"),
-      sprintf("%s_%s_trend_relative_peryear_0p25.nc", var, met)
-    )
-    f_G <- file.path(
-      dir_eval, sprintf("trend_%s_%s", var, "GLC"),
-      sprintf("%s_%s_trend_relative_peryear_0p25.nc", var, met)
-    )
+    scenario_rows <- list()
+    for (i in seq_len(nrow(scenario_spec))) {
+      sc <- scenario_spec[i, ]
+      f_path <- trend_path(var, met, sc$source, sc$run_tag)
+      if (!file.exists(f_path)) {
+        stop("Missing trend file for ", sc$scenario, ": ", f_path)
+      }
 
-    if (!file.exists(f_U)) stop("Unmasked trend file missing: ", f_U)
-    if (!file.exists(f_C)) stop("CCI trend file missing: ", f_C)
-    if (!file.exists(f_G)) stop("GLC trend file missing: ", f_G)
+      r <- rast(f_path)
+      compareGeom(area, r, stopOnError = TRUE)
 
-    rU <- rast(f_U)
-    rC <- rast(f_C)
-    rG <- rast(f_G)
-    compareGeom(area, rU, stopOnError = TRUE)
-    compareGeom(area, rC, stopOnError = TRUE)
-    compareGeom(area, rG, stopOnError = TRUE)
-
-    okU <- (is.finite(area) & area > 0) & is.finite(rU)
-    okC <- (is.finite(area) & area > 0) & is.finite(rC)
-    okG <- (is.finite(area) & area > 0) & is.finite(rG)
-
-    rows[[length(rows) + 1]] <- tibble(
-      variable = var,
-      metric = met,
-      case = c("unmasked", "masked_CCI", "masked_GLC"),
-      reltrend_pct_per_year = 100 * c(
-        wmean_global_ok(rU, okU),
-        wmean_global_ok(rC, okC),
-        wmean_global_ok(rG, okG)
-      ),
-      area_km2 = c(
-        area_ok_km2(okU),
-        area_ok_km2(okC),
-        area_ok_km2(okG)
+      ok <- (is.finite(area) & area > 0) & is.finite(r)
+      scenario_rows[[length(scenario_rows) + 1]] <- tibble(
+        variable = var,
+        metric = met,
+        scenario = sc$scenario,
+        run_tag = sc$run_tag,
+        reltrend_pct_per_year = 100 * wmean_global_ok(r, ok),
+        area_km2 = area_ok_km2(ok)
       )
-    )
+    }
+
+    rows[[length(rows) + 1]] <- bind_rows(scenario_rows)
   }
 }
 
@@ -128,26 +124,20 @@ tab <- bind_rows(rows) |>
   mutate(
     variable = factor(variable, levels = vars),
     metric = factor(metric, levels = metrics),
-    case = factor(case, levels = names(case_labels)),
-    case_label = factor(
-      case_labels[as.character(case)],
-      levels = unname(case_labels)
-    )
+    scenario = factor(scenario, levels = scenario_order)
   ) |>
-  arrange(variable, metric, case_label)
+  arrange(variable, metric, scenario)
 
 # ---- tables  --------------------------------
 tab_main <- round_df(mk_table_yearmean(tab, "LAI"))
 
 write_csv(
   tab_main, file.path(
-    outdir, sprintf(
-      "table_global_mean_relative_trends_yearmean_LAI_%s.csv", tau
-    )
+    outdir, "table_global_mean_relative_trends_yearmean_LAI_overview.csv"
   )
 )
 write_csv(
   round_df(tab), file.path(
-    outdir, sprintf("global_mean_relative_trends_long_%s.csv", tau)
+    outdir, "global_mean_relative_trends_long_overview.csv"
   )
 )
