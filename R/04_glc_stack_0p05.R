@@ -74,9 +74,7 @@ for (i in seq_along(paths)) {
     crs(r) <- crs(ref005)
   }
 
-  if (!compareGeom(r, ref005, stopOnError = FALSE)) {
-    r <- resample(r, ref005, method = "near")
-  }
+  r <- align_to_template(r, ref005, method = "near")
 
   if (length(nodata_vals)) {
     r <- terra::subst(r, nodata_vals, NA)
