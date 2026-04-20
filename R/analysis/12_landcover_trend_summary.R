@@ -47,7 +47,7 @@ stability_min <- if (is.na(cfg$stability_min)) NULL else cfg$stability_min
 lc_yearly_dir <- here("analysis", "tmp", "lc025_majority_yearly")
 out_dir <- here("analysis", "results", "lc_trends", tau)
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
-paper_fig_dir <- here("analysis", "results", "paper_figures")
+paper_fig_dir <- here("analysis", "results", "figures", "summaries")
 dir.create(paper_fig_dir, recursive = TRUE, showWarnings = FALSE)
 
 ref025 <- rast(here("src", "ref_0p25.nc"))

@@ -23,7 +23,7 @@ show_raw <- TRUE
 taus_cci <- c("tau_0.05", "tau_0.1", "tau_0.2")
 tau_glc <- "tau_0.1"
 
-outdir <- here("analysis", "results", "paper_figures")
+outdir <- here("analysis", "results", "figures", "timeseries")
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
 area_path <- here("src", "area_0p25_validdomain_km2.nc")

@@ -16,12 +16,21 @@ suppressPackageStartupMessages({
   library(here)
 })
 
+source(here("R", "helpers", "files.R"))
+source(here("R", "helpers", "analysis_plot_helpers.R"))
+
 # ---- config ------------------------------------------------------------------
 tau <- "tau_0.1"
 var <- "LAI"
 metric <- "yearmean"
-alpha <- 0.1
+luh_source <- "CCI" # "CCI" or "GLC"
+alpha <- 0.05
 limit_q <- 0.95
+
+luh_source <- toupper(luh_source)
+if (!luh_source %in% c("CCI", "GLC")) {
+  stop("luh_source must be CCI or GLC; got: ", luh_source)
+}
 
 tau_num <- as.numeric(sub("^tau_", "", tau))
 if (!is.finite(tau_num)) {
@@ -29,7 +38,7 @@ if (!is.finite(tau_num)) {
 }
 tau_tag2 <- gsub("\\.", "p", sprintf("%.2f", tau_num))
 
-outdir <- here("analysis", "results", "paper_figures")
+outdir <- here("analysis", "results", "figures", "summaries")
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
 outcsv <- file.path(outdir, "cropland_pasture_trend_summary_statistics.csv")
@@ -48,13 +57,15 @@ f_abs_tr_cci_nat <- here(
 )
 
 f_ts_abs <- here("analysis", "unmasked", "0p25", sprintf("%s_georef_%s_0p25.nc", var, metric))
-f_mask_cci_005 <- here(
-  "output", tau, "masks", "mask_cci",
-  sprintf("mask_used_frac_fused_tau%s_k3_1992-2020_0p05.tif", tau_tag2)
+f_mask_cci_005 <- find_one(
+  here("output", tau, "masks", "mask_cci"),
+  sprintf("^mask_used_frac_fused_tau%s_.*_0p05\\.tif$", tau_tag2),
+  label = "CCI mask"
 )
-f_mask_luh_005 <- here(
-  "output", tau, "masks", "mask_luh_overlap",
-  sprintf("mask_luh_overlap_CCI_Gmin%s_Pmin%s_alpha0p50_1992-2020_0p05_rep.tif", tau_tag2, tau_tag2)
+f_mask_luh_005 <- find_one(
+  here("output", tau, "masks", "mask_luh_overlap"),
+  sprintf("^mask_luh_overlap_%s_Gmin%s_Pmin%s_alpha0p50_.*_0p05_rep\\.tif$", luh_source, tau_tag2, tau_tag2),
+  label = sprintf("LUH overlap mask (%s)", luh_source)
 )
 
 required_files <- c(
@@ -107,22 +118,6 @@ div_cols <- scico::scico(256, palette = "bam", direction = 1)
 coast <- rnaturalearth::ne_coastline(scale = 110, returnclass = "sf") |>
   sf::st_transform(4326)
 
-theme_map <- function() {
-  theme_bw(base_size = 10) +
-    theme(
-      panel.grid.major = element_line(color = "grey80", linewidth = 0.25),
-      panel.grid.minor = element_blank(),
-      axis.title = element_blank(),
-      axis.text = element_text(size = 8),
-      plot.title = element_text(size = 11, face = "bold"),
-      legend.title = element_text(size = 9),
-      legend.text = element_text(size = 8),
-      legend.key.width = unit(1.5, "cm"),
-      legend.key.height = unit(0.5, "cm"),
-      legend.position = "bottom"
-    )
-}
-
 mask_frac_to_area025 <- function(mask005, area005) {
   m <- clamp(mask005, lower = 0, upper = 1, values = TRUE)
   ok <- is.finite(area005) & area005 > 0 & is.finite(m)
@@ -162,7 +157,7 @@ mk_map_df <- function(r, w, area025, min_excl_frac = 0) {
   df
 }
 
-mk_nonsig_df <- function(p, w, area025, alpha = 0.1, min_excl_frac = 0) {
+mk_nonsig_df <- function(p, w, area025, alpha = 0.05, min_excl_frac = 0) {
   frac_excl <- ifel(is.finite(area025) & area025 > 0 & is.finite(w), w / area025, NA)
   z <- ifel(is.finite(frac_excl) & frac_excl >= min_excl_frac & is.finite(p) & p > alpha, 1, NA)
   df <- as.data.frame(z, xy = TRUE, na.rm = TRUE)
@@ -200,7 +195,7 @@ plot_map <- function(df, zcol, lims, title = NULL, fill_title = NULL, df_grey = 
       name = fill_title
     ) +
     labs(title = title) +
-    theme_map()
+    theme_map(legend_position = "bottom")
 }
 
 theme_ts <- function() {

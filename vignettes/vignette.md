@@ -109,6 +109,7 @@ To use only one masking branch:
 ```bash
 make pipeline MASKS=CCI
 make pipeline MASKS=GLC
+make pipeline run_tag=tau_0.1
 ```
 
 To regenerate quicklooks:

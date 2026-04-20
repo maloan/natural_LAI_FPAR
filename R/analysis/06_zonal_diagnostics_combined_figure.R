@@ -17,11 +17,11 @@ tau <- "tau_0.1"
 var <- "LAI"
 
 f_rel <- here(
-  "analysis", "results", "paper_figures",
+  "analysis", "results", "figures", "summaries",
   sprintf("zonal_relative_trends_all_masks_%s.csv", tau)
 )
 f_amp <- here(
-  "analysis", "results", "paper_figures",
+  "analysis", "results", "figures", "summaries",
   sprintf("zonal_yearamp_timeMean_%s_all_masks_%s.csv", toupper(var), tau)
 )
 
@@ -86,7 +86,7 @@ fig <- (p1 / p2 / p3) +
   ) &
   theme(legend.position = "bottom")
 
-outdir <- here("analysis", "results", "paper_figures")
+outdir <- here("analysis", "results", "figures", "summaries")
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
 out_stub <- sprintf(

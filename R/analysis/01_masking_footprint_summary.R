@@ -17,7 +17,7 @@ source(here("R", "helpers", "files.R"))
 cci_taus <- c("tau_0.05", "tau_0.1", "tau_0.2")
 glc_run_tag <- Sys.getenv("GLC_RUN_TAG", "tau_0.1")
 
-outdir <- here("analysis", "results", "masks", "overview")
+outdir <- here("analysis", "results", "tables", "masks")
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
 tau_to_token <- function(run_tag) {

@@ -17,7 +17,7 @@ glc_run_tag <- Sys.getenv("GLC_RUN_TAG", "tau_0.1")
 
 dir_unmask <- here("analysis", "unmasked", "0p25")
 
-outdir <- here("analysis", "results", "global_mean_absolute_trends", "overview")
+outdir <- here("analysis", "results", "tables", "trends")
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
 vars <- c("LAI", "FPAR")

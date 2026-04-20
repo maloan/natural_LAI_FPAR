@@ -12,7 +12,7 @@ suppressPackageStartupMessages({
 
 source(here("R", "helpers", "files.R"))
 
-outdir <- here("analysis", "results", "masks")
+outdir <- here("analysis", "results", "tables", "masks")
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
 area_005 <- here("src", "area_0p05_km2.nc")

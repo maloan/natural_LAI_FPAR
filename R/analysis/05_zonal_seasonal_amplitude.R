@@ -29,7 +29,7 @@ scenario_levels <- c("Unmasked", "CCI tau=0.05", "CCI tau=0.1", "CCI tau=0.2", "
 # ---- paths -------------------------------------------------------------------
 area_path <- here("src", "area_0p25_validdomain_km2.nc")
 
-outdir <- here("analysis", "results", "paper_figures")
+outdir <- here("analysis", "results", "figures", "summaries")
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
 unm_path <- here(

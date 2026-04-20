@@ -77,7 +77,7 @@ if (use_relative) {
 
 out_dir <- here::here("analysis", "results", "kg_trends", tau)
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
-paper_fig_dir <- here::here("analysis", "results", "paper_figures")
+paper_fig_dir <- here::here("analysis", "results", "figures", "summaries")
 dir.create(paper_fig_dir, recursive = TRUE, showWarnings = FALSE)
 
 align_to_ref <- function(r, ref, method = "near") {

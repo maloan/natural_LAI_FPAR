@@ -17,6 +17,8 @@ suppressPackageStartupMessages({
   library(grid)
 })
 
+source(here("R", "helpers", "analysis_plot_helpers.R"))
+
 # ---- config ------------------------------------------------------------------
 tau <- "tau_0.1"
 mask <- "CCI"
@@ -24,7 +26,7 @@ var <- "LAI"
 metric <- "yearmean"
 include_masked_out <- FALSE
 
-alpha <- 0.1
+alpha <- 0.05
 
 f_p_unm <- here(
   "analysis", "unmasked", "0p25",
@@ -55,80 +57,15 @@ f_rel_msk <- here(
   sprintf("%s_%s_trend_relative_peryear_0p25.nc", var, metric)
 )
 
-outdir <- here("analysis", "results", "paper_figures")
+outdir <- here("analysis", "results", "figures", "maps")
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
 # ---- helpers -----------------------------------------------------------------
-sym_q_lim <- function(r, q = 0.99) {
-  v <- values(r, mat = FALSE)
-  v <- v[is.finite(v)]
-  lim <- as.numeric(stats::quantile(abs(v), probs = q, na.rm = TRUE))
-  c(-lim, lim)
-}
-
-to_df <- function(r, name = "z") {
-  df <- as.data.frame(r, xy = TRUE, na.rm = FALSE)
-  names(df) <- c("lon", "lat", name)
-  df
-}
-
-lat_labels <- function(x) {
-  ifelse(x == 0, "0°", ifelse(x < 0, paste0(abs(x), "°S"), paste0(x, "°N")))
-}
-lon_labels <- function(x) {
-  ifelse(x == 0, "0°", ifelse(x < 0, paste0(abs(x), "°W"), paste0(x, "°E")))
-}
-lon_breaks_60 <- seq(-180, 180, by = 60)
-
-# Subset breaks for cropped map (55S to 80N)
-lat_breaks_crop <- c(-60, -30, 0, 30, 60)
-
-div_cols <- scico::scico(256, palette = "bam", direction = 1)
 coast <- rnaturalearth::ne_coastline(scale = 110, returnclass = "sf") |>
   sf::st_transform(4326)
 
-theme_map <- function() {
-  theme_bw(base_size = 10) +
-    theme(
-      panel.grid.major = element_line(color = "grey80", linewidth = 0.25),
-      panel.grid.minor = element_blank(),
-      axis.title = element_blank(),
-      axis.text = element_text(size = 8),
-      plot.title = element_text(size = 11, face = "bold"),
-      legend.title = element_text(size = 9),
-      legend.text = element_text(size = 8),
-      legend.key.width = unit(1.5, "cm"),
-      legend.key.height = unit(0.5, "cm")
-    )
-}
-
-plot_map <- function(df, zcol, lims, title = NULL, fill_title = NULL, df_grey = NULL) {
-  ggplot(df) +
-    geom_tile(aes(x = .data$lon, y = .data$lat, fill = .data[[zcol]])) +
-    (if (!is.null(df_grey)) {
-      geom_tile(
-        data = df_grey, inherit.aes = FALSE,
-        aes(x = .data$lon, y = .data$lat),
-        fill = "grey85", alpha = 1  # Light grey for non-significant
-      )
-    }) +
-    geom_sf(
-      data = coast,
-      linewidth = 0.15, colour = "black", fill = NA, inherit.aes = FALSE
-    ) +
-    coord_sf(xlim = c(-180, 180), ylim = c(-55, 80), expand = FALSE) +
-    scale_x_continuous(breaks = lon_breaks_60, labels = lon_labels) +
-    scale_y_continuous(breaks = lat_breaks_crop, labels = lat_labels) +
-    scale_fill_gradientn(
-      colours = div_cols,
-      limits = lims,
-      oob = squish,
-      na.value = "grey45",  # Medium grey for masked regions
-      name = fill_title
-    ) +
-    labs(title = title) +
-    theme_map()
-}
+lon_breaks_60 <- seq(-180, 180, by = 60)
+lat_breaks_crop <- c(-60, -30, 0, 30, 60)
 
 # ---- load rasters ------------------------------------------------------------
 required_files <- c(f_abs_unm, f_abs_msk, f_rel_unm, f_rel_msk, f_p_unm, f_p_msk)
@@ -159,11 +96,11 @@ compareGeom(p_msk, abs_msk, stopOnError = TRUE)
 abs_all <- c(abs_unm, abs_msk)
 rel_all <- c(rel_unm, rel_msk)
 
-lims_abs <- sym_q_lim(abs_all, q = 0.95)
+lims_abs <- sym_q_lim(abs_all, q = 0.99)
 lims_abs <- max(abs(lims_abs))
 lims_abs <- c(-lims_abs, lims_abs)
 
-lims_rel <- sym_q_lim(rel_all, q = 0.95)
+lims_rel <- sym_q_lim(rel_all, q = 0.99)
 lims_rel <- max(abs(lims_rel))
 lims_rel <- c(-lims_rel, lims_rel)
 
