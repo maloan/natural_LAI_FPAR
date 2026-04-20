@@ -64,7 +64,7 @@ summary_tbl <- data.frame(
 cat("\n=== Non-vegetated snapshot masks: removed area ===\n")
 print(summary_tbl, row.names = FALSE)
 
-# --- pairwise disagreement (optimized using combn) ---------------------------
+# --- pairwise disagreement ----------------------------------------------------
 if (length(masks) < 2) {
   pair_tbl <- data.frame(
     year_a = integer(0),
