@@ -16,6 +16,7 @@ terraOptions(progress = 1, memfrac = 0.25)
 
 epsg4326 <- "EPSG:4326"
 run_tag <- Sys.getenv("run_tag", unset = "tau_0.1")
+tau_cci <- as.numeric(Sys.getenv("tau_cci", "0.1"))
 GDAL_OPTS <- gdal_co_int()
 
 # --- paths --------------------------------------------------------------------
@@ -102,19 +103,20 @@ area <- lapply(names(resolutions), function(res) {
 })
 names(area) <- names(resolutions)
 
-# --- config (write once) ------------------------------------------------------
-cfg_path <- here("config", "config.yml")
+# --- config (write once per run_tag) ------------------------------------------
+cfg_path <- here("config", sprintf("config_%s.yml", run_tag))
 dir.create(dirname(cfg_path), recursive = TRUE, showWarnings = FALSE)
 
 cfg <- list(
   project = list(
     run_tag = run_tag,
+    tau_cci = tau_cci,
     name = "SNU_LAI_FPAR_natmask_global",
     crs = epsg4326,
     years = list(
       lai_start = 1982, lai_end = 2024,
       cci_start = 1992, cci_end = 2020,
-      glc_start = 1985, glc_end = 2020
+      glc_start = 1992, glc_end = 2020
     )
   )
 )
@@ -181,7 +183,7 @@ cfg$glc <- list(
     nodata = c(0, 250)
   ),
   years = c(1985, 1990, 1995, 2000:2022),
-  mask_window_years = c(1985, 2020),
+  mask_window_years = c(1992, 2020),
   clean_majority_threshold = 0.5,
   clean_operator = "<="
 )
