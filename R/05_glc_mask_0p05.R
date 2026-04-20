@@ -49,9 +49,7 @@ s <- rast(stack_path)
 if (is.na(crs(s))) {
   crs(s) <- crs(tmpl)
 }
-if (!compareGeom(s, tmpl, stopOnError = FALSE)) {
-  s <- resample(s, tmpl, method = "near")
-}
+s <- align_to_template(s, tmpl, method = "near")
 if (length(nodata_vals)) {
   s[s %in% nodata_vals] <- NA
 }
