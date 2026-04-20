@@ -1,9 +1,3 @@
----
-editor_options: 
-  markdown: 
-    wrap: 72
----
-
 # R Processing and Analysis Pipeline for Natural LAI / FPAR
 
 This folder contains the main R scripts for building and analyzing the
