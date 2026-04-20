@@ -13,6 +13,8 @@ suppressPackageStartupMessages({
   library(readr)
 })
 
+source(here("R", "helpers", "cli_args.R"))
+
 terraOptions(progress = 0, memfrac = 0.6, todisk = TRUE)
 
 # ---- config ------------------------------------------------------------------
@@ -26,40 +28,6 @@ default_cfg <- list(
   lc_year_end = 2020L,
   stability_min = NA_real_ # set numeric value (e.g., 0.6) to enable
 )
-
-parse_cli_args <- function(defaults) {
-  args <- commandArgs(trailingOnly = TRUE)
-  if (!length(args)) {
-    return(defaults)
-  }
-
-  kv <- strsplit(args, "=", fixed = TRUE)
-  ok <- lengths(kv) == 2
-  if (!all(ok)) {
-    bad <- args[!ok]
-    stop("Invalid argument(s); use key=value format: ", paste(bad, collapse = ", "))
-  }
-
-  vals <- defaults
-  for (pair in kv) {
-    k <- pair[[1]]
-    v <- pair[[2]]
-    if (!nzchar(v)) {
-      next
-    }
-    if (!k %in% names(vals)) {
-      warning("Unknown argument ignored: ", k, call. = FALSE)
-      next
-    }
-    vals[[k]] <- v
-  }
-
-  vals$use_relative <- tolower(as.character(vals$use_relative)) %in% c("true", "1", "yes", "y")
-  vals$lc_year_start <- as.integer(vals$lc_year_start)
-  vals$lc_year_end <- as.integer(vals$lc_year_end)
-  vals$stability_min <- suppressWarnings(as.numeric(vals$stability_min))
-  vals
-}
 
 cfg <- parse_cli_args(default_cfg)
 
@@ -216,7 +184,7 @@ lc_tab <- zone |>
     area_unm_mkm2   = den_unm_km2 / 1e6,
     area_msk_mkm2   = den_msk_km2 / 1e6,
     area_out_mkm2   = den_out_km2 / 1e6,
-    frac_retained   = den_msk_km2 / den_unm_km2
+    frac_retained   = ifelse(den_unm_km2 > 0, den_msk_km2 / den_unm_km2, NA_real_)
   ) |>
   mutate(across(starts_with("mean_"), ~ ifelse(is.finite(.x), .x, NA_real_))) |>
   arrange(desc(area_unm_mkm2))
