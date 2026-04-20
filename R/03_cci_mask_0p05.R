@@ -24,7 +24,7 @@ dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 # --- parameters (env-only defaults) -------------------------------------------
 tau_cci <- as.numeric(Sys.getenv("tau_cci", "0.1"))
 k_cci <- as.integer(Sys.getenv("k_cci", "3"))
-skip_existing <- as_bool(Sys.getenv("skip_existing"), default = FALSE)
+skip_existing <- as_bool(Sys.getenv("skip_existing"), default = TRUE)
 
 cci_years <- cfg$project$years$cci_start:cfg$project$years$cci_end
 band_name <- "frac_fused"
@@ -66,9 +66,7 @@ cci_stack <- rast(lapply(fpaths, function(f) {
 }))
 time(cci_stack) <- years
 
-if (!compareGeom(cci_stack, tmpl, stopOnError = FALSE)) {
-  cci_stack <- resample(cci_stack, tmpl, method = "bilinear")
-}
+cci_stack <- align_to_template(cci_stack, tmpl, method = "bilinear")
 
 nl <- nlyr(cci_stack)
 k_eff <- min(k_cci, nl)
