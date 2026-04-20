@@ -21,15 +21,14 @@ terraOptions(progress = 1, memfrac = 0.25)
 var <- toupper(Sys.getenv("var", "LAI"))
 mask_kind <- toupper(Sys.getenv("mask", "GLC"))
 if (!var %in% c("LAI", "FPAR")) {
-  stop("Unsupported var: ", var, ". Use LAI or FPAR")
+  stop_msg("Unsupported var: ", var, ". Use LAI or FPAR")
 }
 if (!mask_kind %in% c("CCI", "GLC")) {
-  stop("Unsupported mask: ", mask_kind, ". Use CCI or GLC")
+  stop_msg("Unsupported mask: ", mask_kind, ". Use CCI or GLC")
 }
 
 skip_existing <- as_bool(Sys.getenv("skip_existing"), default = TRUE)
 overwrite <- as_bool(Sys.getenv("overwrite"), default = FALSE)
-src <- mask_kind
 g_min <- as.numeric(Sys.getenv("g_min", "0.1"))
 p_min <- as.numeric(Sys.getenv("p_min", "0.1"))
 alpha <- as.numeric(Sys.getenv("alpha", "0.50"))
@@ -57,35 +56,38 @@ out_dir <- switch(mask_kind,
 stopifnot(is.character(out_dir), length(out_dir) == 1, nzchar(out_dir))
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
-year_1 <- cfg$project$years$cci_start
-year_2 <- cfg$project$years$cci_end
+year_1 <- if (mask_kind == "CCI") {
+  cfg$project$years$cci_start
+} else {
+  cfg$project$years$glc_start
+}
+year_2 <- if (mask_kind == "CCI") {
+  cfg$project$years$cci_end
+} else {
+  cfg$project$years$glc_end
+}
 
-# Format parameter values for filename matching
-tok <- function(x) gsub("\\.", "p", sprintf("%.2f", as.numeric(x)))
 
 mask_path <- if (mask_kind == "CCI") {
   find_one(
     cfg$paths$masks_cci_dir,
-    sprintf("mask_used_.*_%d-%d_0p05\\.tif$", year_1, year_2)
+    sprintf("^mask_used_.*_%d-%d_0p05\\.tif$", year_1, year_2),
+    label = "CCI used mask"
   )
 } else {
-  num <- as.integer(Sys.getenv("USED_N_YEARS", "3"))
   find_one(
     cfg$paths$masks_glc_dir,
-    sprintf("mask_used_ge%d_%d-%d_0p05\\.tif$", num, year_1, year_2)
+    sprintf("^mask_used_ge[0-9]+_%d-%d_0p05\\.tif$", year_1, year_2),
+    label = "GLC used mask"
   )
 }
 
 drop_mask <- rast(mask_path)
-if (!compareGeom(drop_mask, ref005, stopOnError = FALSE)) {
-  drop_mask <- resample(drop_mask, ref005, method = "near")
-}
+drop_mask <- align_to_template(drop_mask, ref005, method = "near")
 stopifnot(compareGeom(drop_mask, ref005, stopOnError = FALSE))
 
 combine_or <- function(a, b) {
-  if (!compareGeom(b, a, stopOnError = FALSE)) {
-    b <- resample(b, a, method = "near")
-  }
+  b <- align_to_template(b, a, method = "near")
   app(c(a, b), fun = function(v) as.integer(any(v >= 1, na.rm = TRUE)))
 }
 
@@ -93,23 +95,21 @@ nonveg_dir <- file.path(cfg$paths$masks_root_dir, "mask_nonvegetated")
 nonveg_path <- list.files(nonveg_dir, "mask_nonvegetated_CCI_2007_.*_0p05\\.tif$",
   full.names = TRUE
 )
-if (length(nonveg_path)) {
-  nonveg <- rast(nonveg_path[order(file.info(nonveg_path)$mtime, decreasing = TRUE)][1])
-  drop_mask <- combine_or(drop_mask, nonveg)
-}
+nonveg <- rast(nonveg_path[order(file.info(nonveg_path)$mtime, decreasing = TRUE)][1])
+drop_mask <- combine_or(drop_mask, nonveg)
 
-rx <- sprintf(
+
+luh_dir <- file.path(cfg$paths$masks_root_dir, "mask_luh_overlap")
+luh_rx <- sprintf(
   "mask_luh_overlap_%s_Gmin%s_Pmin%s_alpha%s_%d-%d_0p05_rep\\.tif$",
-  src, tok(g_min), tok(p_min), tok(alpha), year_1, year_2
+  mask_kind, tok(g_min), tok(p_min), tok(alpha), year_1, year_2
 )
-luh_path <- find_one(
-  file.path(cfg$paths$masks_root_dir, "mask_luh_overlap"), rx
-)
+luh_path <- find_one(luh_dir, luh_rx, label = "LUH overlap mask")
 luh <- rast(luh_path)
 drop_mask <- combine_or(drop_mask, luh)
 vals_ok <- try(all(values(drop_mask) %in% c(0, 1, NA)), silent = TRUE)
 if (inherits(vals_ok, "try-error") || !isTRUE(vals_ok)) {
-  stop("Combined mask has values outside {0,1,NA}")
+  stop_msg("Combined mask has values outside {0,1,NA}")
 }
 
 mask_combined_path <- file.path(out_dir, "combined_mask_0p05.tif")
@@ -119,7 +119,8 @@ if (!file.exists(mask_combined_path) || overwrite) {
     wopt = wopt_byte(opts$speed_over_size, na = 255L)
   )
 }
-
+drop_mask <- rast(here("output", "tau_  ")) # sanity check
+plot(drop_mask, main = sprintf("Combined mask (%s)", mask_kind))
 files <- sort(list.files(
   in_dir,
   pattern = paste0("^", var, "_\\d{6}_0p05\\.tif$"), full.names = TRUE
