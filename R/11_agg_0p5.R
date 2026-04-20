@@ -22,10 +22,10 @@ terraOptions(progress = 1, memfrac = 0.25)
 # ------------------------------------------------------------------------------
 # Env
 # ------------------------------------------------------------------------------
-skip_existing <- as_bool(Sys.getenv("skip_existing"), default = FALSE)
+skip_existing <- as_bool(Sys.getenv("skip_existing"), default = TRUE)
 overwrite <- as_bool(Sys.getenv("overwrite"), default = FALSE)
 
-var <- toupper(Sys.getenv("var", "FPAR")) # LAI|FPAR
+var <- toupper(Sys.getenv("var", "LAI")) # LAI|FPAR
 mask <- toupper(Sys.getenv("mask", "CCI")) # CCI|GLC
 
 # ------------------------------------------------------------------------------
@@ -60,26 +60,19 @@ stopifnot(length(files) > 0L)
 for (f in files) {
   ym <- extract_ym_from_filename(f)
   out <- file.path(out_dir, sprintf("%s_masked_%s_0p5.tif", var, ym))
-  do_write <- overwrite || !file.exists(out) || !skip_existing
+  do_write <- overwrite || !file.exists(out)
   if (!do_write) next
 
   r <- rast(f)
-  if (!compareGeom(r, ref005, stopOnError = FALSE)) {
-    r <- resample(r, ref005, method = "bilinear")
-  }
+  r <- align_to_template(r, ref005, method = "bilinear")
 
   num <- aggregate(r * area005, fact = 10, fun = "sum", na.rm = TRUE)
   den <- aggregate((!is.na(r)) * area005, fact = 10, fun = "sum", na.rm = TRUE)
   r050 <- ifel(den == 0, NA, num / den)
-
-  if (!compareGeom(r050, ref050, stopOnError = FALSE)) {
-    r050 <- resample(r050, ref050, method = "near")
-  }
+  r050 <- align_to_template(r050, ref050, method = "near")
 
   wopt <- wopt_f32(opts$speed_over_size)
   writeRaster(r050, out, overwrite = TRUE, wopt = wopt)
-
-  gc()
 }
 
 message("Aggregated monthly ", var, " written to: ", out_dir)

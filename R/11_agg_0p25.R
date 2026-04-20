@@ -23,17 +23,17 @@ terraOptions(progress = 1, memfrac = 0.25)
 # ------------------------------------------------------------------------------
 # Env
 # ------------------------------------------------------------------------------
-skip_existing <- as_bool(Sys.getenv("skip_existing"), default = FALSE)
+skip_existing <- as_bool(Sys.getenv("skip_existing"), default = TRUE)
 overwrite <- as_bool(Sys.getenv("overwrite"), default = FALSE)
 remake_ql <- as_bool(Sys.getenv("remake_ql"), default = FALSE)
 
-var <- toupper(Sys.getenv("var", "FPAR")) # LAI|FPAR
+var <- toupper(Sys.getenv("var", "LAI")) # LAI|FPAR
 mask <- toupper(Sys.getenv("mask", "CCI")) # CCI|GLC
 if (!var %in% c("LAI", "FPAR")) {
-  stop("Unsupported var: ", var, ". Use LAI or FPAR")
+  stop_msg("Unsupported var: ", var, ". Use LAI or FPAR")
 }
 if (!mask %in% c("CCI", "GLC")) {
-  stop("Unsupported mask: ", mask, ". Use CCI or GLC")
+  stop_msg("Unsupported mask: ", mask, ". Use CCI or GLC")
 }
 
 # ------------------------------------------------------------------------------
@@ -43,9 +43,7 @@ ref005 <- rast(cfg$grids$grid_005$ref_raster)
 ref025 <- rast(cfg$grids$grid_025$ref_raster)
 area005 <- rast(cfg$grids$grid_005$area_raster)
 
-if (!compareGeom(area005, ref005, stopOnError = FALSE)) {
-  area005 <- resample(area005, ref005, method = "bilinear")
-}
+area005 <- align_to_template(area005, ref005, method = "bilinear")
 
 # ------------------------------------------------------------------------------
 # dirs
@@ -79,44 +77,31 @@ stopifnot(length(files) > 0L)
 for (f in files) {
   ym <- extract_ym_from_filename(f)
   out <- file.path(out_dir, sprintf("%s_masked_%s_0p25.tif", var, ym))
-  do_write <- overwrite || !file.exists(out) || !skip_existing
+
+  do_write <- overwrite || !file.exists(out)
   do_ql <- (substr(ym, 5, 6) %in% c("01", "07")) &&
     (remake_ql || !file.exists(file.path(
       qdir, sprintf("quicklook_%s_0p25_%s.png", ql_title, ym)
     )))
 
-  if (!do_write && !do_ql) {
-    next
-  }
+  if (!do_write && !do_ql) next
 
   if (do_write) {
     r <- rast(f)
-
-    if (!compareGeom(r, ref005, stopOnError = FALSE)) {
-      r <- resample(r, ref005, method = "bilinear")
-    }
+    r <- align_to_template(r, ref005, method = "bilinear")
 
     # numerator/denominator (area-weighted mean, handling NA)
     num <- aggregate(r * area005, fact = 5, fun = "sum", na.rm = TRUE)
     den <- aggregate((!is.na(r)) * area005, fact = 5, fun = "sum", na.rm = TRUE)
-
     r025 <- ifel(den == 0, NA, num / den)
+    r025 <- align_to_template(r025, ref025, method = "near")
 
-    if (!compareGeom(r025, ref025, stopOnError = FALSE)) {
-      r025 <- resample(r025, ref025, method = "near")
-    }
     wopt <- wopt_f32(opts$speed_over_size)
-    writeRaster(
-      r025,
-      out,
-      overwrite = TRUE,
-      wopt = wopt
-    )
+    writeRaster(r025, out, overwrite = TRUE, wopt = wopt)
   } else {
+    # Load existing aggregated file for quicklook
     r025 <- rast(out)
-    if (!compareGeom(r025, ref025, stopOnError = FALSE)) {
-      r025 <- resample(r025, ref025, method = "near")
-    }
+    r025 <- align_to_template(r025, ref025, method = "near")
   }
 
   if (do_ql) {
@@ -131,8 +116,6 @@ for (f in files) {
       legend = TRUE
     )
   }
-
-  gc()
 }
 
 gc()
