@@ -13,6 +13,9 @@ suppressPackageStartupMessages({
   library(here)
 })
 
+source(here("R", "helpers", "weighted_means.R"))
+source(here("R", "helpers", "plotting.R"))
+
 # ---- config ------------------------------------------------------------------
 var <- "LAI" # "LAI" or "FPAR"
 taus_cci <- c("tau_0.05", "tau_0.1", "tau_0.2")
@@ -22,22 +25,6 @@ tau_ref <- "tau_0.1"
 band_deg <- 1L # latitude band width in degrees
 
 scenario_levels <- c("Unmasked", "CCI tau=0.05", "CCI tau=0.1", "CCI tau=0.2", "GLC")
-
-theme_pub <- function() {
-  theme_bw(base_size = 12) +
-    theme(
-      panel.grid.major = element_line(color = "grey88", linewidth = 0.25),
-      panel.grid.minor = element_blank(),
-      plot.title       = element_text(size = 13, face = "bold"),
-      plot.subtitle    = element_text(size = 10),
-      strip.text       = element_text(size = 10, face = "bold"),
-      axis.title       = element_text(size = 11),
-      axis.text        = element_text(size = 9),
-      legend.position  = "bottom",
-      legend.box       = "vertical",
-      legend.text      = element_text(size = 9)
-    )
-}
 
 # ---- paths -------------------------------------------------------------------
 area_path <- here("src", "area_0p25_validdomain_km2.nc")
@@ -74,36 +61,13 @@ time_mean <- function(r) {
   app(r, \(x) mean(x, na.rm = TRUE))
 }
 
-# independent zonal area-weighted mean by latitude bands
-zonal_wmean_latbands <- function(r, area, band_deg = 1L) {
-  compareGeom(area, r, stopOnError = TRUE)
-  lat <- init(r, "y")
-  zone <- floor((lat + 90) / band_deg) + 1
-  ok <- is.finite(r) & is.finite(area) & (area > 0)
-
-  num <- ifel(ok, r * area, NA)
-  den <- ifel(ok, area, NA)
-
-  s_num <- zonal(num, zone, "sum", na.rm = TRUE)
-  names(s_num) <- c("zone", "num")
-  s_den <- zonal(den, zone, "sum", na.rm = TRUE)
-  names(s_den) <- c("zone", "den")
-
-  merge(s_num, s_den, by = "zone", all = TRUE) |>
-    as_tibble() |>
-    transmute(
-      lat_band = -90 + (zone - 0.5) * band_deg,
-      mean_yearamp = (num / den),
-      area_km2 = den
-    ) |>
-    arrange(.data$lat_band)
-}
-
 # ---- load + compute ----------------------------------------------------------
 rows <- list()
 
 r_unm <- rast(unm_path)
 z_unm <- zonal_wmean_latbands(time_mean(r_unm), area, band_deg = band_deg) |>
+  as_tibble() |>
+  rename(mean_yearamp = value) |>
   mutate(scenario = "Unmasked")
 rows[[length(rows) + 1]] <- z_unm
 
@@ -111,12 +75,16 @@ for (tau in taus_cci) {
   r_cci <- rast(path_cci(tau))
   rows[[length(rows) + 1]] <-
     zonal_wmean_latbands(time_mean(r_cci), area, band_deg = band_deg) |>
+    as_tibble() |>
+    rename(mean_yearamp = value) |>
     mutate(scenario = sprintf("CCI %s", gsub("tau_", "tau=", tau)))
 }
 
 r_glc <- rast(path_glc())
 rows[[length(rows) + 1]] <-
   zonal_wmean_latbands(time_mean(r_glc), area, band_deg = band_deg) |>
+  as_tibble() |>
+  rename(mean_yearamp = value) |>
   mutate(scenario = "GLC")
 
 zonal_tbl <- bind_rows(rows) |>
@@ -155,7 +123,7 @@ p_abs <- ggplot(z_abs, aes(lat_band, mean_yearamp, colour = scenario)) +
   ) +
   scale_colour_manual(values = col_abs) +
   labs(x = NULL, y = ylab_abs, colour = NULL) +
-  theme_pub()
+  theme_pub(include_legend = TRUE, include_strip = TRUE)
 
 p <- p_abs +
   labs(
