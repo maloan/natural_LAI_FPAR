@@ -26,13 +26,51 @@ echo "=========================================================="
 # Paths
 # ------------------------------------------------------------------------------
 ROOT="${SNU_LAI_FPAR_ROOT:-$HOME/GitHub/natural_LAI_FPAR}"
-IN_DIR="$ROOT/output/georef_biotic/georef_biotic_${VAR}_${RES005}"
+IN_DIR="$ROOT/output/nonvegetated_only_0p05/${VAR}"
 OUT005="$ROOT/analysis/unmasked/${RES005}"
 OUT025="$ROOT/analysis/unmasked/0p25"
 REF025="$ROOT/src/ref_0p25.nc"
 [[ -f "$REF025" ]] || { echo "Missing 0.25 reference grid: $REF025" >&2; exit 1; }
 
 mkdir -p "$IN_DIR" "$OUT005" "$OUT025"
+
+# Create CDO grid text files for remapping
+# (CDO's remapcon doesn't read CRS metadata from NetCDF, so explicit grid files are needed)
+GRID_005=$(mktemp)
+GRID_025=$(mktemp)
+cat > "$GRID_005" << 'GRIDEOF'
+gridtype = lonlat
+gridsize = 25920000
+xsize    = 7200
+ysize    = 3600
+xname    = lon
+xlongname = longitude
+xunits   = degrees_east
+yname    = lat
+ylongname = latitude
+yunits   = degrees_north
+xfirst   = -179.975
+xinc     = 0.05
+yfirst   = -89.975
+yinc     = 0.05
+GRIDEOF
+
+cat > "$GRID_025" << 'GRIDEOF'
+gridtype = lonlat
+gridsize = 1036800
+xsize    = 1440
+ysize    = 720
+xname    = longitude
+xlongname = longitude
+xunits   = degrees_east
+yname    = latitude
+ylongname = latitude
+yunits   = degrees_north
+xfirst   = -179.875
+xinc     = 0.25
+yfirst   = -89.875
+yinc     = 0.25
+GRIDEOF
 
 echo "Input directory:       $IN_DIR"
 echo "Output (0.05°):        $OUT005"
@@ -50,7 +88,7 @@ remap_to_025() {
   # remap_to_025 <in_nc> <out_nc>
   local in_nc="$1"
   local out_nc="$2"
-  cdo -O remapcon,"$REF025" "$in_nc" "$out_nc"
+  cdo -O remapcon,"$GRID_025" "$in_nc" "$out_nc"
 }
 
 set_taxis_if_ntime_matches() {
@@ -208,3 +246,6 @@ for metric in yearmean yearmax yearmin yearamp; do
     remap_to_025 "$in_nc" "$out_nc"
   done
 done
+
+# Clean up temporary grid files
+rm -f "$GRID_005" "$GRID_025"
