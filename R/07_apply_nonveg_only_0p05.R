@@ -36,7 +36,7 @@ nonveg_mask_path <- file.path(
 nonveg_mask <- rast(nonveg_mask_path)
 
 # Output directory
-out_dir <- file.path(cfg$paths$out_root, "nonvegetated_only_0p05", var)
+out_dir <- file.path(here("output"), "nonvegetated_only_0p05", var)
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 wopt <- wopt_f32(opts$speed_over_size)
@@ -61,9 +61,7 @@ for (f in files) {
   }
 
   r <- rast(f)
-  if (!compareGeom(r, nonveg_mask, stopOnError = FALSE)) {
-    r <- resample(r, nonveg_mask, method = "bilinear")
-  }
+  r <- align_to_template(r, nonveg_mask, method = "bilinear")
 
   r <- mask(r, nonveg_mask, maskvalues = 1, updatevalue = NA)
   writeRaster(r, out, overwrite = TRUE, wopt = wopt)
