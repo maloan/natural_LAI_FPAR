@@ -11,6 +11,8 @@ suppressPackageStartupMessages({
   library(here)
 })
 
+source(here("R", "helpers", "plotting.R"))
+
 tau <- "tau_0.1"
 var <- "LAI"
 
@@ -45,19 +47,6 @@ lat_labels <- function(x) {
   ifelse(x == 0, "0°", ifelse(x < 0, paste0(abs(x), "°S"), paste0(x, "°N")))
 }
 
-theme_pub <- function() {
-  theme_bw(base_size = 11) +
-    theme(
-      panel.grid.major = element_line(color = "grey88", linewidth = 0.25),
-      panel.grid.minor = element_blank(),
-      plot.title = element_text(size = 11, face = "bold"),
-      axis.title = element_text(size = 10),
-      axis.text = element_text(size = 9),
-      legend.position = "bottom",
-      legend.text = element_text(size = 9)
-    )
-}
-
 mk_panel <- function(df, ycol, ttl, ylab) {
   ggplot(df, aes(.data$lat_band, .data[[ycol]], colour = .data$scenario)) +
     geom_hline(yintercept = 0, colour = "grey70", linewidth = 0.25) +
@@ -65,7 +54,7 @@ mk_panel <- function(df, ycol, ttl, ylab) {
     scale_colour_manual(values = col_map, drop = FALSE) +
     scale_x_continuous(limits = c(-90, 90), breaks = seq(-90, 90, by = 30), labels = lat_labels) +
     labs(title = ttl, x = "Latitude", y = ylab, colour = NULL) +
-    theme_pub()
+    theme_pub(base_size = 11, include_legend = TRUE)
 }
 
 p1 <- mk_panel(
