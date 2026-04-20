@@ -12,7 +12,7 @@ suppressPackageStartupMessages({
 })
 
 # ---- config
-mode <- Sys.getenv("RUN_MODE", "unmasked")
+mode <- Sys.getenv("RUN_MODE", "masked")
 var <- Sys.getenv("VAR", "LAI")
 metric <- Sys.getenv("METRIC", "yearmax")
 
