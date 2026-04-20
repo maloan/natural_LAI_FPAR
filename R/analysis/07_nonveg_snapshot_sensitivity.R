@@ -16,6 +16,7 @@ cfg <- cfg_read()
 run_tag <- cfg$project$run_tag
 nonveg_dir <- here("output", run_tag, "masks", "mask_nonvegetated")
 
+# Read all matching mask files
 mask_files <- list.files(
   nonveg_dir,
   pattern = "^mask_nonvegetated_CCI_\\d{4}_tauW0p05_tauI0p05_0p05\\.tif$",
@@ -24,6 +25,8 @@ mask_files <- list.files(
 if (length(mask_files) == 0) {
   stop("No non-vegetated mask files found in: ", nonveg_dir)
 }
+
+# Extract and sort by year
 get_year <- function(p) {
   as.integer(sub("^.*_CCI_(\\d{4})_.*$", "\\1", basename(p)))
 }
@@ -40,7 +43,7 @@ global_area_km2 <- as.numeric(global(area005, "sum", na.rm = TRUE)[1, 1])
 read_mask <- function(p) {
   m <- rast(p)
   compareGeom(area005, m, stopOnError = TRUE)
-  return(m)
+  m
 }
 
 masks <- lapply(mask_files, read_mask)
@@ -61,7 +64,7 @@ summary_tbl <- data.frame(
 cat("\n=== Non-vegetated snapshot masks: removed area ===\n")
 print(summary_tbl, row.names = FALSE)
 
-# --- pairwise disagreement ----------------------------------------------------
+# --- pairwise disagreement (optimized using combn) ---------------------------
 if (length(masks) < 2) {
   pair_tbl <- data.frame(
     year_a = integer(0),
@@ -71,31 +74,32 @@ if (length(masks) < 2) {
     cell_agreement_pct = numeric(0)
   )
 } else {
-  pair_tbl <- list()
-  k <- 1
-  for (i in seq_along(masks)) {
-    for (j in seq_along(masks)) {
-      if (j <= i) next
-      mi <- masks[[i]]
-      mj <- masks[[j]]
+  # Generate all pairs (i, j) where i < j
+  idx_pairs <- combn(seq_along(masks), 2)
 
-      disagree <- (mi != mj)
-      disagree_km2 <- as.numeric(
-        global(area005 * disagree, "sum", na.rm = TRUE)[1, 1]
-      )
-      agree_rate <- 100 * (1 - global(disagree, "mean", na.rm = TRUE)[1, 1])
+  pair_list <- list()
+  for (k in seq_len(ncol(idx_pairs))) {
+    i <- idx_pairs[1, k]
+    j <- idx_pairs[2, k]
 
-      pair_tbl[[k]] <- data.frame(
-        year_a = yrs[i],
-        year_b = yrs[j],
-        disagree_km2 = round(disagree_km2, 0),
-        disagree_pct_global = round(100 * disagree_km2 / global_area_km2, 5),
-        cell_agreement_pct = round(agree_rate, 4)
-      )
-      k <- k + 1
-    }
+    mi <- masks[[i]]
+    mj <- masks[[j]]
+
+    disagree <- (mi != mj)
+    disagree_km2 <- as.numeric(
+      global(area005 * disagree, "sum", na.rm = TRUE)[1, 1]
+    )
+    agree_rate <- 100 * (1 - global(disagree, "mean", na.rm = TRUE)[1, 1])
+
+    pair_list[[k]] <- data.frame(
+      year_a = yrs[i],
+      year_b = yrs[j],
+      disagree_km2 = round(disagree_km2, 0),
+      disagree_pct_global = round(100 * disagree_km2 / global_area_km2, 5),
+      cell_agreement_pct = round(agree_rate, 4)
+    )
   }
-  pair_tbl <- do.call(rbind, pair_tbl)
+  pair_tbl <- do.call(rbind, pair_list)
 }
 
 cat("\n=== Pairwise disagreement (XOR) ===\n")
