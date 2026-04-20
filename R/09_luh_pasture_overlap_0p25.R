@@ -39,16 +39,17 @@ ql_dir <- file.path(out_dir, "quicklooks")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(ql_dir, recursive = TRUE, showWarnings = FALSE)
 
-tok2 <- function(x) gsub("\\.", "p", sprintf("%.2f", as.numeric(x)))
 year_span <- function(y) {
   y <- as.integer(y)
   y <- y[!is.na(y)]
-  if (!length(y)) return("unknown")
+  if (!length(y)) {
+    return("unknown")
+  }
   paste(range(y), collapse = "-")
 }
 tag <- sprintf(
   "%s_Gmin%s_Pmin%s_alpha%s_%d-%d",
-  grass_source, tok2(g_min), tok2(p_min), tok2(alpha), year_0, year_1
+  grass_source, tok(g_min), tok(p_min), tok(alpha), year_0, year_1
 )
 
 out025 <- file.path(out_dir, sprintf("mask_luh_overlap_%s_0p25.tif", tag))
@@ -63,12 +64,12 @@ grass_005 <- switch(grass_source,
       full.names = TRUE
     )
     if (!length(ff)) {
-      stop("No ESACCI fraction files found in: ", frac_dir)
+      stop_msg("No ESACCI fraction files found in: ", frac_dir)
     }
     yrs <- as.integer(sub(".*?(\\d{4}).*", "\\1", basename(ff)))
-    keep <- which(yrs >= year_0 & yrs <= year_1)
+    keep <- filter_by_year_range(yrs, year_0, year_1)
     if (!length(keep)) {
-      stop(
+      stop_msg(
         "No ESACCI files in requested window ", year_0, "-", year_1,
         ". Available years: ", year_span(yrs)
       )
@@ -79,13 +80,13 @@ grass_005 <- switch(grass_source,
   GLC = {
     p <- file.path(cfg$paths$glc_out_dir, "glc_cat_yearstack_0p05.tif")
     if (!file.exists(p)) {
-      stop("Missing GLC stack: ", p)
+      stop_msg("Missing GLC stack: ", p)
     }
     s <- rast(p)
     yrs <- as.integer(substr(names(s), 2, 5))
-    keep <- which(yrs >= year_0 & yrs <= year_1)
+    keep <- filter_by_year_range(yrs, year_0, year_1)
     if (!length(keep)) {
-      stop(
+      stop_msg(
         "No GLC layers in requested window ", year_0, "-", year_1,
         ". Available years: ", year_span(yrs)
       )
@@ -94,12 +95,10 @@ grass_005 <- switch(grass_source,
     is_grass <- classify(s[[keep]], cbind(grass_vals, 1), others = 0)
     app(is_grass, mean, na.rm = TRUE)
   },
-  stop("Unknown grass_source: ", grass_source)
+  stop_msg("Unknown grass_source: ", grass_source)
 )
 
-if (!compareGeom(grass_005, ref005, stopOnError = FALSE)) {
-  grass_005 <- resample(grass_005, ref005, method = "bilinear")
-}
+grass_005 <- align_to_template(grass_005, ref005, method = "bilinear")
 grass_005 <- clamp(grass_005, 0, 1)
 names(grass_005) <- "grass_005"
 
@@ -114,19 +113,17 @@ v_pas <- cfg$luh2$variables$pasture
 pas <- rast(luh_nc, subds = v_pas)
 times <- suppressWarnings(as.integer(time(pas)))
 if (!length(times) || all(is.na(times))) {
-  stop("LUH pasture time axis missing or not parseable as integer years")
+  stop_msg("LUH pasture time axis missing or not parseable as integer years")
 }
-keep <- which(times >= year_0 & times <= year_1)
+keep <- filter_by_year_range(times, year_0, year_1)
 if (!length(keep)) {
-  stop(
+  stop_msg(
     "No LUH pasture layers in requested window ", year_0, "-", year_1,
     ". Available years: ", year_span(times)
   )
 }
 pasture_025 <- clamp(mean(pas[[keep]], na.rm = TRUE), 0, 1)
-if (!compareGeom(pasture_025, ref025, stopOnError = FALSE)) {
-  pasture_025 <- resample(pasture_025, ref025, method = "bilinear")
-}
+pasture_025 <- align_to_template(pasture_025, ref025, method = "bilinear")
 names(pasture_025) <- "pasture_025"
 
 # --- 4) decision at 0.25° ------------------------------------------------------
@@ -135,14 +132,12 @@ drop_025 <- (grass_025 >= g_min) & (pasture_025 >= p_min) & (ratio >= alpha)
 mask_025 <- ifel(drop_025, 1L, 0L)
 
 # --- 5) write 0.25° + 0.05° replica -------------------------------------------
-wopt <- wopt_byte(speed = TRUE, na = 255L)
+wopt <- wopt_byte(speed_over_size = TRUE, na = 255L)
 
 writeRaster(mask_025, out025, overwrite = TRUE, wopt = wopt)
 
 mask_005 <- disagg(mask_025, fact = 5, method = "near")
-if (!compareGeom(mask_005, ref005, stopOnError = FALSE)) {
-  mask_005 <- resample(mask_005, ref005, method = "near")
-}
+mask_005 <- align_to_template(mask_005, ref005, method = "near")
 writeRaster(mask_005, out005, overwrite = TRUE, wopt = wopt)
 
 # --- 6) quicklooks (global only) ----------------------------------------------
@@ -176,7 +171,7 @@ if (remake_ql || !file.exists(ql_global)) {
     grass_025, pasture_025, mask_025, ql_global,
     sprintf(
       "LUH overlap (α=%s, G≥%s, P≥%s), %s, %d–%d",
-      tok2(alpha), tok2(g_min), tok2(p_min), grass_source, year_0, year_1
+      tok(alpha), tok(g_min), tok(p_min), grass_source, year_0, year_1
     )
   )
 }
