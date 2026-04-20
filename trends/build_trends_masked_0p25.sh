@@ -28,10 +28,11 @@ IN_DIR="${ROOT}/output/${TAU}/masked_0p25/${VAR}/masked_${VAR}_${MASKTAG}"
 OUT_EVAL="${ROOT}/output/${TAU}/eval/trend_${VAR}_${MASKTAG}"
 
 # ------------------------------------------------------------------------------
-# Thresholds for relative trends
+# Thresholds for relative trends and significance
 # ------------------------------------------------------------------------------
 EPS_LAI="${EPS_LAI:-0.05}"
 EPS_FPAR="${EPS_FPAR:-0.02}"
+ALPHA="${ALPHA:-0.05}"
 
 case "$VAR" in
   LAI)  EPS="$EPS_LAI" ;;
