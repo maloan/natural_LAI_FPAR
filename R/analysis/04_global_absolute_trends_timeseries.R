@@ -11,6 +11,9 @@ suppressPackageStartupMessages({
   library(here)
 })
 
+source(here("R", "helpers", "weighted_means.R"))
+source(here("R", "helpers", "plotting.R"))
+
 # ---- config ------------------------------------------------------------------
 var <- "LAI"
 metrics <- c("yearmean", "yearmax")
@@ -29,20 +32,6 @@ if (!file.exists(area_path)) {
 }
 area <- rast(area_path)[[1]]
 
-theme_pub <- function() {
-  theme_bw(base_size = 11) +
-    theme(
-      panel.grid.major = element_line(color = "grey88", linewidth = 0.25),
-      panel.grid.minor = element_blank(),
-      plot.title = element_text(size = 12, face = "bold"),
-      plot.subtitle = element_text(size = 10),
-      axis.title = element_text(size = 10),
-      axis.text = element_text(size = 9),
-      legend.position = "bottom",
-      legend.text = element_text(size = 9)
-    )
-}
-
 path_unmasked <- function(metric) {
   here("analysis", "unmasked", "0p25", sprintf("%s_georef_%s_0p25.nc", var, metric))
 }
@@ -53,42 +42,26 @@ path_glc <- function(metric, tau) {
   here("output", tau, "eval", sprintf("trend_%s_GLC", var), sprintf("%s_%s_0p25.nc", var, metric))
 }
 
-series_wmean <- function(r, area, year0 = 1982L) {
-  compareGeom(r, area, stopOnError = TRUE)
-  yrs <- year0:(year0 + nlyr(r) - 1L)
-  vals <- vector("numeric", length = nlyr(r))
-
-  for (i in seq_len(nlyr(r))) {
-    x <- r[[i]]
-    ok <- is.finite(x) & is.finite(area) & area > 0
-    num <- as.numeric(global(ifel(ok, x * area, NA), "sum", na.rm = TRUE)[1, 1])
-    den <- as.numeric(global(ifel(ok, area, NA), "sum", na.rm = TRUE)[1, 1])
-    vals[i] <- ifelse(is.finite(den) && den > 0, num / den, NA_real_)
-  }
-
-  tibble(year = yrs, value = vals)
-}
-
 rows <- list()
 for (metric in metrics) {
   fU <- path_unmasked(metric)
   if (!file.exists(fU)) stop("Missing unmasked file: ", fU)
   rows[[length(rows) + 1]] <-
-    series_wmean(rast(fU), area, year0) |>
+    as_tibble(global_wmean_series(rast(fU), area, year0)) |>
     mutate(metric = metric, scenario = "Unmasked")
 
   for (tau in taus_cci) {
     fC <- path_cci(metric, tau)
     if (!file.exists(fC)) stop("Missing CCI file: ", fC)
     rows[[length(rows) + 1]] <-
-      series_wmean(rast(fC), area, year0) |>
+      as_tibble(global_wmean_series(rast(fC), area, year0)) |>
       mutate(metric = metric, scenario = sprintf("CCI %s", gsub("tau_", "tau=", tau)))
   }
 
   fG <- path_glc(metric, tau_glc)
   if (!file.exists(fG)) stop("Missing GLC file: ", fG)
   rows[[length(rows) + 1]] <-
-    series_wmean(rast(fG), area, year0) |>
+    as_tibble(global_wmean_series(rast(fG), area, year0)) |>
     mutate(metric = metric, scenario = "GLC")
 }
 
@@ -155,7 +128,7 @@ p <- ggplot() +
     title = "Global absolute LAI trajectories under masking scenarios",
     subtitle = "Thin lines: annual values; thick lines: OLS trends"
   ) +
-  theme_pub()
+  theme_pub(base_size = 11, include_legend = TRUE)
 
 write_csv(df, file.path(outdir, "global_timeseries_absolute_trends_yearmean_yearmax.csv"))
 write_csv(trend_df, file.path(outdir, "global_timeseries_absolute_trends_yearmean_yearmax_trendlines.csv"))
