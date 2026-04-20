@@ -10,22 +10,20 @@ suppressPackageStartupMessages({
   library(here)
 })
 
+source(here("R", "helpers", "files.R"))
+
 outdir <- here("analysis", "results", "masks")
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
 area_005 <- here("src", "area_0p05_km2.nc")
-run_tag <- Sys.getenv("RUN_TAG", "tau_0.1")
+run_tag <- Sys.getenv("run_tag", "tau_0.1")
 
 mask_dir <- here("output", run_tag, "masks", "mask_nonvegetated")
-mask_candidates <- list.files(
+mask_nonveg <- find_one(
   mask_dir,
-  pattern = "mask_nonvegetated_CCI_2007_.*_0p05\\.tif$",
-  full.names = TRUE
+  "mask_nonvegetated_CCI_2007_.*_0p05\\.tif$",
+  label = "nonvegetated mask"
 )
-if (!length(mask_candidates)) {
-  stop("No nonvegetated mask found in: ", mask_dir)
-}
-mask_nonveg <- mask_candidates[order(file.info(mask_candidates)$mtime, decreasing = TRUE)][1]
 
 if (!file.exists(area_005)) {
   stop("Missing area raster: ", area_005)
