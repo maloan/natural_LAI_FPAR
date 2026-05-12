@@ -1,6 +1,6 @@
 # ==============================================================================
 # 03_global_absolute_trends_summary.R
-# Global mean absolute greening
+# Global mean absolute greening (publication-grade version)
 # ==============================================================================
 
 suppressPackageStartupMessages({
@@ -11,152 +11,127 @@ suppressPackageStartupMessages({
   library(here)
 })
 
-# ---- config ------------------------------------------------------------------
+source(here("R", "helpers", "bootstrap_ci.R"))
+source(here("R", "helpers", "scenario_config.R"))
+source(here("R", "helpers", "io.R"))
+
+utils::globalVariables(c(
+  "variable", "metric", "scenario", "run_tag", "area_km2", "area_total", "sig_flag", "n_pixels",
+  "abs_trend_per_year", "abs_trend_ci_lower", "abs_trend_ci_upper", "abs_trend_ci_width"
+))
+
+# ==============================================================================
+# Global mean absolute greening (absolute trend per year, native units)
+#
+# Methodology:
+#   1. Load absolute trend rasters (slope in native units per year)
+#   2. Weight-normalize by area (validdomain)
+#   3. Bootstrap CI for global mean trend (n_boot=1000, 95% conf)
+#   4. Significance: CI does not cross zero (marked with *)
+# ==============================================================================
+
+# Configuration
 cci_taus <- c("tau_0.05", "tau_0.1", "tau_0.2")
 glc_run_tag <- Sys.getenv("GLC_RUN_TAG", "tau_0.1")
 
-dir_unmask <- here("analysis", "unmasked", "0p25")
+vars <- c("LAI", "FPAR")
+metrics <- c("yearmean", "yearmax")
 
+scenario_spec <- create_scenario_spec(cci_taus, glc_run_tag)
+
+dir_unmask <- here("analysis", "unmasked", "0p25")
 outdir <- here("analysis", "results", "tables", "trends")
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
-vars <- c("LAI", "FPAR")
-metrics <- c("yearmean", "yearmax")
-scenario_order <- c("Unmasked", "CCI tau=0.05", "CCI tau=0.1", "CCI tau=0.2", "GLC")
+# Load spatial weights (area in km²)
+area_file <- here("src", "area_0p25_validdomain_km2.nc")
 
-scenario_spec <- tibble(
-  scenario = scenario_order,
-  source = c("unmasked", "CCI", "CCI", "CCI", "GLC"),
-  run_tag = c(NA_character_, cci_taus, glc_run_tag)
-)
-
-# ---- valid-domain area raster --------------------------------
-area_025 <- here("src", "area_0p25_validdomain_km2.nc")
-if (!file.exists(area_025)) {
-  stop("Missing valid-domain area raster: ", area_025)
-}
-area <- rast(area_025)[[1]]
-area_dom_total <- global(ifel(is.finite(area) & area > 0, area, NA), "sum", na.rm = TRUE)[1, 1] |>
-  as.numeric()
-if (!is.finite(area_dom_total) || area_dom_total <= 0) {
-  stop("Invalid valid-domain area denominator (km2): ", area_dom_total)
+if (!file.exists(area_file)) {
+  stop("Missing area raster: ", area_file)
 }
 
-# ---- helpers -----------------------------------------------------------------
-wmean_global_ok <- function(x, ok) {
-  if (is.null(x)) {
-    return(NA_real_)
-  }
-  num <- global(ifel(ok, x * area, NA), "sum", na.rm = TRUE)[1, 1]
-  den <- global(ifel(ok, area, NA), "sum", na.rm = TRUE)[1, 1]
-  if (!is.finite(den) || den <= 0) {
-    return(NA_real_)
-  }
-  as.numeric(num / den)
+area <- rast(area_file)[[1]]
+area_vals <- values(area, dataframe = FALSE)
+
+area_total <- global(
+  ifel(is.finite(area) & area > 0, area, NA),
+  "sum",
+  na.rm = TRUE
+)[1, 1]
+
+if (!is.finite(area_total) || area_total <= 0) {
+  stop("Invalid total area.")
 }
 
-area_ok_km2 <- function(ok) {
-  global(ifel(ok, area, NA), "sum", na.rm = TRUE)[1, 1] |>
-    as.numeric()
-}
-round_df <- function(df) mutate(df, across(where(is.double), ~ round(.x, 3)))
-
-read_single_layer_trend <- function(path, label) {
-  r <- rast(path)
-  if (nlyr(r) != 1) {
-    stop(
-      sprintf("Expected exactly 1 layer in %s, got %d: %s", label, nlyr(r), path)
-    )
-  }
-  r[[1]]
-}
-
-mk_table_yearmean <- function(tab, var_keep) {
-  out <- tab |>
-    filter(.data$variable == var_keep, .data$metric == "yearmean") |>
-    transmute(
-      Variable = as.character(.data$variable),
-      Metric = as.character(.data$metric),
-      Domain = as.character(.data$scenario),
-      `Run tag` = as.character(.data$run_tag),
-      `Effective area (million km²)` = .data$area_km2 / 1e6,
-      trend_abs_per_year = .data$abs_trend_per_year,
-        effective_area_pct = 100 * .data$area_km2 / area_dom_total
-    )
-  names(out)[names(out) == "trend_abs_per_year"] <- sprintf(
-    "Global mean absolute trend (%s yr^-1)",
-    var_keep
-  )
-  out
-}
-
-trend_path <- function(var, met, source, run_tag = NULL) {
-  if (identical(source, "unmasked")) {
-    file.path(
-      dir_unmask,
-      sprintf("%s_georef_%s_trend_slope_peryear_0p25.nc", var, met)
-    )
-  } else {
-    file.path(
-      here("output", run_tag, "eval", sprintf("trend_%s_%s", var, source)),
-      sprintf("%s_%s_trend_slope_peryear_0p25.nc", var, met)
-    )
-  }
-}
-
-# ---- compute long table ------------------------------------------------------
-rows <- list()
+# Core computation
+results <- list()
 
 for (var in vars) {
   for (met in metrics) {
-    scenario_rows <- list()
+    scenario_results <- list()
+
     for (i in seq_len(nrow(scenario_spec))) {
       sc <- scenario_spec[i, ]
-      f_path <- trend_path(var, met, sc$source, sc$run_tag)
-      if (!file.exists(f_path)) {
-        stop("Missing trend file for ", sc$scenario, ": ", f_path)
+      path <- trend_path_factory(var, met, sc$source, sc$run_tag, is_relative = FALSE)
+
+      r_vals <- read_trend(path, sc$scenario)
+
+      if (length(r_vals) != length(area_vals)) {
+        stop(
+          "Geometry mismatch: ", sc$scenario, "\n",
+          "  Expected ", length(area_vals), " pixels, got ", length(r_vals)
+        )
       }
 
-      r <- read_single_layer_trend(f_path, sc$scenario)
-      compareGeom(area, r, stopOnError = TRUE)
+      ok <- is.finite(r_vals) & is.finite(area_vals) & area_vals > 0
 
-      ok <- (is.finite(area) & area > 0) & is.finite(r)
-      scenario_rows[[length(scenario_rows) + 1]] <- tibble(
+      # Absolute trend (native units per year, no conversion needed)
+      ci <- bootstrap_ci_global(r_vals[ok], area_vals[ok], n_boot = 1000L, conf = 0.95)
+
+      scenario_results[[length(scenario_results) + 1]] <- tibble(
         variable = var,
         metric = met,
         scenario = sc$scenario,
         run_tag = sc$run_tag,
-        abs_trend_per_year = wmean_global_ok(r, ok),
-        area_km2 = area_ok_km2(ok)
+        abs_trend_per_year = ci$mean,
+        abs_trend_ci_lower = ci$lower,
+        abs_trend_ci_upper = ci$upper,
+        abs_trend_ci_width = ci$width,
+        sig_flag = ci$sig,
+        area_km2 = sum(area_vals[ok], na.rm = TRUE),
+        area_total = area_total,
+        n_pixels = sum(ok)
       )
     }
 
-    rows[[length(rows) + 1]] <- bind_rows(scenario_rows)
+    results[[length(results) + 1]] <- bind_rows(scenario_results)
   }
 }
 
-tab <- bind_rows(rows) |>
+tab <- bind_rows(results) |>
   mutate(
     variable = factor(variable, levels = vars),
     metric = factor(metric, levels = metrics),
-    scenario = factor(scenario, levels = scenario_order)
+    scenario = factor(scenario, levels = scenario_order(scenario_spec))
   ) |>
   arrange(variable, metric, scenario)
 
-# ---- tables  --------------------------------
-for (var in vars) {
-  tab_main <- round_df(mk_table_yearmean(tab, var))
-  write_csv(
-    tab_main, file.path(
-      outdir, sprintf(
-        "table_global_mean_absolute_trends_yearmean_%s_overview.csv", var
-      )
-    )
-  )
+# Output formatting and metadata
+format_table <- function(df) {
+  df |> mutate(across(starts_with("abs_trend_"), ~ round(., 5)))
 }
 
+# Main table: LAI yearmean
+tab_main <- tab |>
+  filter(variable == "LAI", metric == "yearmean") |>
+  format_table()
+
 write_csv(
-  round_df(tab), file.path(
-    outdir, "global_mean_absolute_trends_long_overview.csv"
-  )
+  tab_main,
+  file.path(outdir, "table_global_mean_absolute_trends_yearmean_LAI_overview.csv")
+)
+
+write_csv(
+  format_table(tab),
+  file.path(outdir, "global_mean_absolute_trends_long_overview.csv")
 )
