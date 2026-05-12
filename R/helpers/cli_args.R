@@ -15,7 +15,7 @@
 #'
 #' @examples
 #' defaults <- list(var = "LAI", mask = "CCI", overwrite = FALSE)
-#' cfg <- parse_cli_args(defaults)  # Called with: Rscript script.R var=FPAR overwrite=TRUE
+#' cfg <- parse_cli_args(defaults) # Called with: Rscript script.R var=FPAR overwrite=TRUE
 #'
 parse_cli_args <- function(defaults) {
   args <- commandArgs(trailingOnly = TRUE)
