@@ -1,8 +1,53 @@
 ## =============================================================================
 ## analysis_plot_helpers.R — Shared helpers for analysis plotting
+##
+## Includes helpers for significance markers, error bars, and theme utilities
+## for publication-ready figures with statistical annotations.
 ## =============================================================================
 
-#' Calculate symmetric quantile-based limits for diverging color scales
+# Add significance markers to bar/point plots
+# Marks CI intervals that don't cross zero with asterisk (*)
+geom_sig_marker <- function(data = NULL, mapping = aes(x = x, y = y),
+                            sig_col = "sig_flag", y_offset = 0, size = 3.5,
+                            color = "black", ...) {
+  # Usage: geom_sig_marker(aes(y = value), sig_col = "sig_flag", y_offset = 0.02)
+  # Expects data to have sig_flag column with values "" (not sig) or "*" (sig)
+  geom_text(
+    mapping = aes(label = .data[[!!sig_col]]),
+    data = data,
+    y = Inf,
+    vjust = -0.5,
+    size = size,
+    color = color,
+    inherit.aes = TRUE,
+    ...
+  )
+}
+
+# Mark non-significant results by fading fill color
+geom_sig_col <- function(aes_sig = aes(fill_alpha = sig),
+                         alpha_sig = 1.0,
+                         alpha_nonsig = 0.3, ...) {
+  # Usage: geom_sig_col(aes_sig = aes(fill_alpha = sig_flag == "*"))
+  # Fades bars/points where sig_flag != "*"
+  scale_alpha_manual(
+    values = c("TRUE" = alpha_sig, "FALSE" = alpha_nonsig),
+    guide = "none",
+    ...
+  )
+}
+
+# Highlight CIs that cross zero
+highlight_ci_crossing <- function(ci_lower, ci_upper,
+                                  color_nonsig = "grey70",
+                                  color_sig = NA,
+                                  linewidth = 1.2) {
+  # Returns color vector for error bars based on CI zero-crossing
+  # Usage in ggplot: geom_errorbar(aes(color = highlight_ci(...)))
+  crosses_zero <- ci_lower * ci_upper <= 0
+  ifelse(crosses_zero, color_nonsig, color_sig)
+}
+
 #'
 #' Computes symmetric limits around zero based on quantile of absolute values.
 #' Useful for diverging color scales in trend maps.
@@ -110,7 +155,7 @@ plot_map <- function(df, zcol, lims, title = NULL, fill_title = NULL, df_grey = 
       )
     }) +
     geom_sf(
-      data = coast,  # Uses coast from calling environment
+      data = coast, # Uses coast from calling environment
       linewidth = 0.15, colour = "black", fill = NA, inherit.aes = FALSE
     ) +
     coord_sf(xlim = c(-180, 180), ylim = c(-55, 80), expand = FALSE) +
