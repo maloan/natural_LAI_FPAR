@@ -177,7 +177,7 @@ plot_map <- function(df, zcol, lims, title = NULL, fill_title = NULL, df_grey = 
       geom_tile(
         data = df_grey, inherit.aes = FALSE,
         aes(x = .data$lon, y = .data$lat),
-        fill = "grey85", alpha = 1  # Light grey for non-significant
+        fill = "grey85", alpha = 1 # Light grey for non-significant
       )
     }) +
     geom_sf(
@@ -191,7 +191,7 @@ plot_map <- function(df, zcol, lims, title = NULL, fill_title = NULL, df_grey = 
       colours = div_cols,
       limits = lims,
       oob = squish,
-      na.value = "grey45",  # Medium grey for masked regions
+      na.value = "grey45", # Medium grey for masked regions
       name = fill_title
     ) +
     labs(title = title) +
