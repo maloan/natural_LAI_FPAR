@@ -3,6 +3,14 @@
 This folder contains R scripts for statistical summaries, visualizations, and
 diagnostics of LAI/FPAR trends across different masking scenarios.
 
+## Prerequisites
+
+**Landcover preprocessing:** Scripts that perform land-cover class aggregation 
+(e.g., `12_landcover_trend_summary.R`) automatically generate the required 
+0.25° landcover majority maps from raw ESACCI data if they don't already exist. 
+The preprocessing script `R/12_make_lc025_majority.R` will be triggered on-demand
+from the analysis scripts. This requires ESACCI data in `data-raw/ESACCI/`.
+
 ## Scientific methodology overview
 
 ### Data flow
