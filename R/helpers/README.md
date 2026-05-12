@@ -21,6 +21,3 @@ NetCDF handling, options parsing, and plotting support.
 - These scripts are intended to be sourced by pipeline scripts.
 - They are not meant to be executed directly as standalone jobs.
 - Keep helper functions generic and side-effect free when possible.
-
-mk_sig_mask.R is intentionally outside helpers because it is a standalone
-command-line script, not a sourced helper module.
