@@ -1,7 +1,15 @@
 # ==============================================================================
 # 12_landcover_trend_summary.R
 # From yearly 0.25° majority LC maps -> stable LC (mode across years),
-# then area-weighted trend summaries by LC class (one zonal() call).
+# then area-weighted trend summaries by LC class.
+#
+# Methodology:
+#   1. Load annual 0.25° land-cover majority maps (1992-2020)
+#   2. Merge LC subclasses to aggregated classes (IPCC level 1/2)
+#   3. Compute stable class as mode of time series (with optional stability threshold)
+#   4. Zonal statistics: area, mean trend per class (unmasked vs masked)
+#   5. Bootstrap CIs for each class (n_boot=1000, 95% conf)
+#   6. Output: paper-grade table + bar plot with retained area labels
 # ==============================================================================
 
 suppressPackageStartupMessages({
@@ -14,6 +22,7 @@ suppressPackageStartupMessages({
 })
 
 source(here("R", "helpers", "cli_args.R"))
+source(here("R", "helpers", "bootstrap_ci.R"))
 
 terraOptions(progress = 0, memfrac = 0.6, todisk = TRUE)
 
@@ -49,6 +58,44 @@ out_dir <- here("analysis", "results", "lc_trends", tau)
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 paper_fig_dir <- here("analysis", "results", "figures", "summaries")
 dir.create(paper_fig_dir, recursive = TRUE, showWarnings = FALSE)
+
+# ==============================================================================
+# Auto-generate landcover majority maps if missing
+# ==============================================================================
+
+lc_files_expected <- file.path(lc_yearly_dir, sprintf("lc025_majority_%d.tif", lc_years))
+lc_files_missing <- lc_files_expected[!file.exists(lc_files_expected)]
+
+if (length(lc_files_missing) > 0) {
+  cat(sprintf(
+    "\nNOTE: %d/%d landcover majority maps missing. Generating from ESACCI data...\n\n",
+    length(lc_files_missing), length(lc_files_expected)
+  ))
+
+  lc_maker_script <- here("R", "12_make_lc025_majority.R")
+
+  if (!file.exists(lc_maker_script)) {
+    stop(
+      sprintf(
+        "Landcover preprocessing script not found: %s\nPlease run R/12_make_lc025_majority.R manually.",
+        lc_maker_script
+      ),
+      call. = FALSE
+    )
+  }
+
+  # Run the preprocessing script
+  result <- system(sprintf("Rscript %s", lc_maker_script))
+
+  if (result != 0) {
+    stop(
+      "Landcover preprocessing failed. Please check R/12_make_lc025_majority.R output.",
+      call. = FALSE
+    )
+  }
+
+  cat("\nLandcover preprocessing complete. Continuing with analysis...\n\n")
+}
 
 ref025 <- rast(here("src", "ref_0p25.nc"))
 area <- rast(here("src", "area_0p25_validdomain_km2.nc"))[[1]]
@@ -122,12 +169,24 @@ trend_files <- function(use_relative) {
 
 # ---- (1) stable LC map -------------------------------------------------------
 lc_files <- file.path(lc_yearly_dir, sprintf("lc025_majority_%d.tif", lc_years))
-stopifnot(all(file.exists(lc_files)))
+
+missing_files <- lc_files[!file.exists(lc_files)]
+if (length(missing_files) > 0) {
+  stop(
+    sprintf(
+      "Missing %d landcover files in %s.\nExpected files:\n  %s\n\nFirst missing: %s",
+      length(missing_files),
+      lc_yearly_dir,
+      paste(basename(lc_files), collapse = "\n  "),
+      basename(missing_files[1])
+    ),
+    call. = FALSE
+  )
+}
 
 lc_stack <- rast(lc_files)
 lc_stack <- align_to_ref(lc_stack, ref025, method = "near") |> mask(area)
-# Merge subclasses on the 0.25° yearly maps BEFORE stability
-# (classification-style mapping; non-listed IDs remain unchanged)
+# Merge subclasses on the 0.25° yearly maps
 rcl <- cbind(
   from = as.integer(names(merge_to_parent)),
   to = as.integer(merge_to_parent)
@@ -161,7 +220,7 @@ scale_factor <- if (use_relative) 100 else 1
 suffix <- if (use_relative) "rel" else "abs"
 unit_label <- if (use_relative) "% yr-1" else sprintf("%s yr-1", var)
 
-# ---- (3) ONE zonal() call (fast) --------------------------------------------
+# ---- (3) ONE zonal() call (fast) + bootstrap CIs ----
 w_unm <- area
 w_msk <- ifel(is.na(r_msk), NA_real_, area)
 w_out <- ifel(!is.na(r_unm) & is.na(r_msk), area, NA_real_)
@@ -176,6 +235,30 @@ names(x) <- c("num_unm", "num_msk", "num_out", "den_unm_km2", "den_msk_km2", "de
 zone <- zonal(x, lc_stable, fun = "sum", na.rm = TRUE) |> as.data.frame()
 names(zone)[1] <- "lc_id"
 
+# Compute bootstrap CIs for unmasked and masked trends
+r_unm_vals <- terra::values(r_unm[[1]], dataframe = FALSE)
+r_msk_vals <- terra::values(r_msk[[1]], dataframe = FALSE)
+w_vals <- terra::values(w_unm[[1]], dataframe = FALSE)
+z_vals <- terra::values(lc_stable[[1]], dataframe = FALSE)
+
+ci_unm <- bootstrap_ci_by_class(r_unm_vals * scale_factor, z_vals, w_vals, n_boot = 1000L) |>
+  rename(
+    n_unm = n_pixels,
+    mean_unmasked_boot = mean_est,
+    ci_unm_lower = ci_lower,
+    ci_unm_upper = ci_upper,
+    ci_unm_width = ci_width
+  )
+
+ci_msk <- bootstrap_ci_by_class(r_msk_vals * scale_factor, z_vals, w_vals, n_boot = 1000L) |>
+  rename(
+    n_msk = n_pixels,
+    mean_masked_boot = mean_est,
+    ci_msk_lower = ci_lower,
+    ci_msk_upper = ci_upper,
+    ci_msk_width = ci_width
+  )
+
 lc_tab <- zone |>
   mutate(
     mean_unmasked   = scale_factor * (num_unm / den_unm_km2),
@@ -186,6 +269,8 @@ lc_tab <- zone |>
     area_out_mkm2   = den_out_km2 / 1e6,
     frac_retained   = ifelse(den_unm_km2 > 0, den_msk_km2 / den_unm_km2, NA_real_)
   ) |>
+  left_join(ci_unm, by = c("lc_id" = "class")) |>
+  left_join(ci_msk, by = c("lc_id" = "class")) |>
   mutate(across(starts_with("mean_"), ~ ifelse(is.finite(.x), .x, NA_real_))) |>
   arrange(desc(area_unm_mkm2))
 
@@ -210,6 +295,7 @@ lc_legend_merged <- tibble::tribble(
   210L, "Water bodies",
   220L, "Permanent snow and ice"
 )
+lc_tab
 plot_tab <- lc_tab |>
   filter(!is.na(lc_id)) |>
   left_join(lc_legend_merged, by = "lc_id") |>
@@ -217,10 +303,22 @@ plot_tab <- lc_tab |>
   arrange(desc(mean_unmasked))
 
 plot_df <- plot_tab |>
-  select(lc_name, mean_unmasked, mean_masked, frac_retained) |>
-  pivot_longer(c(mean_unmasked, mean_masked), names_to = "metric", values_to = "value") |>
+  select(
+    lc_name, mean_unmasked, mean_masked, ci_unm_lower, ci_unm_upper,
+    ci_msk_lower, ci_msk_upper, frac_retained
+  ) |>
+  pivot_longer(
+    cols = c(mean_unmasked, mean_masked),
+    names_to = "metric",
+    values_to = "value"
+  ) |>
   mutate(
-    metric  = factor(metric, levels = c("mean_unmasked", "mean_masked"), labels = c("Unmasked", "Masked")),
+    ci_lower = if_else(metric == "mean_unmasked", ci_unm_lower, ci_msk_lower),
+    ci_upper = if_else(metric == "mean_unmasked", ci_unm_upper, ci_msk_upper),
+    metric = factor(metric,
+      levels = c("mean_unmasked", "mean_masked"),
+      labels = c("Unmasked", "Masked")
+    ),
     lc_name = factor(lc_name, levels = rev(unique(plot_tab$lc_name)))
   )
 
@@ -244,8 +342,14 @@ paper_tab <- plot_tab |>
     area_masked_mkm2 = area_msk_mkm2,
     retained_pct = 100 * frac_retained,
     trend_unmasked = mean_unmasked,
+    trend_unmasked_ci_lower = ci_unm_lower,
+    trend_unmasked_ci_upper = ci_unm_upper,
     trend_masked = mean_masked,
-    trend_delta = mean_masked - mean_unmasked
+    trend_masked_ci_lower = ci_msk_lower,
+    trend_masked_ci_upper = ci_msk_upper,
+    trend_delta = mean_masked - mean_unmasked,
+    sig_unmasked = sig_flag.x,
+    sig_masked = sig_flag.y
   ) |>
   mutate(across(where(is.double), ~ round(.x, 4)))
 
@@ -283,6 +387,12 @@ if (!nrow(plot_df) || !length(finite_vals)) {
     )
 } else {
   p_bar <- ggplot(plot_df, aes(lc_name, value, fill = metric)) +
+    # Error bars with CI
+    geom_errorbar(
+      aes(ymin = ci_lower, ymax = ci_upper),
+      width = 0.15, position = pd, linewidth = 0.4, na.rm = TRUE,
+      alpha = 0.7
+    ) +
     geom_col(position = pd, width = 0.65, na.rm = TRUE) +
     geom_text(
       data = filter(plot_df, metric == "Masked"),
@@ -316,10 +426,3 @@ ggsave(paper_png, p_bar, width = 8.4, height = 6.2, dpi = 320)
 ggsave(paper_pdf, p_bar, width = 8.4, height = 6.2)
 
 cat("Wrote:\n")
-cat("  ", out_csv_full, "\n", sep = "")
-cat("  ", out_csv_paper, "\n", sep = "")
-cat("  ", out_png, "\n", sep = "")
-cat("  ", out_pdf, "\n", sep = "")
-cat("  ", paper_png, "\n", sep = "")
-cat("  ", paper_pdf, "\n", sep = "")
-cat("  ", lc_cache, "\n", sep = "")
