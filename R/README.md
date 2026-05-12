@@ -3,7 +3,6 @@ editor_options:
   markdown: 
     wrap: 72
 ---
-
 # R Processing and Analysis Pipeline for Natural LAI / FPAR
 
 This folder contains the main R scripts for building and analyzing the
@@ -46,6 +45,7 @@ R/
 ├── 10_apply_mask_0p05.R
 ├── 11_agg_0p25.R
 ├── 11_agg_0p5.R
+├── 12_make_lc025_majority.R
 ├── Makefile
 ├── analysis/
 └── helpers/
@@ -68,6 +68,9 @@ R/
 - 02_cci_frac_0p05.R: Builds fractional cover layers from ESA-CCI/C3S.
 - 04_glc_stack_0p05.R: Harmonizes and stacks GLC_FCS30D maps on the project
   grid.
+- 12_make_lc025_majority.R: Generates 0.25° landcover majority maps from annual
+  ESACCI data (1992-2020) for trend analysis by land-cover class. Auto-triggered
+  by analysis scripts if needed.
 
 ### Mask construction
 
