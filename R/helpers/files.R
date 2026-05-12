@@ -11,8 +11,8 @@
 #' @return Character string with 'p' replacing decimal point
 #'
 #' @examples
-#' tok(0.05)   # "0p05"
-#' tok(0.1)    # "0p10"
+#' tok(0.05) # "0p05"
+#' tok(0.1) # "0p10"
 #'
 tok <- function(x) gsub("\\.", "p", sprintf("%.2f", as.numeric(x)))
 
@@ -101,4 +101,3 @@ align_to_template <- function(r, template, method = "bilinear") {
 stop_msg <- function(...) {
   stop(paste0(...), call. = FALSE)
 }
-
