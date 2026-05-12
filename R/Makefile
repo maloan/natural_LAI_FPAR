@@ -79,7 +79,23 @@ agg:
 pipeline: prep masks apply agg
 
 # -----------------------------------------------------------------------------
-# 4) Analyses
+# 4) Trend products (includes MK p-values via trends/compute_mk_pval.R)
+# -----------------------------------------------------------------------------
+.PHONY: trends trends-unmasked trends-masked
+trends-unmasked:
+	SNU_LAI_FPAR_ROOT=$(ROOT) VARS="LAI FPAR" bash $(ROOT)/trends/01_build_georef_products.sh 0p05
+
+trends-masked:
+	@for m in $(MASKS); do \
+	  echo "== TRENDS $$m (RUN_TAG=$(RUN_TAG)) ==" ; \
+	  SNU_LAI_FPAR_ROOT=$(ROOT) bash $(ROOT)/trends/02_build_trends_masked_0p25.sh $(RUN_TAG) LAI  $$m ; \
+	  SNU_LAI_FPAR_ROOT=$(ROOT) bash $(ROOT)/trends/02_build_trends_masked_0p25.sh $(RUN_TAG) FPAR $$m ; \
+	done
+
+trends: trends-unmasked trends-masked
+
+# -----------------------------------------------------------------------------
+# 5) Analyses
 analysis: pipeline
 .PHONY: analysis
 analysis: pipeline
@@ -101,10 +117,14 @@ ql:
 help:
 	@echo "Targets:"
 	@echo "  pipeline   -> setup + prep (georef+fractions+stacks) + masks + apply + agg"
+	@echo "  trends     -> run unmasked + masked trend workflows (incl. MK p-values)"
+	@echo "  trends-unmasked -> build georef trend products at 0.05/0.25"
+	@echo "  trends-masked   -> build masked 0.25 trend products for RUN_TAG and MASKS"
 	@echo "  analysis   -> pipeline (analysis scripts are in R/analysis folder)"
 	@echo "  ql         -> regenerate quicklooks for key steps"
 	@echo ""
 	@echo "Typical runs:"
 	@echo "  make pipeline RUN_TAG=tau_0.1"
+	@echo "  make trends RUN_TAG=tau_0.1 MASKS='CCI GLC'"
 	@echo "  make pipeline MASKS='CCI'"
 	@echo "  make pipeline MASKS='GLC'"
