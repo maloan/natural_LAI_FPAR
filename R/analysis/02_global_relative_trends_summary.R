@@ -11,133 +11,134 @@ suppressPackageStartupMessages({
   library(here)
 })
 
-# ---- config ------------------------------------------------------------------
+source(here("R", "helpers", "bootstrap_ci.R"))
+source(here("R", "helpers", "scenario_config.R"))
+source(here("R", "helpers", "io.R"))
+
+# ==============================================================================
+# CRS & Coordinate System Validation
+# Expected: EPSG:4326 (WGS84 geographic), 0.25° grid (720×1440)
+# ==============================================================================
+
+utils::globalVariables(c(
+  "variable", "metric", "scenario",
+  "reltrend_pct_per_year", "reltrend_ci_lower", "reltrend_ci_upper", "reltrend_ci_width"
+))
+
+# Configuration
 cci_taus <- c("tau_0.05", "tau_0.1", "tau_0.2")
 glc_run_tag <- Sys.getenv("GLC_RUN_TAG", "tau_0.1")
 
-dir_unmask <- here("analysis", "unmasked", "0p25")
+vars <- c("LAI", "FPAR")
+metrics <- c("yearmean", "yearmax")
 
+scenario_spec <- create_scenario_spec(cci_taus, glc_run_tag)
+
+dir_unmask <- here("analysis", "unmasked", "0p25")
 outdir <- here("analysis", "results", "tables", "trends")
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
-vars <- c("LAI", "FPAR")
-metrics <- c("yearmean", "yearmax")
-scenario_order <- c("Unmasked", "CCI tau=0.05", "CCI tau=0.1", "CCI tau=0.2", "GLC")
+# Load spatial weights (area in km²)
+area_file <- here("src", "area_0p25_validdomain_km2.nc")
 
-scenario_spec <- tibble(
-  scenario = scenario_order,
-  source = c("unmasked", "CCI", "CCI", "CCI", "GLC"),
-  run_tag = c(NA_character_, cci_taus, glc_run_tag)
-)
-
-# ---- valid-domain area raster --------------------------------
-area_025 <- here("src", "area_0p25_validdomain_km2.nc")
-if (!file.exists(area_025)) {
-  stop("Missing valid-domain area raster: ", area_025)
-}
-area <- rast(area_025)[[1]]
-area_dom_total <- global(ifel(is.finite(area) & area > 0, area, NA), "sum", na.rm = TRUE)[1, 1] |>
-  as.numeric()
-if (!is.finite(area_dom_total) || area_dom_total <= 0) {
-  stop("Invalid valid-domain area denominator (km2): ", area_dom_total)
+if (!file.exists(area_file)) {
+  stop("Missing area raster: ", area_file)
 }
 
-# ---- helpers -----------------------------------------------------------------
-wmean_global_ok <- function(x, ok) {
-  if (is.null(x)) {
-    return(NA_real_)
-  }
-  num <- global(ifel(ok, x * area, NA), "sum", na.rm = TRUE)[1, 1]
-  den <- global(ifel(ok, area, NA), "sum", na.rm = TRUE)[1, 1]
-  if (!is.finite(den) || den <= 0) {
-    return(NA_real_)
-  }
-  as.numeric(num / den)
+area <- rast(area_file)[[1]]
+
+# CRS Validation: ensure 0.25° global grid
+if (nrow(area) != 720L || ncol(area) != 1440L) {
+  stop(
+    "Area raster has unexpected dimensions: ", nrow(area), "×", ncol(area),
+    "\n  Expected 720×1440 (0.25° grid, EPSG:4326)"
+  )
 }
 
-area_ok_km2 <- function(ok) {
-  global(ifel(ok, area, NA), "sum", na.rm = TRUE)[1, 1] |>
-    as.numeric()
-}
-round_df <- function(df) mutate(df, across(where(is.double), ~ round(.x, 3)))
+area_vals <- values(area, dataframe = FALSE)
 
-mk_table_yearmean <- function(tab, var_keep) {
-  tab |>
-    filter(.data$variable == var_keep, .data$metric == "yearmean") |>
-    transmute(
-      Variable = as.character(.data$variable),
-      Metric = as.character(.data$metric),
-      Domain = as.character(.data$scenario),
-      `Run tag` = as.character(.data$run_tag),
-      `Effective area (million km²)` = .data$area_km2 / 1e6,
-      `Global mean relative trend (% yr^-1)` = .data$reltrend_pct_per_year,
-        effective_area_pct = 100 * .data$area_km2 / area_dom_total
-    )
+area_total <- global(
+  ifel(is.finite(area) & area > 0, area, NA),
+  "sum",
+  na.rm = TRUE
+)[1, 1]
+
+if (!is.finite(area_total) || area_total <= 0) {
+  stop("Invalid total area.")
 }
 
-trend_path <- function(var, met, source, run_tag = NULL) {
-  if (identical(source, "unmasked")) {
-    file.path(
-      dir_unmask,
-      sprintf("%s_georef_%s_trend_relative_peryear_0p25.nc", var, met)
-    )
-  } else {
-    file.path(
-      here("output", run_tag, "eval", sprintf("trend_%s_%s", var, source)),
-      sprintf("%s_%s_trend_relative_peryear_0p25.nc", var, met)
-    )
-  }
-}
-
-# ---- compute long table ------------------------------------------------------
-rows <- list()
+# Core computation
+results <- list()
 
 for (var in vars) {
   for (met in metrics) {
-    scenario_rows <- list()
+    scenario_results <- list()
+
     for (i in seq_len(nrow(scenario_spec))) {
       sc <- scenario_spec[i, ]
-      f_path <- trend_path(var, met, sc$source, sc$run_tag)
-      if (!file.exists(f_path)) {
-        stop("Missing trend file for ", sc$scenario, ": ", f_path)
+      path <- trend_path_factory(var, met, sc$source, sc$run_tag, is_relative = TRUE)
+
+      r_vals <- read_trend(path, sc$scenario)
+
+      if (length(r_vals) != length(area_vals)) {
+        stop(
+          "Geometry mismatch: ", sc$scenario, "\n",
+          "  Expected ", length(area_vals), " pixels, got ", length(r_vals)
+        )
       }
 
-      r <- rast(f_path)
-      compareGeom(area, r, stopOnError = TRUE)
+      ok <- is.finite(r_vals) & is.finite(area_vals) & area_vals > 0
 
-      ok <- (is.finite(area) & area > 0) & is.finite(r)
-      scenario_rows[[length(scenario_rows) + 1]] <- tibble(
+      # Unit conversion: relative trends are fractional (0-1), output as % per year
+      r_vals <- r_vals * 100
+
+      # Bootstrap CI for global mean (area-weighted)
+      ci <- bootstrap_ci_global(r_vals[ok], area_vals[ok], n_boot = 1000L, conf = 0.95)
+
+      scenario_results[[length(scenario_results) + 1]] <- tibble(
         variable = var,
         metric = met,
         scenario = sc$scenario,
         run_tag = sc$run_tag,
-        reltrend_pct_per_year = 100 * wmean_global_ok(r, ok),
-        area_km2 = area_ok_km2(ok)
+        reltrend_pct_per_year = ci$mean,
+        reltrend_ci_lower = ci$lower,
+        reltrend_ci_upper = ci$upper,
+        reltrend_ci_width = ci$width,
+        sig_flag = ci$sig,
+        area_km2 = sum(area_vals[ok], na.rm = TRUE),
+        n_pixels = sum(ok)
       )
     }
 
-    rows[[length(rows) + 1]] <- bind_rows(scenario_rows)
+    results[[length(results) + 1]] <- bind_rows(scenario_results)
   }
 }
 
-tab <- bind_rows(rows) |>
+tab <- bind_rows(results) |>
   mutate(
     variable = factor(variable, levels = vars),
     metric = factor(metric, levels = metrics),
-    scenario = factor(scenario, levels = scenario_order)
+    scenario = factor(scenario, levels = scenario_order(scenario_spec))
   ) |>
   arrange(variable, metric, scenario)
 
-# ---- tables  --------------------------------
-tab_main <- round_df(mk_table_yearmean(tab, "LAI"))
+# Output formatting and metadata
+format_table <- function(df) {
+  df |> mutate(across(starts_with("reltrend_"), ~ round(., 4)))
+}
+
+# Main table: LAI yearmean
+tab_main <- tab |>
+  filter(variable == "LAI", metric == "yearmean") |>
+  format_table()
 
 write_csv(
-  tab_main, file.path(
-    outdir, "table_global_mean_relative_trends_yearmean_LAI_overview.csv"
-  )
+  tab_main,
+  file.path(outdir, "table_global_mean_relative_trends_yearmean_LAI_overview.csv")
 )
+
+# Full overview
 write_csv(
-  round_df(tab), file.path(
-    outdir, "global_mean_relative_trends_long_overview.csv"
-  )
+  format_table(tab),
+  file.path(outdir, "global_mean_relative_trends_long_overview.csv")
 )
