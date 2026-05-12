@@ -1,75 +1,159 @@
 # Trend Workflows (trends)
 
-This folder contains standalone shell and R scripts for trend products,
-significance testing, and relative-trend calculations.
+Standalone scripts for computing OLS trends, Mann-Kendall significance, and relative trends on LAI/FPAR data at 0.25° resolution.
 
-You can run these scripts independently from the main Makefile pipeline when
-you want focused trend processing.
+## Quick Start
+
+**Unmasked trends** (one-time setup):
+```bash
+./01_build_georef_products.sh LAI 0p05
+./01_build_georef_products.sh FPAR 0p05
+```
+
+**Masked trends** (for specific mask combination):
+```bash
+./build_trends_masked_0p25.sh tau_0.1 LAI CCI
+```
+
+**Batch masked trends** (all combinations):
+```bash
+TAUS="0.05 0.1 0.2" VARS="LAI FPAR" MASKS="CCI GLC" bash ./02_batch_build_trends_masked.sh
+```
+
+
+## What These Scripts Do
+
+### 1. Convert GeoTIFFs to NetCDF
+Each script reads monthly GeoTIFFs from your masked input directories and converts them to a single monthly time series NetCDF file (1982–2024, ~504 timesteps).
+
+### 2. Compute Annual Metrics
+Four annual metrics are calculated from the monthly data:
+- **yearmean**: annual average
+- **yearmax**: annual maximum
+- **yearmin**: annual minimum
+- **yearamp**: range (max - min)
+
+### 3. OLS Trends
+Linear regression (using CDO's `trend` function) calculates:
+- Slope (change per year)
+- Intercept
+
+### 4. Relative Trends (%/year)
+Relative trend = (slope / temporal_mean) × 100, but only computed where the temporal mean exceeds a threshold:
+- LAI: EPS = 0.05
+- FPAR: EPS = 0.02
+- yearamp: EPS = 0.01
+
+This avoids division by near-zero values in non-vegetated pixels.
+
+### 5. Mann-Kendall Significance
+Pixel-wise Mann-Kendall test (using R package `trend`):
+- Tests whether each pixel shows a monotonic trend
+- Outputs p-value (no multiple comparison correction)
+- Significance at α = 0.05
 
 ## Scripts in this folder
 
-### build_georef_products.sh
+### 01_build_georef_products.sh
 
-Builds trend-ready products from unmasked georeferenced LAI/FPAR inputs.
+Builds unmasked georeferenced trend products: from raw GeoTIFFs through annual metrics, OLS trends, Mann-Kendall p-values, and relative trends.
 
-Example:
-
+**Usage (single variable):**
 ```bash
-./build_georef_products.sh LAI 0p05
-./build_georef_products.sh FPAR 0p05
+./01_build_georef_products.sh LAI 0p05
+./01_build_georef_products.sh FPAR 0p05
 ```
+
+**Usage (both variables in one pass):**
+```bash
+VARS="LAI FPAR" bash ./01_build_georef_products.sh 0p05
+```
+
+**Workflow:**
+1. Convert monthly GeoTIFFs (0.05°) → time-stamped NetCDF
+2. Compute annual metrics: yearmean, yearmax, yearmin, yearamp
+3. OLS trends: slope (per-year) and intercept for each metric
+4. Remap to 0.25°
+5. Mann-Kendall p-values (pixel-wise, unmasked)
+6. Relative trends: (slope / temporal_mean) × 100, only where mean ≥ EPS
+
+**Outputs** (in `analysis/unmasked/0p25/`):
+- Annual metrics: `*_georef_yearmean_0p25.nc`, etc.
+- Trends: `*_georef_yearmean_trend_slope_peryear_0p25.nc`, etc.
+- Relative trends: `*_georef_yearmean_trend_relative_peryear_0p25.nc`, etc.
+- Significance: `*_georef_yearmean_mk_pval_0p25.nc`, etc.
 
 ### build_trends_masked_0p25.sh
 
-Computes masked trend products at 0.25 degree for a specific run tag and mask
-source.
+Computes masked trend products at 0.25° for a specific run tag and mask source. Primary workflow for analysis.
 
-Example:
-
+**Usage:**
 ```bash
 ./build_trends_masked_0p25.sh tau_0.2 FPAR GLC
 ./build_trends_masked_0p25.sh tau_0.1 LAI CCI
 ```
 
-### generated_masked_trends.sh
+**Arguments:**
+- TAU: mask folder name (e.g., tau_0.1, tau_0.2)
+- VAR: LAI or FPAR
+- MASKTAG: CCI or GLC (mask source)
 
-Batch helper for generating masked trend products across multiple run/mask
-combinations.
+**Configuration (environment variables):**
+- `EPS_LAI`: relative trend threshold for LAI (default: 0.05)
+- `EPS_FPAR`: relative trend threshold for FPAR (default: 0.02)
+- `SNU_LAI_FPAR_ROOT`: override repo root (default: $HOME/GitHub/natural_LAI_FPAR)
 
-### make_relative_trends_georef.sh
+**Workflow:**
+1. GeoTIFF → monthly NetCDF: convert monthly GeoTIFFs to time-stamped NetCDF
+2. Annual metrics: compute yearmean, yearmax, yearmin, yearamp using CDO
+3. OLS trends: linear regression slope (per-year) and intercept for each metric
+4. Relative trends: slope / temporal_mean (only where mean ≥ EPS)
+5. MK significance: pixel-wise Mann-Kendall p-values (parallel)
 
-Creates relative-trend products from unmasked georeferenced 0.25 degree data.
+**Outputs** (in `output/<TAU>/eval/trend_<VAR>_<MASKTAG>/`):
+- Monthly: `<VAR>_masked_monthly_0p25.nc`
+- Annual metrics: `<VAR>_yearmean_0p25.nc` etc.
+- Absolute trends: `<VAR>_yearmean_trend_slope_peryear_0p25.nc` etc.
+- Relative trends: `<VAR>_yearmean_trend_relative_percent_peryear_0p25.nc` etc.
+- MK p-values: `<VAR>_yearmean_mk_pval_0p25.nc` etc.
+
+### 02_batch_build_trends_masked.sh
+
+Batch wrapper for generating masked trend products across multiple (TAU, VAR, MASKTAG) combinations.
+
+**Usage:**
+```bash
+TAUS="0.05 0.1 0.2" VARS="LAI FPAR" MASKS="CCI GLC" bash ./02_batch_build_trends_masked.sh
+```
+
+**Environment variables (optional):**
+- `TAUS`: space-separated list of tau values (default: "0.05 0.1 0.2")
+- `VARS`: space-separated list of variables (default: "LAI FPAR")
+- `MASKS`: space-separated list of mask sources (default: "CCI GLC")
 
 ### compute_mk_pval.R
 
-Computes pixel-wise Mann-Kendall p-values from annual stacks.
-Supports masked and unmasked modes.
+Computes pixel-wise Mann-Kendall p-values from annual stacks (called automatically by the main scripts).
 
-### mk_sig_mask.R
-
-Command-line utility that converts a time-series raster to a significance mask.
-
-Example:
-
-```bash
-Rscript mk_sig_mask.R in_ts.nc out_mask.nc alpha [mask.nc]
-```
+**Environment variables:**
+- `RUN_MODE`: masked or unmasked
+- `RUN_TAG`: tau folder (e.g., tau_0.1)
+- `MASK`: mask source (CCI or GLC, ignored if unmasked)
+- `VAR`: LAI or FPAR
+- `METRIC`: yearmean, yearmax, yearmin, or yearamp
 
 ## Common dependencies
 
-- cdo
-- gdal_translate
-- Rscript with terra and trend packages
+- `cdo` (Climate Data Operators)
+- `gdal_translate` (GDAL)
+- `Rscript` with packages: terra, here, trend
 
-## Typical use in this project
+## Important notes
 
-1. Build baseline unmasked trend products.
-2. Build masked 0.25 degree trends by run tag and mask source.
-3. Generate relative trends and MK significance products for diagnostics.
-
-## Notes
-
-- SNU_LAI_FPAR_ROOT can override the default repository root in scripts that
-	support it.
-- Relative-trend thresholds (for example EPS_LAI and EPS_FPAR) are configurable
-	via environment variables in shell workflows.
+- **Time series span**: 1982–2024 (39 years, ~504 monthly timesteps)
+- **Relative trend thresholds**: EPS_LAI=0.05, EPS_FPAR=0.02, EPS_yearamp=0.01
+  - Applied to avoid inflated relative trends where mean ≈ 0 (non-vegetated pixels)
+- **Mann-Kendall p-values**: Pixel-wise, no multiple-comparison correction
+  - Use for identifying individually significant pixels, not global significance claims
+- **SNU_LAI_FPAR_ROOT**: Override default repo root if needed
+- **Logging**: Each run creates a timestamped log in the output directory
