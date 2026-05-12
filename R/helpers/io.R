@@ -1,4 +1,3 @@
-
 ## =============================================================================
 ## io.R — Input/output utilities for reproducible GeoTIFF and metadata handling
 ## =============================================================================
@@ -51,4 +50,39 @@ wopt_f32 <- function(speed_over_size = FALSE, na = -9999) {
     NAflag   = as.numeric(na),
     gdal     = gdal_co_f32(speed_over_size)
   )
+}
+
+# ------------------------------------------------------------------------------
+# Trend file I/O
+# ------------------------------------------------------------------------------
+
+read_trend <- function(path, label = NULL) {
+  if (!file.exists(path)) {
+    stop("Trend file not found: ", path, if (!is.null(label)) paste0(" (", label, ")"))
+  }
+
+  r <- terra::rast(path)
+
+  if (terra::nlyr(r) != 1) {
+    stop("Expected single-layer raster in ", path, if (!is.null(label)) paste0(" (", label, ")"), ", got ", terra::nlyr(r))
+  }
+
+  terra::values(r, dataframe = FALSE)
+}
+
+trend_path_factory <- function(var, met, source, run_tag = NULL, is_relative = FALSE) {
+  if (source == "unmasked") {
+    suffix <- if (is_relative) "trend_relative_peryear" else "trend_slope_peryear"
+    file.path(
+      here::here("analysis", "unmasked", "0p25"),
+      sprintf("%s_georef_%s_%s_0p25.nc", var, met, suffix)
+    )
+  } else {
+    if (is.null(run_tag)) stop("run_tag required for ", source, " source")
+    suffix <- if (is_relative) "trend_relative_peryear" else "trend_slope_peryear"
+    file.path(
+      here::here("output", run_tag, "eval", sprintf("trend_%s_%s", var, source)),
+      sprintf("%s_%s_%s_0p25.nc", var, met, suffix)
+    )
+  }
 }
