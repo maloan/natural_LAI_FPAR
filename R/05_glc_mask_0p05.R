@@ -1,6 +1,6 @@
-## =============================================================================
+# =============================================================================
 # 05_glc_mask_0p05.R — Build “used ≥ N years” mask from GLC_FCS30D yearstack
-## =============================================================================
+# =============================================================================
 
 suppressPackageStartupMessages({
   library(terra)
@@ -62,17 +62,19 @@ stopifnot(nlyr(s) > 0)
 
 message(sprintf(
   "Year window for used-counts: %d..%d (%d years)",
-  year_1, year_2, nlyr(s)
+  year_1,
+  year_2,
+  nlyr(s)
 ))
 
 ncores <- opts$n_workers
 
-cnt_cropland <- app(s, function(v, vals) sum(v %in% vals, na.rm = TRUE),
-  vals = cropland_vals, cores = ncores
-)
-cnt_urban <- app(s, function(v, vals) sum(v %in% vals, na.rm = TRUE),
-  vals = urban_vals, cores = ncores
-)
+cnt_cropland <- app(s, function(v, vals) {
+  sum(v %in% vals, na.rm = TRUE)
+}, vals = cropland_vals, cores = ncores)
+cnt_urban <- app(s, function(v, vals) {
+  sum(v %in% vals, na.rm = TRUE)
+}, vals = urban_vals, cores = ncores)
 
 names(cnt_cropland) <- "cnt_cropland"
 names(cnt_urban) <- "cnt_urban"
@@ -82,25 +84,25 @@ used_byte <- ifel(cnt_total >= n_years, 1L, 0L)
 
 out_used <- file.path(
   masks_dir,
-  sprintf(
-    "mask_used_ge%d_%d-%d_0p05.tif",
-    n_years, year_1, year_2
-  )
+  sprintf("mask_used_ge%d_%d-%d_0p05.tif", n_years, year_1, year_2)
 )
 out_counts <- file.path(masks_dir, "glc_counts_crop_urban_0p05.tif")
 
 if (overwrite || !(skip_existing && file.exists(out_used))) {
-  writeRaster(used_byte, out_used,
+  writeRaster(
+    used_byte,
+    out_used,
     overwrite = TRUE,
     wopt = wopt_byte(opts$speed_over_size, na = 255L)
   )
 }
 if (overwrite || !(skip_existing && file.exists(out_counts))) {
-  writeRaster(c(cnt_cropland, cnt_urban), out_counts,
+  writeRaster(
+    c(cnt_cropland, cnt_urban),
+    out_counts,
     overwrite = TRUE,
     wopt = wopt_int(opts$speed_over_size)
   )
 }
 
 gc()
-message("Done")
