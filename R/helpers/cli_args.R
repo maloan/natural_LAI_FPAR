@@ -1,23 +1,10 @@
 # =============================================================================
-# cli_args.R — Parse command-line arguments in key=value format
+# cli_args.R — Command-line argument parsing and scenario specification
 # =============================================================================
 
-#' Parse and validate command-line arguments
-#'
-#' Converts command-line arguments in key=value format to a named list,
-#' validating against a provided defaults list. Applies type conversions
-#' based on known parameter names (logical, integer, numeric).
-#'
-#' @param defaults Named list with default values and target types.
-#'                 Keys must match argument names; values define types.
-#'
-#' @return Updated list with command-line values overriding defaults.
-#'
-#' @examples
-#' defaults <- list(var = "LAI", mask = "CCI", overwrite = FALSE)
-#' cfg <- parse_cli_args(defaults) # Called with: Rscript script.R var=FPAR overwrite=TRUE
-#'
 parse_cli_args <- function(defaults) {
+  # Parse command-line arguments in key=value format and return a named list of
+  # values.
   args <- commandArgs(trailingOnly = TRUE)
   if (!length(args)) {
     return(defaults)
@@ -27,7 +14,10 @@ parse_cli_args <- function(defaults) {
   ok <- lengths(kv) == 2
   if (!all(ok)) {
     bad <- args[!ok]
-    stop("Invalid argument(s); use key=value format: ", paste(bad, collapse = ", "))
+    stop(
+      "Invalid argument(s); use key=value format: ",
+      paste(bad, collapse = ", ")
+    )
   }
 
   vals <- defaults
@@ -53,4 +43,21 @@ parse_cli_args <- function(defaults) {
   vals$top_n <- suppressWarnings(as.numeric(vals$top_n))
   vals$top_n3 <- suppressWarnings(as.numeric(vals$top_n3))
   vals
+}
+
+create_scenario_spec <- function(cci_taus = c("tau_0.05", "tau_0.1", "tau_0.2"),
+                                 glc_run_tag = "tau_0.1") {
+  # Create a tibble of scenario specifications for the analysis.
+  tibble::tibble(
+    scenario = c("Unmasked", sprintf("CCI tau=%s", sub(
+      "tau_", "", cci_taus
+    )), "GLC"),
+    source = c("unmasked", rep("CCI", length(cci_taus)), "GLC"),
+    run_tag = c(NA_character_, cci_taus, glc_run_tag)
+  )
+}
+
+scenario_order <- function(scenario_spec) {
+  # Return the order of scenarios for plotting and analysis.
+  as.character(scenario_spec$scenario)
 }
