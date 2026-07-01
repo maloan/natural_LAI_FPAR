@@ -1,15 +1,13 @@
-## =============================================================================
+# =============================================================================
 # 11_agg_0p25.R — Area-weighted aggregation of masked LAI/FPAR (0.05° → 0.25°)
-## =============================================================================
+# =============================================================================
 
 suppressPackageStartupMessages({
   library(terra)
   library(here)
 })
 
-# --- repo helpers --------------------------------------------------------------
-source(here("R", "helpers", "paths.R"))
-source(here("R", "helpers", "files.R"))
+
 source(here("R", "helpers", "netcdf.R"))
 source(here("R", "helpers", "io.R"))
 source(here("R", "helpers", "options.R"))
@@ -20,15 +18,13 @@ opts <- opts_read()
 
 terraOptions(progress = 1, memfrac = 0.25)
 
-# ------------------------------------------------------------------------------
-# Env
-# ------------------------------------------------------------------------------
+
 skip_existing <- as_bool(Sys.getenv("skip_existing"), default = TRUE)
 overwrite <- as_bool(Sys.getenv("overwrite"), default = FALSE)
 remake_ql <- as_bool(Sys.getenv("remake_ql"), default = FALSE)
 
-var <- toupper(Sys.getenv("var", "LAI")) # LAI|FPAR
-mask <- toupper(Sys.getenv("mask", "CCI")) # CCI|GLC
+var <- toupper(Sys.getenv("var", "LAI")) # allowed values: LAI or FPAR
+mask <- toupper(Sys.getenv("mask", "CCI")) # allowed values: CCI or GLC
 if (!var %in% c("LAI", "FPAR")) {
   stop_msg("Unsupported var: ", var, ". Use LAI or FPAR")
 }
@@ -36,18 +32,15 @@ if (!mask %in% c("CCI", "GLC")) {
   stop_msg("Unsupported mask: ", mask, ". Use CCI or GLC")
 }
 
-# ------------------------------------------------------------------------------
+
 # Refs and weights
-# ------------------------------------------------------------------------------
 ref005 <- rast(cfg$grids$grid_005$ref_raster)
 ref025 <- rast(cfg$grids$grid_025$ref_raster)
 area005 <- rast(cfg$grids$grid_005$area_raster)
 
 area005 <- align_to_template(area005, ref005, method = "bilinear")
 
-# ------------------------------------------------------------------------------
 # dirs
-# ------------------------------------------------------------------------------
 key_in <- sprintf("masked_%s_%s_0p05_dir", tolower(var), tolower(mask))
 key_out <- sprintf("masked_%s_%s_0p25_dir", tolower(var), tolower(mask))
 
@@ -64,16 +57,13 @@ dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 qdir <- file.path(out_dir, "quicklooks")
 dir.create(qdir, recursive = TRUE, showWarnings = FALSE)
 
-# ------------------------------------------------------------------------------
+
 # inputs
-# ------------------------------------------------------------------------------
 stopifnot(dir.exists(in_dir))
 files <- sort(list.files(in_dir, pattern = patt, full.names = TRUE))
 stopifnot(length(files) > 0L)
 
-# ------------------------------------------------------------------------------
 # Aggregation loop
-# ------------------------------------------------------------------------------
 for (f in files) {
   ym <- extract_ym_from_filename(f)
   out <- file.path(out_dir, sprintf("%s_masked_%s_0p25.tif", var, ym))
@@ -84,15 +74,25 @@ for (f in files) {
       qdir, sprintf("quicklook_%s_0p25_%s.png", ql_title, ym)
     )))
 
-  if (!do_write && !do_ql) next
+  if (!do_write && !do_ql) {
+    next
+  }
 
   if (do_write) {
     r <- rast(f)
     r <- align_to_template(r, ref005, method = "bilinear")
 
     # numerator/denominator (area-weighted mean, handling NA)
-    num <- aggregate(r * area005, fact = 5, fun = "sum", na.rm = TRUE)
-    den <- aggregate((!is.na(r)) * area005, fact = 5, fun = "sum", na.rm = TRUE)
+    num <- aggregate(r * area005,
+      fact = 5,
+      fun = "sum",
+      na.rm = TRUE
+    )
+    den <- aggregate((!is.na(r)) * area005,
+      fact = 5,
+      fun = "sum",
+      na.rm = TRUE
+    )
     r025 <- ifel(den == 0, NA, num / den)
     r025 <- align_to_template(r025, ref025, method = "near")
 
@@ -119,4 +119,3 @@ for (f in files) {
 }
 
 gc()
-message("Aggregated monthly ", var, " written to: ", out_dir)
