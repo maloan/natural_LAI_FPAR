@@ -4,7 +4,7 @@
 # Batch wrapper for build_trends_masked_0p25.sh
 # Generates masked trend products for multiple (TAU, VAR, MASKTAG) combinations
 #
-# Usage
+# Usage:
 #   TAUS="0.05 0.1 0.2" VARS="LAI FPAR" MASKS="CCI GLC" bash ./02_batch_build_trends_masked.sh
 #
 # Environment variables (optional)
@@ -12,7 +12,6 @@
 #   VARS:  space-separated list of variables (default: "LAI FPAR")
 #   MASKS: space-separated list of mask sources (default: "CCI GLC")
 # ==============================================================================
-#!/usr/bin/env bash
 
 set -euo pipefail
 ROOT="${SNU_LAI_FPAR_ROOT:-$HOME/GitHub/natural_LAI_FPAR}"
