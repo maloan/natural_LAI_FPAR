@@ -1,23 +1,13 @@
 # Natural LAI / FPAR Pipeline Vignette
 
-This vignette gives a short tour of the workflow used in this repository.
-The aim is to build LAI and FPAR products that reflect natural vegetation by
-masking out land-use dominated areas before aggregation and analysis.
-
-## Why it matters
-
-Satellite vegetation data mixes climate responses with land-use effects.
-If those signals are analyzed together, it is hard to tell what is driving a
-trend. This pipeline separates them by applying land-cover masks first.
-
-## In plain terms
+This vignette gives a short tour of the workflow used in this repository. The aim is to build LAI and FPAR products that reflect natural vegetation by masking out land-use dominated areas before aggregation and analysis. Satellite vegetation data mixes climate responses with land-use effects. If those signals are analyzed together, it is hard to tell what is driving a trend. This pipeline separates them by applying land-cover masks first.
 
 The workflow does four things:
 
-1. prepares shared reference grids,
-2. georeferences monthly LAI and FPAR,
-3. builds and applies land-use masks,
-4. aggregates and analyzes the masked products.
+1.  prepares shared reference grids,
+2.  georeferences monthly LAI and FPAR,
+3.  builds and applies land-use masks,
+4.  aggregates and analyzes the masked products.
 
 Two independent masking branches are used:
 
@@ -32,8 +22,7 @@ Both are applied at 0.05 degree, then aggregated to 0.25 degree for analysis.
 
 Script: [R/00_setup.R](../R/00_setup.R)
 
-This creates the reference grids, area rasters, and project configuration.
-Run it once for each run tag.
+This creates the reference grids, area rasters, and project configuration. Run it once for each run tag.
 
 ### 2. Georeference LAI and FPAR
 
@@ -79,8 +68,7 @@ These produce the analysis-ready 0.25 degree products.
 
 Trend scripts live in [trends/](../trends/).
 
-Typical outputs include annual summaries, trend slopes, significance tests,
-masked vs unmasked comparisons, and zonal or regional summaries.
+Typical outputs include annual summaries, trend slopes, significance tests, masked vs unmasked comparisons, and zonal or regional summaries.
 
 ## Where outputs go
 
@@ -94,38 +82,35 @@ Outputs are grouped by run tag, such as `tau_0.1` or `tau_0.2`.
 
 From [R/](../R/):
 
-```bash
+``` bash
 make pipeline
 ```
 
 To include the analysis steps:
 
-```bash
+``` bash
 make analysis
 ```
 
 To use only one masking branch:
 
-```bash
+``` bash
 make pipeline MASKS=CCI
 make pipeline MASKS=GLC
-make pipeline run_tag=tau_0.1
+make pipeline RUN_TAG=tau_0.1
 ```
 
 To regenerate quicklooks:
 
-```bash
+``` bash
 make ql
 ```
 
 ## Customization
 
-Most project settings live in [config/config.yml](../config/config.yml).
-Common changes are run tags, year ranges, AOIs, mask thresholds, and class
-mappings.
+Most project settings live in [config/config.yml](../config/config.yml). Common changes are run tags, year ranges, AOIs, mask thresholds, and class mappings.
 
-If you change those settings, rerun setup and any downstream steps that depend
-on them.
+If you change those settings, rerun setup and any downstream steps that depend on them.
 
 ## Further reading
 
@@ -137,4 +122,4 @@ on them.
 - [analysis/README.md](../analysis/README.md)
 - [trends/README.md](../trends/README.md)
 
-Last updated: 2026-04-14
+Last updated: 2026-07-01
