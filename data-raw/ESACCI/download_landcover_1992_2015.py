@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-import os, time
+"""Download ESA CCI land-cover archives for 1992-2015 with retry logic."""
+import os
+import time
+
 import cdsapi
 
 OUTDIR = "./ESACCI_1992-2020"
 os.makedirs(OUTDIR, exist_ok=True)
 
-YEARS   = range(2000, 2016)   # 1992..2015
+YEARS   = range(1992, 2016)   # 1992..2015
 VERSION = "v2_0_7cds"
 DATASET = "satellite-land-cover"
 MAX_RETRY = 5

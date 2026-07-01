@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-import os, time
+"""Download ESA CCI land-cover archives for 2016-2022 with retry logic."""
+
+import os
+import time
+
 import cdsapi
 
 OUTDIR = "./ESACCI_1992-2020"
