@@ -1,14 +1,12 @@
-## =============================================================================
+# =============================================================================
 # 10_apply_mask_0p05.R — Apply drop masks to monthly LAI/FPAR at 0.05°
-## =============================================================================
+# =============================================================================
 
 suppressPackageStartupMessages({
   library(terra)
   library(here)
 })
 
-source(here("R", "helpers", "paths.R"))
-source(here("R", "helpers", "files.R"))
 source(here("R", "helpers", "netcdf.R"))
 source(here("R", "helpers", "plotting.R"))
 source(here("R", "helpers", "io.R"))
@@ -87,12 +85,19 @@ drop_mask <- align_to_template(drop_mask, ref005, method = "near")
 stopifnot(compareGeom(drop_mask, ref005, stopOnError = FALSE))
 
 combine_or <- function(a, b) {
+  # Combine two masks (0/1/NA) using logical OR, returning a new mask
   b <- align_to_template(b, a, method = "near")
-  app(c(a, b), fun = function(v) as.integer(any(v >= 1, na.rm = TRUE)))
+  app(
+    c(a, b),
+    fun = function(v) {
+      as.integer(any(v >= 1, na.rm = TRUE))
+    }
+  )
 }
 
 nonveg_dir <- file.path(cfg$paths$masks_root_dir, "mask_nonvegetated")
-nonveg_path <- list.files(nonveg_dir, "mask_nonvegetated_CCI_2007_.*_0p05\\.tif$",
+nonveg_path <- list.files(nonveg_dir,
+  "mask_nonvegetated_CCI_2007_.*_0p05\\.tif$",
   full.names = TRUE
 )
 nonveg <- rast(nonveg_path[order(file.info(nonveg_path)$mtime, decreasing = TRUE)][1])
@@ -102,7 +107,12 @@ drop_mask <- combine_or(drop_mask, nonveg)
 luh_dir <- file.path(cfg$paths$masks_root_dir, "mask_luh_overlap")
 luh_rx <- sprintf(
   "mask_luh_overlap_%s_Gmin%s_Pmin%s_alpha%s_%d-%d_0p05_rep\\.tif$",
-  mask_kind, tok(g_min), tok(p_min), tok(alpha), year_1, year_2
+  mask_kind,
+  tok(g_min),
+  tok(p_min),
+  tok(alpha),
+  year_1,
+  year_2
 )
 luh_path <- find_one(luh_dir, luh_rx, label = "LUH overlap mask")
 luh <- rast(luh_path)
@@ -114,7 +124,9 @@ if (inherits(vals_ok, "try-error") || !isTRUE(vals_ok)) {
 
 mask_combined_path <- file.path(out_dir, "combined_mask_0p05.tif")
 if (!file.exists(mask_combined_path) || overwrite) {
-  writeRaster(drop_mask, mask_combined_path,
+  writeRaster(
+    drop_mask,
+    mask_combined_path,
     overwrite = TRUE,
     wopt = wopt_byte(opts$speed_over_size, na = 255L)
   )
@@ -123,7 +135,8 @@ drop_mask <- rast(here("output", "tau_  ")) # sanity check
 plot(drop_mask, main = sprintf("Combined mask (%s)", mask_kind))
 files <- sort(list.files(
   in_dir,
-  pattern = paste0("^", var, "_\\d{6}_0p05\\.tif$"), full.names = TRUE
+  pattern = paste0("^", var, "_\\d{6}_0p05\\.tif$"),
+  full.names = TRUE
 ))
 stopifnot(length(files) > 0L)
 
@@ -138,10 +151,13 @@ for (f in files) {
   r <- rast(f)
 
   if (do_write) {
-    r_masked <- terra::mask(r, drop_mask, maskvalues = 1, updatevalue = NA)
+    r_masked <- terra::mask(r,
+      drop_mask,
+      maskvalues = 1,
+      updatevalue = NA
+    )
     writeRaster(r_masked, out, overwrite = TRUE, wopt = wopt)
   }
 }
 
 gc()
-message("Masked ", var, " written to: ", out_dir)
