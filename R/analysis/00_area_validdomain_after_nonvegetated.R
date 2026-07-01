@@ -1,6 +1,6 @@
 # ==============================================================================
-# Area valid-domain summary after non-vegetated masking
-# Create valid-domain area rasters after non-vegetated masking (0.05° and 0.25°)
+# 00_area_validdomain_after_nonvegetated.R — Create valid-domain area rasters
+# after non-vegetated masking (0.05° and 0.25°)
 # ==============================================================================
 
 suppressPackageStartupMessages({
@@ -10,24 +10,19 @@ suppressPackageStartupMessages({
   library(here)
 })
 
-source(here("R", "helpers", "files.R"))
+source(here("R", "helpers", "io.R"))
 
 outdir <- here("analysis", "results", "tables", "masks")
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
 area_005 <- here("src", "area_0p05_km2.nc")
-run_tag <- Sys.getenv("run_tag", "tau_0.1")
-
-mask_dir <- here("output", run_tag, "masks", "mask_nonvegetated")
-mask_nonveg <- find_one(
-  mask_dir,
-  "mask_nonvegetated_CCI_2007_.*_0p05\\.tif$",
-  label = "nonvegetated mask"
+mask_nonveg <- here(
+  "output",
+  "tau_0.1",
+  "masks",
+  "mask_nonvegetated",
+  "mask_nonvegetated_CCI_2007_tauW0p05_tauI0p05_0p05.tif"
 )
-
-if (!file.exists(area_005)) {
-  stop("Missing area raster: ", area_005)
-}
 
 area <- rast(area_005)[[1]]
 m_nonveg <- rast(mask_nonveg)[[1]]
@@ -36,9 +31,9 @@ compareGeom(m_nonveg, area, stopOnError = TRUE)
 area_sum <- function(cond) {
   global(ifel(cond, area, NA), "sum", na.rm = TRUE)[1, 1] |> as.numeric()
 }
-
 support_dom <- is.finite(area) & (area > 0)
-m_nonveg[is.na(m_nonveg)] <- 0
+nonveg_excl <- support_dom & (m_nonveg == 1)
+land_dom <- support_dom & !nonveg_excl & is.finite(m_nonveg)
 nonveg_excl <- (m_nonveg == 1)
 land_dom <- support_dom & !nonveg_excl
 
@@ -54,19 +49,24 @@ tbl_nonveg <- tibble(
   land_after_nonvegetated_pct_of_support = 100 * (area_land_after_nonveg / area_support)
 )
 
-write_csv(tbl_nonveg, file.path(outdir, "domain_nonvegetated_0p05.csv"))
-
 area_valid_005 <- area
 area_valid_005[!land_dom] <- NA
+area_valid_025 <- aggregate(area_valid_005,
+  fact = 5,
+  fun = "sum",
+  na.rm = TRUE
+)
+area_valid_025[area_valid_025 == 0] <- NA
 
+# Write files
+write_csv(
+  round_numeric(tbl_nonveg, 5),
+  file.path(outdir, "domain_nonvegetated_0p05.csv")
+)
 writeCDF(area_valid_005,
   here("src", "area_0p05_validdomain_km2.nc"),
   overwrite = TRUE
 )
-
-area_valid_025 <- aggregate(area_valid_005, fact = 5, fun = "sum", na.rm = TRUE)
-area_valid_025[area_valid_025 == 0] <- NA
-
 writeCDF(area_valid_025,
   here("src", "area_0p25_validdomain_km2.nc"),
   overwrite = TRUE
