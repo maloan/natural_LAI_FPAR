@@ -1,8 +1,6 @@
 # ==============================================================================
-# compute_mk_pval.R
-# Pixelwise Mann–Kendall p-values for annual-mean (or other) time series stacks.
-# Compute p-value of monotonic trend (Mann–Kendall) for each pixel in a
-# SpatRaster time stack, writing a single-layer NetCDF.
+# compute_mk_pval.R — Compute Mann–Kendall p-value for each pixel in a time
+# stack.
 # ==============================================================================
 
 suppressPackageStartupMessages({
@@ -11,7 +9,7 @@ suppressPackageStartupMessages({
   library(trend)
 })
 
-# ---- config
+# config
 mode <- Sys.getenv("RUN_MODE", "masked")
 var <- Sys.getenv("VAR", "LAI")
 metric <- Sys.getenv("METRIC", "yearmax")
@@ -26,7 +24,7 @@ if (!mode %in% c("masked", "unmasked")) {
   stop("mode must be 'masked' or 'unmasked', got: ", mode)
 }
 
-# ---- paths
+#  paths
 if (mode == "unmasked") {
   f_ts <- here(
     "analysis", "unmasked", "0p25",
@@ -52,10 +50,8 @@ if (mode == "unmasked") {
 if (!file.exists(f_ts)) stop("Input time stack not found: ", f_ts)
 dir.create(dirname(out_p), recursive = TRUE, showWarnings = FALSE)
 
-message("Input : ", f_ts)
-message("Output: ", out_p)
 
-# ---- load & prep -------------------------------------------------------------
+#  load & prep
 r <- terra::rast(f_ts)
 
 if (terra::nlyr(r) < 3) {
@@ -66,8 +62,9 @@ if (is.finite(fill_value)) {
   r[r == fill_value] <- NA
 }
 
-# ---- pixel function (Mann–Kendall p-value)
+
 mk_p_fun <- function(y) {
+  # compute Mann–Kendall p-value for a single pixel time series
   ok <- is.finite(y)
   yy <- y[ok]
   n <- length(yy)
@@ -83,7 +80,7 @@ mk_p_fun <- function(y) {
   out
 }
 
-# ---- compute & write
+# run computation and write output
 pval <- terra::app(r, mk_p_fun)
 names(pval) <- "pval_mk"
 
