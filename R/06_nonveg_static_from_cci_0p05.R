@@ -1,14 +1,14 @@
-## =============================================================================
-# Step 06 — Build non-vegetated mask for one year (0.05°)
-## =============================================================================
+# =============================================================================
+# 06_nonveg_static_from_cci_0p05.R — Build non-vegetated mask for one year
+# (0.05°)
+# =============================================================================
 
 suppressPackageStartupMessages({
   library(terra)
   library(here)
 })
 
-source(here("R", "helpers", "paths.R"))
-source(here("R", "helpers", "files.R"))
+
 source(here("R", "helpers", "netcdf.R"))
 source(here("R", "helpers", "io.R"))
 source(here("R", "helpers", "options.R"))
@@ -32,9 +32,15 @@ dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 tau_w_tok <- gsub("\\.", "p", sprintf("%.2f", tau_water))
 tau_i_tok <- gsub("\\.", "p", sprintf("%.2f", tau_ice))
 
-out_tif <- file.path(out_dir, sprintf(
-  "mask_nonvegetated_CCI_%d_tauW%s_tauI%s_0p05.tif", year, tau_w_tok, tau_i_tok
-))
+out_tif <- file.path(
+  out_dir,
+  sprintf(
+    "mask_nonvegetated_CCI_%d_tauW%s_tauI%s_0p05.tif",
+    year,
+    tau_w_tok,
+    tau_i_tok
+  )
+)
 
 if (skip_existing && file.exists(out_tif)) {
   message("✓ Non-vegetated mask already exists — skipping: ", out_tif)
@@ -46,7 +52,7 @@ vals_water <- as.integer(unlist(esa_cci$water))
 vals_ice <- as.integer(unlist(esa_cci$snow_ice))
 nodata_vals <- unique(c(as.integer(unlist(esa_cci$nodata)), 255L))
 
-# --- input for year ---
+#  input for year
 files <- list.files(cci_dir, pattern = "\\.tif$", full.names = TRUE)
 basenames <- basename(files)
 
@@ -82,9 +88,14 @@ both_drop <- ifel(water_drop & ice_drop, 1L, 0L)
 nonveg_mask_combined <- ifel(water_drop | ice_drop, 1L, 0L)
 
 # Write component rasters
-writeRaster(c(water_drop, ice_drop, both_drop, nonveg_mask_combined),
-  file.path(out_dir, sprintf("nonvegetated_components_%d_0p05.tif", year)),
-  overwrite = TRUE, wopt = wopt_byte(FALSE, na = 255L)
+writeRaster(
+  c(water_drop, ice_drop, both_drop, nonveg_mask_combined),
+  file.path(
+    out_dir,
+    sprintf("nonvegetated_components_%d_0p05.tif", year)
+  ),
+  overwrite = TRUE,
+  wopt = wopt_byte(FALSE, na = 255L)
 )
 
 # Write final combined mask
