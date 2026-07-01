@@ -1,21 +1,16 @@
 # Natural LAI / FPAR Processing Pipeline
 
-This repository builds global natural-vegetation LAI and FPAR products from
-satellite observations.
+This repository builds global natural-vegetation LAI and FPAR products from satellite observations.
 
-The main idea is simple: remove areas dominated by human land use first, then
-analyze trends on the remaining natural-vegetation signal.
-
-Masks from ESA-CCI/C3S and GLC_FCS30D are applied at 0.05 degree, and products
+The main idea is: remove areas dominated by human land use first, then
+analyze trends on the remaining natural-vegetation signal. Masks from ESA-CCI/C3S and GLC_FCS30D are applied at 0.05 degree, and products
 are aggregated with area weighting to coarser grids for analysis.
 
 ## Why this workflow exists
 
 Observed vegetation trends mix climate-driven ecosystem responses with land-use
 effects (cropland expansion, urbanization, management). For attribution and
-evaluation work, those signals need to be separated.
-
-This pipeline focuses on that separation by masking anthropogenic land cover
+evaluation work, those signals need to be separated. This pipeline focuses on that separation by masking anthropogenic land cover
 before trend estimation.
 
 ## Main outputs
@@ -41,17 +36,6 @@ src/          Static reference grids and auxiliary files
 vignettes/    Extended documentation
 ```
 
-## Pipeline at a glance
-
-1. Setup reference grids and metadata (00_setup.R).
-2. Georeference monthly LAI/FPAR (01_georef_0p05.R).
-3. Prepare land-cover inputs (02_cci_frac_0p05.R, 04_glc_stack_0p05.R).
-4. Build masks (03_cci_mask_0p05.R, 05_glc_mask_0p05.R,
-    06_nonveg_static_from_cci_0p05.R).
-5. Apply masks and aggregate (10_apply_mask_0p05.R,
-   11_agg_0p25.R and 11_agg_0p5.R).
-6. Run trend and diagnostic analysis scripts in R/analysis/.
-
 ## Quick start
 
 Set project root (optional):
@@ -71,7 +55,7 @@ Useful variants:
 
 ```bash
 make pipeline MASKS=CCI
-make pipeline run_tag=tau_0.2
+make pipeline RUN_TAG=tau_0.2
 make ql
 ```
 

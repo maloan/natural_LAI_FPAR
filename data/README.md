@@ -1,8 +1,6 @@
 # Intermediate Processed Data (data)
 
 This folder stores the cleaned, harmonized intermediate products used by the LAI/FPAR workflow.
-Think of it as the handoff point between raw inputs and the analysis pipeline.
-
 Everything here is generated from data-raw and should not be edited by hand.
 
 ## Directory Layout

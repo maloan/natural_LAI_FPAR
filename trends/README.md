@@ -24,7 +24,7 @@ TAUS="0.05 0.1 0.2" VARS="LAI FPAR" MASKS="CCI GLC" bash ./02_batch_build_trends
 ## What These Scripts Do
 
 ### 1. Convert GeoTIFFs to NetCDF
-Each script reads monthly GeoTIFFs from your masked input directories and converts them to a single monthly time series NetCDF file (1982–2024, ~504 timesteps).
+Each script reads monthly GeoTIFFs from the masked input directories and converts them to a single monthly time series NetCDF file (1982–2024, 516 timesteps).
 
 ### 2. Compute Annual Metrics
 Four annual metrics are calculated from the monthly data:
@@ -147,13 +147,3 @@ Computes pixel-wise Mann-Kendall p-values from annual stacks (called automatical
 - `cdo` (Climate Data Operators)
 - `gdal_translate` (GDAL)
 - `Rscript` with packages: terra, here, trend
-
-## Important notes
-
-- **Time series span**: 1982–2024 (39 years, ~504 monthly timesteps)
-- **Relative trend thresholds**: EPS_LAI=0.05, EPS_FPAR=0.02, EPS_yearamp=0.01
-  - Applied to avoid inflated relative trends where mean ≈ 0 (non-vegetated pixels)
-- **Mann-Kendall p-values**: Pixel-wise, no multiple-comparison correction
-  - Use for identifying individually significant pixels, not global significance claims
-- **SNU_LAI_FPAR_ROOT**: Override default repo root if needed
-- **Logging**: Each run creates a timestamped log in the output directory

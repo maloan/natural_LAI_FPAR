@@ -1,8 +1,3 @@
----
-editor_options: 
-  markdown: 
-    wrap: 72
----
 
 # R Processing and Analysis Pipeline for Natural LAI / FPAR
 
@@ -46,7 +41,7 @@ R/
 ├── 10_apply_mask_0p05.R
 ├── 11_agg_0p25.R
 ├── 11_agg_0p5.R
-├── 12_make_lc025_majority.R
+├── 12_make_lc025_fractions.R
 ├── Makefile
 ├── analysis/
 └── helpers/
@@ -69,9 +64,8 @@ R/
 - 02_cci_frac_0p05.R: Builds fractional cover layers from ESA-CCI/C3S.
 - 04_glc_stack_0p05.R: Harmonizes and stacks GLC_FCS30D maps on the project
   grid.
-- 12_make_lc025_majority.R: Generates 0.25° landcover majority maps from annual
-  ESACCI data (1992-2020) for trend analysis by land-cover class. Auto-triggered
-  by analysis scripts if needed.
+- 12_make_lc025_fractions.R: Generates annual 0.25° land-cover fraction products
+  from ESACCI classes (1992-2020), used by downstream land-cover trend analysis. Auto-triggered by analysis scripts if needed.
 
 ### Mask construction
 
@@ -97,9 +91,7 @@ Mask convention is consistent across scripts:
 ## Helpers
 
 The helper scripts in helpers/ are shared utilities and are not intended to be
-run directly.
-
-They cover common tasks like file I/O, NetCDF handling, options parsing,
+run directly. They cover common tasks like file I/O, NetCDF handling, options parsing,
 visualization helpers, and utility wrappers used throughout the pipeline.
 
 ## Makefile Usage
@@ -110,7 +102,9 @@ Run from this folder:
 make analysis
 ```
 
-This runs the full chain from setup through analysis.
+This runs the full data pipeline and then executes
+`analysis/00_area_validdomain_after_nonvegetated.R`.
+Run additional scripts in `R/analysis/` as needed for specific figures/tables.
 
 Common targets:
 
@@ -119,8 +113,3 @@ make pipeline
 make pipeline MASKS=CCI
 make ql
 ```
-
-Common variables:
-
-- RUN_TAG: output namespace, for example tau_0.2.
-- MASKS: mask source selection (CCI, GLC, or both).
