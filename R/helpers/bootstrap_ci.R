@@ -1,156 +1,184 @@
-## =============================================================================
-## bootstrap_ci.R — Standardized confidence interval calculation
-##
-## This module provides unified bootstrap CI functions used across analysis
-## scripts. All functions use weighted resampling with replacement (Bayesian
-## bootstrap) to account for spatial variation and area weighting in trend
-## statistics.
-##
-## Methods:
-##   - Global weighted mean CI: bootstrap_ci_global()
-##   - By-class CI: bootstrap_ci_by_class()
-##
-## Statistical notes:
-##   - Bootstrap uses area-weighted resampling with replacement (n = n)
-##   - Confidence intervals are percentile-based (quantile type = 7)
-##   - Fixed seed (42) ensures reproducibility across runs
-##   - Default: n_boot = 1000, conf = 0.95 (adjust as needed)
-##   - Significance: CI spans zero ⟹ not significant (* flag if CI > 0)
-## =============================================================================
+# =============================================================================
+# bootstrap_ci.R — Spatial block bootstrap confidence intervals for weighted
+# means
+# =============================================================================
 
-# Global weighted mean bootstrap confidence interval
-# Args:
-#   x: numeric vector of values (e.g., trend coefficients)
-#   w: numeric vector of weights (e.g., area in km²)
-#   n_boot: number of bootstrap samples
-#   conf: confidence level (0.95 = 95% CI)
-# Returns: list with mean, lower, upper, width, sig flag
-bootstrap_ci_global <- function(x, w, n_boot = 1000L, conf = 0.95) {
-  if (length(x) != length(w)) {
-    stop("Length of x and w must match")
+library(dplyr)
+
+make_block_id <- function(area_raster, block_size_deg = 5) {
+  # Create a spatial block ID for each pixel in the raster based on its
+  # geographic coordinates.
+  xy <- terra::crds(area_raster, df = TRUE, na.rm = FALSE)
+  block_lon <- floor((xy[, 1] + 180) / block_size_deg)
+  block_lat <- floor((xy[, 2] + 90) / block_size_deg)
+  as.character(paste(block_lon, block_lat, sep = "_"))
+}
+# -------------------------------------------------------------------------
+# Spatial block bootstrap for one weighted mean
+# -------------------------------------------------------------------------
+bootstrap_ci_global <- function(x,
+                                w,
+                                block_id,
+                                n_boot = 1000L,
+                                conf = 0.95) {
+  # Compute a spatial block bootstrap confidence interval for a weighted mean of
+  # x with weights w, using block_id to define spatial blocks.
+  if (!(length(x) == length(w) &&
+    length(x) == length(block_id))) {
+    stop("x, w and block_id must have equal length.")
   }
 
-  ok <- is.finite(x) & is.finite(w) & w > 0
-  x_ok <- x[ok]
-  w_ok <- w[ok]
-  n <- length(x_ok)
-
-  if (n < 2) {
-    return(list(
-      mean = NA_real_,
-      lower = NA_real_,
-      upper = NA_real_,
-      width = NA_real_,
-      sig = "",
-      n_eff = n
-    ))
+  # Keep only valid weighted observations in valid spatial blocks.
+  ok <- is.finite(x) & is.finite(w) & w > 0 & !is.na(block_id)
+  dat <- data.frame(x = x[ok], w = w[ok], block = block_id[ok])
+  if (nrow(dat) == 0) {
+    return(
+      list(
+        mean  = NA_real_,
+        lower = NA_real_,
+        upper = NA_real_,
+        width = NA_real_,
+        sig   = "",
+        n_eff = 0L
+      )
+    )
   }
-
-  # Normalize weights for probability resampling
-  w_norm <- w_ok / sum(w_ok, na.rm = TRUE)
-
-  # Bootstrap resampling with replacement
-  boot_means <- numeric(n_boot)
-  set.seed(42)
-
+  blocks <- unique(dat$block)
+  n_blocks <- length(blocks)
+  if (n_blocks < 2) {
+    return(
+      list(
+        mean  = weighted.mean(dat$x, dat$w),
+        lower = NA_real_,
+        upper = NA_real_,
+        width = NA_real_,
+        sig   = "",
+        n_eff = n_blocks
+      )
+    )
+  }
+  # Build an index of rows per block for efficient resampling.
+  make_block_index <- function(block_id) {
+    split(seq_along(block_id), block_id)
+  }
+  set.seed(26)
+  block_idx <- make_block_index(dat$block)
+  boot_est <- numeric(n_boot)
   for (i in seq_len(n_boot)) {
-    idx <- sample.int(n, size = n, replace = TRUE, prob = w_norm)
-    boot_means[i] <- sum(x_ok[idx] * w_ok[idx]) / sum(w_ok[idx])
+    sampled_blocks <- sample(names(block_idx), n_blocks, replace = TRUE)
+    idx <- unlist(block_idx[sampled_blocks], use.names = FALSE)
+    boot_est[i] <- weighted.mean(dat$x[idx], dat$w[idx])
   }
-
   alpha <- (1 - conf) / 2
-  lower <- quantile(boot_means, alpha, na.rm = TRUE, type = 7)
-  upper <- quantile(boot_means, 1 - alpha, na.rm = TRUE, type = 7)
-
-  # Significance: CI does not cross zero
-  is_sig <- lower * upper > 0
-
+  ci <- quantile(
+    boot_est,
+    probs = c(alpha, 1 - alpha),
+    names = FALSE,
+    na.rm = TRUE
+  )
   list(
-    mean = mean(boot_means, na.rm = TRUE),
-    lower = as.numeric(lower),
-    upper = as.numeric(upper),
-    width = as.numeric(upper - lower),
-    sig = ifelse(is_sig, "*", ""),
-    n_eff = n
+    mean  = weighted.mean(dat$x, dat$w),
+    lower = ci[1],
+    upper = ci[2],
+    width = diff(ci),
+    sig   = ifelse(ci[1] * ci[2] > 0, "*", ""),
+    n_eff = n_blocks
   )
 }
-
-# By-class bootstrap confidence intervals
-# For stratified estimates (e.g., trends by land-cover class or climate zone)
-# Args:
-#   r_values: numeric vector of values per pixel (e.g., trend, zealmean, yearmax)
-#   z_values: integer vector of zone/class IDs per pixel
-#   w_values: numeric vector of weights per pixel (e.g., area)
-#   n_boot: number of bootstrap samples
-#   conf: confidence level
-# Returns: tibble with one row per class
-bootstrap_ci_by_class <- function(r_values, z_values, w_values,
-                                  n_boot = 1000L, conf = 0.95) {
-  if (length(r_values) != length(z_values) ||
-    length(r_values) != length(w_values)) {
-    stop("All input vectors must have same length")
+# -------------------------------------------------------------------------
+# Spatial block bootstrap by class
+# -------------------------------------------------------------------------
+bootstrap_ci_by_class <- function(r_values,
+                                  z_values,
+                                  w_values,
+                                  block_id,
+                                  n_boot = 1000L,
+                                  conf = 0.95) {
+  # Compute spatial block bootstrap confidence intervals for weighted means of
+  # r_values by class defined in z_values using weights w_values and spatial
+  # blocks defined by block_id.
+  if (!(
+    length(r_values) == length(z_values) &&
+      length(r_values) == length(w_values) &&
+      length(r_values) == length(block_id)
+  )) {
+    stop("All inputs must have equal length.")
   }
 
+  r_values <- as.numeric(r_values)
+  w_values <- as.numeric(w_values)
+  z_values <- as.character(z_values)
+  block_id <- as.character(block_id)
   classes <- sort(unique(z_values[!is.na(z_values)]))
-  results <- list()
+  alpha <- (1 - conf) / 2
+  set.seed(26)
 
-  set.seed(42)
-
-  for (cls in classes) {
+  results <- lapply(classes, function(cls) {
     idx <- which(
       z_values == cls &
         is.finite(r_values) &
         is.finite(w_values) &
-        w_values > 0
+        w_values > 0 &
+        !is.na(block_id)
     )
 
     if (length(idx) == 0) {
-      results[[length(results) + 1]] <- tibble::tibble(
-        class = cls,
-        n_pixels = 0L,
-        mean_est = NA_real_,
-        ci_lower = NA_real_,
-        ci_upper = NA_real_,
-        ci_width = NA_real_,
-        sig_flag = ""
+      return(
+        tibble::tibble(
+          class = cls,
+          n_pixels = 0L,
+          mean_est = NA_real_,
+          ci_lower = NA_real_,
+          ci_upper = NA_real_,
+          sig_flag = ""
+        )
       )
-      next
     }
 
-    r_cls <- r_values[idx]
-    w_cls <- w_values[idx]
-    n <- length(r_cls)
-
-    # Normalized weights for probability resampling
-    w_norm <- w_cls / sum(w_cls, na.rm = TRUE)
-
-    # Point estimate
-    wmean_est <- sum(r_cls * w_cls, na.rm = TRUE) / sum(w_cls, na.rm = TRUE)
-
-    # Bootstrap resampling
-    boot_means <- numeric(n_boot)
-    for (i in seq_len(n_boot)) {
-      boot_idx <- sample.int(n, size = n, replace = TRUE, prob = w_norm)
-      boot_means[i] <- sum(r_cls[boot_idx] * w_cls[boot_idx], na.rm = TRUE) / sum(w_cls[boot_idx], na.rm = TRUE)
-    }
-
-    alpha <- (1 - conf) / 2
-    ci_lower <- quantile(boot_means, alpha, na.rm = TRUE, type = 7)
-    ci_upper <- quantile(boot_means, 1 - alpha, na.rm = TRUE, type = 7)
-
-    # Significance check
-    is_sig <- ci_lower * ci_upper > 0 & !is.na(ci_lower) & !is.na(ci_upper)
-
-    results[[length(results) + 1]] <- tibble::tibble(
-      class = cls,
-      n_pixels = as.integer(n),
-      mean_est = wmean_est,
-      ci_lower = as.numeric(ci_lower),
-      ci_upper = as.numeric(ci_upper),
-      ci_width = as.numeric(ci_upper - ci_lower),
-      sig_flag = ifelse(is_sig, "*", "")
+    dat <- data.frame(
+      x = r_values[idx],
+      w = w_values[idx],
+      block = block_id[idx]
     )
-  }
+
+    block_idx <- split(seq_len(nrow(dat)), dat$block)
+    n_blocks <- length(block_idx)
+
+    if (n_blocks < 2) {
+      return(
+        tibble::tibble(
+          class = cls,
+          n_pixels = nrow(dat),
+          mean_est = weighted.mean(dat$x, dat$w),
+          ci_lower = NA_real_,
+          ci_upper = NA_real_,
+          sig_flag = ""
+        )
+      )
+    }
+
+    boot_est <- numeric(n_boot)
+
+    for (b in seq_len(n_boot)) {
+      sampled_blocks <- sample(names(block_idx), n_blocks, replace = TRUE)
+      idxb <- unlist(block_idx[sampled_blocks], use.names = FALSE)
+      boot_est[b] <- weighted.mean(dat$x[idxb], dat$w[idxb])
+    }
+
+    ci <- quantile(boot_est,
+      probs = c(alpha, 1 - alpha),
+      na.rm = TRUE
+    )
+
+    tibble::tibble(
+      class = as.character(cls),
+      n_pixels = as.integer(nrow(dat)),
+      mean_est = as.numeric(weighted.mean(dat$x, dat$w)),
+      ci_lower = as.numeric(ci[1]),
+      ci_upper = as.numeric(ci[2]),
+      sig_flag = as.character(ifelse(ci[1] * ci[2] > 0, "*", ""))
+    )
+  })
 
   dplyr::bind_rows(results)
 }
