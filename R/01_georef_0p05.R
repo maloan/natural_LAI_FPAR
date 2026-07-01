@@ -1,17 +1,14 @@
-## =============================================================================
+# =============================================================================
 # 01_georef_0p05.R — Georeference monthly LAI/FPAR to 0.05° grid
-## =============================================================================
+# =============================================================================
 
 suppressPackageStartupMessages({
   library(terra)
   library(here)
 })
 
-source(here("R", "helpers", "paths.R"))
-source(here("R", "helpers", "files.R"))
 source(here("R", "helpers", "netcdf.R"))
 source(here("R", "helpers", "io.R"))
-source(here("R", "helpers", "netcdf_raster.R"))
 source(here("R", "helpers", "options.R"))
 
 cfg <- cfg_read()
@@ -19,9 +16,7 @@ opts <- opts_read()
 
 terraOptions(progress = 1, memfrac = 0.25)
 
-# ------------------------------------------------------------------------------
 # Config
-# ------------------------------------------------------------------------------
 var <- toupper(Sys.getenv("var", "FPAR"))
 stopifnot(var %in% c("LAI", "FPAR"))
 
@@ -35,23 +30,21 @@ vcfg <- cfg$variables[[var_lower]]
 out_georef <- cfg$paths[[sprintf("georef_%s_0p05_dir", var_lower)]]
 nc_dir <- cfg$paths[[sprintf("%s_nc_dir", var_lower)]]
 
-lapply(c(out_georef), dir.create, recursive = TRUE, showWarnings = FALSE)
+lapply(c(out_georef),
+  dir.create,
+  recursive = TRUE,
+  showWarnings = FALSE
+)
 
-# ------------------------------------------------------------------------------
 # Inputs
-# ------------------------------------------------------------------------------
 stopifnot(dir.exists(nc_dir))
 files <- sort(list.files(nc_dir, pattern = "\\.nc(4)?$", full.names = TRUE))
 stopifnot(length(files) > 0L)
 
-# ------------------------------------------------------------------------------
 # Loop
-# ------------------------------------------------------------------------------
 for (f in files) {
   ym <- extract_ym_from_filename(f)
-
   out_tif <- file.path(out_georef, sprintf("%s_%s_0p05.tif", var, ym))
-
   if (!opts$force && opts$skip_existing && file.exists(out_tif)) {
     next
   }
@@ -65,9 +58,7 @@ for (f in files) {
     method      = "bilinear",
     strict_time = TRUE
   )
-
   writeRaster(r, out_tif, overwrite = TRUE)
 }
 
 gc()
-message("Done georeferencing (0.05°).")
