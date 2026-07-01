@@ -1,6 +1,5 @@
 # ==============================================================================
 # 11_zonal_diagnostics_combined_figure.R
-# Figure 4: Combined zonal diagnostics (mean trend, max trend, amplitude)
 # ==============================================================================
 
 suppressPackageStartupMessages({
@@ -11,38 +10,31 @@ suppressPackageStartupMessages({
   library(here)
 })
 
-plot_theme_pub <- function(base_size = 12, include_legend = FALSE, include_strip = FALSE) {
-  theme_list <- list(
-    panel.grid.major = element_line(color = "grey88", linewidth = 0.25),
-    panel.grid.minor = element_blank(),
-    plot.title = element_text(size = base_size + 1, face = "bold"),
-    plot.subtitle = element_text(size = 10),
-    axis.title = element_text(size = base_size - 1),
-    axis.text = element_text(size = 9)
-  )
-  if (include_strip) {
-    theme_list$strip.text <- element_text(size = 10, face = "bold")
-  }
-  if (include_legend) {
-    theme_list$legend.position <- "bottom"
-    theme_list$legend.box <- "vertical"
-    theme_list$legend.text <- element_text(size = 9)
-  }
-  theme_bw(base_size = base_size) + theme(!!!theme_list)
-}
+source(here("R", "helpers", "plotting.R"))
 
-theme_pub <- plot_theme_pub
+lat_label_fn <- get("lat_labels", mode = "function")
+theme_pub_fn <- get("theme_pub", mode = "function")
 
 tau <- "tau_0.1"
 var <- "LAI"
 
 f_rel <- here(
-  "analysis", "results", "figures", "summaries",
+  "analysis",
+  "results",
+  "figures",
+  "summaries",
   sprintf("zonal_relative_trends_all_masks_%s.csv", tau)
 )
 f_amp <- here(
-  "analysis", "results", "figures", "summaries",
-  sprintf("zonal_yearamp_timeMean_%s_all_masks_%s.csv", toupper(var), tau)
+  "analysis",
+  "results",
+  "figures",
+  "summaries",
+  sprintf(
+    "zonal_yearamp_timeMean_%s_all_masks_%s.csv",
+    toupper(var),
+    tau
+  )
 )
 
 if (!file.exists(f_rel)) {
@@ -55,65 +47,86 @@ if (!file.exists(f_amp)) {
 df_rel <- read_csv(f_rel, show_col_types = FALSE)
 df_amp <- read_csv(f_amp, show_col_types = FALSE)
 
-col_map <- c(
-  "Unmasked" = "grey20",
-  "CCI tau=0.05" = "#1b9e77",
-  "CCI tau=0.1" = "#d95f02",
-  "CCI tau=0.2" = "#7570b3",
-  "GLC" = "#386cb0"
+scenario_levels <- c("Unmasked", "CCI tau=0.05", "CCI tau=0.1", "CCI tau=0.2", "GLC")
+df_rel <- df_rel |>
+  mutate(scenario = factor(.data$scenario, levels = scenario_levels))
+df_amp <- df_amp |>
+  mutate(scenario = factor(.data$scenario, levels = scenario_levels))
+
+df_rel_mean <- df_rel |> filter(metric == "Annual mean")
+df_rel_max <- df_rel |> filter(metric == "Annual maximum")
+rel_ylim <- range(
+  c(
+    df_rel_mean$reltrend_pct_per_year,
+    df_rel_max$reltrend_pct_per_year
+  ),
+  na.rm = TRUE
 )
+rel_pad <- 0.05 * diff(rel_ylim)
+rel_ylim <- rel_ylim + c(-rel_pad, rel_pad)
 
-lat_labels <- function(x) {
-  ifelse(x == 0, "0°", ifelse(x < 0, paste0(abs(x), "°S"), paste0(x, "°N")))
-}
-
-mk_panel <- function(df, ycol, ttl, ylab) {
-  ggplot(df, aes(.data$lat_band, .data[[ycol]], colour = .data$scenario)) +
-    geom_hline(yintercept = 0, colour = "grey70", linewidth = 0.25) +
-    geom_line(linewidth = 0.75, na.rm = TRUE) +
-    scale_colour_manual(values = col_map, drop = FALSE) +
-    scale_x_continuous(limits = c(-90, 90), breaks = seq(-90, 90, by = 30), labels = lat_labels) +
-    labs(title = ttl, x = "Latitude", y = ylab, colour = NULL) +
-    plot_theme_pub(base_size = 11, include_legend = TRUE)
-}
-
-p1 <- mk_panel(
-  df_rel |> filter(metric == "Annual mean"),
+p1 <- plot_zonal_diagnostics(
+  df_rel_mean,
   "reltrend_pct_per_year",
-  "Annual mean relative trend",
-  "% yr-1"
+  "Annual Mean Relative Trend",
+  expression("Relative trend (% yr"^
+    {
+      -1
+    } * ")"),
+  y_limits = rel_ylim
 )
 
-p2 <- mk_panel(
-  df_rel |> filter(metric == "Annual maximum"),
+p2 <- plot_zonal_diagnostics(
+  df_rel_max,
   "reltrend_pct_per_year",
-  "Annual maximum relative trend",
-  "% yr-1"
+  "Annual Maximum Relative Trend",
+  expression("Relative trend (% yr"^
+    {
+      -1
+    } * ")"),
+  y_limits = rel_ylim
 )
-
-p3 <- mk_panel(
+p3 <- plot_zonal_diagnostics(
   df_amp,
   "mean_yearamp",
-  "Seasonal amplitude",
-  sprintf("%s amplitude", toupper(var))
+  "Seasonal Amplitude",
+  expression("Mean seasonal amplitude LAI (" * m^2 ~ m^
+    {
+      -2
+    } * ")")
 )
 
+# Combine panels
 fig <- (p1 / p2 / p3) +
-  plot_layout(guides = "collect") +
+  plot_layout(guides = "collect", heights = c(1, 1, 1.1)) +
   plot_annotation(
-    title = "Latitudinal diagnostics across masking scenarios",
-    subtitle = "Rows: annual mean trends, annual maximum trends, and seasonal amplitude"
+    tag_levels = "a",
+    tag_prefix = "(",
+    tag_suffix = ")"
   ) &
-  theme(legend.position = "bottom")
-
+  theme(plot.caption = element_text(
+    size = 9,
+    hjust = 0,
+    margin = margin(t = 10)
+  ))
 outdir <- here("analysis", "results", "figures", "summaries")
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
-
 out_stub <- sprintf(
   "zonal_diagnostics_mean_max_amplitude_%s_all_masks_%s",
   toupper(var),
   tau
 )
-
-ggsave(file.path(outdir, paste0(out_stub, ".png")), fig, width = 10.5, height = 11.5, dpi = 320)
-ggsave(file.path(outdir, paste0(out_stub, ".pdf")), fig, width = 10.5, height = 11.5)
+ggsave(
+  file.path(outdir, paste0(out_stub, ".png")),
+  fig,
+  width = 10.5,
+  height = 11.5,
+  dpi = 400
+)
+ggsave(
+  file.path(outdir, paste0(out_stub, ".pdf")),
+  fig,
+  width = 10.5,
+  height = 11.5,
+  device = cairo_pdf
+)
