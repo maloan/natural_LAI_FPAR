@@ -1,6 +1,6 @@
-## =============================================================================
+# =============================================================================
 # 00_setup.R — Initialize config, reference grids, areas (0.05°/0.25°)
-## =============================================================================
+# =============================================================================
 
 suppressPackageStartupMessages({
   library(yaml)
@@ -8,8 +8,6 @@ suppressPackageStartupMessages({
   library(here)
 })
 
-source(here("R", "helpers", "paths.R"))
-source(here("R", "helpers", "files.R"))
 source(here("R", "helpers", "netcdf.R"))
 source(here("R", "helpers", "io.R"))
 terraOptions(progress = 1, memfrac = 0.25)
@@ -19,15 +17,17 @@ run_tag <- Sys.getenv("run_tag", unset = "tau_0.1")
 tau_cci <- as.numeric(Sys.getenv("tau_cci", "0.1"))
 GDAL_OPTS <- gdal_co_int()
 
-# --- paths --------------------------------------------------------------------
+#  paths
 in_dirs <- list(
-  lai_nc_dir       = exp_(here("data-raw", "LAI", "lai_1982-2024")),
-  fpar_nc_dir      = exp_(here("data-raw", "FPAR", "fpar_1982-2024")),
-  cci_dir          = exp_(here("data-raw", "ESACCI", "ESACCI_1992-2020")),
-  luh2_dir         = exp_(here("data-raw", "LUH2_v2h")),
-  glc_dir          = exp_(here("data-raw", "GLC_FCS30D")),
-  valid_tiles_info = exp_(here("src", "valid_tiles_info_0p05_full_10deg.rds")),
-  bilinear_ref     = exp_(here("src", "refgrid_0p05.nc"))
+  lai_nc_dir = exp_(here("data-raw", "LAI", "lai_1982-2024")),
+  fpar_nc_dir = exp_(here("data-raw", "FPAR", "fpar_1982-2024")),
+  cci_dir = exp_(here("data-raw", "ESACCI", "ESACCI_1992-2020")),
+  luh2_dir = exp_(here("data-raw", "LUH2_v2h")),
+  glc_dir = exp_(here("data-raw", "GLC_FCS30D")),
+  valid_tiles_info = exp_(here(
+    "src", "valid_tiles_info_0p05_full_10deg.rds"
+  )),
+  bilinear_ref = exp_(here("src", "refgrid_0p05.nc"))
 )
 
 dirs <- list(
@@ -42,20 +42,11 @@ dirs <- list(
   glc_quick_dir = here("data", "frac", "glc_frac_0p05", "quicklooks"),
   masks_root_dir = here("output", run_tag, "masks"),
   masks_cci_dir = here("output", run_tag, "masks", "mask_cci"),
-  masks_cci_quick_dir = here(
-    "output", run_tag,
-    "masks", "mask_cci", "quicklooks"
-  ),
+  masks_cci_quick_dir = here("output", run_tag, "masks", "mask_cci", "quicklooks"),
   masks_glc_dir = here("output", run_tag, "masks", "mask_glc"),
-  masks_glc_quick_dir = here(
-    "output", run_tag,
-    "masks", "mask_glc", "quicklooks"
-  ),
+  masks_glc_quick_dir = here("output", run_tag, "masks", "mask_glc", "quicklooks"),
   masks_luh_dir = here("output", run_tag, "masks", "mask_luh"),
-  masks_luh_quick_dir = here(
-    "output", run_tag, "masks",
-    "mask_luh", "quicklooks"
-  ),
+  masks_luh_quick_dir = here("output", run_tag, "masks", "mask_luh", "quicklooks"),
   mask_nonvegetated_dir = here("output", run_tag, "masks", "mask_nonvegetated")
 )
 
@@ -65,19 +56,24 @@ for (v in c("LAI", "FPAR")) {
     for (r in c("0p05", "0p25", "0p5")) {
       key <- sprintf("masked_%s_%s_%s_dir", tolower(v), tolower(m), r)
       dirs[[key]] <- here(
-        "output", run_tag,
-        paste0("masked_", r), v,
+        "output",
+        run_tag,
+        paste0("masked_", r),
+        v,
         sprintf("masked_%s_%s", v, m)
       )
     }
   }
 }
 
-invisible(lapply(unique(unlist(dirs)), dir.create,
-  recursive = TRUE, showWarnings = FALSE
+invisible(lapply(
+  unique(unlist(dirs)),
+  dir.create,
+  recursive = TRUE,
+  showWarnings = FALSE
 ))
 
-# --- product paths (programmatic generation) --------------------------------
+#  product paths
 resolutions <- list(
   `0p05` = list(nrc = c(3600, 7200), deg = 0.05),
   `0p25` = list(nrc = c(720, 1440), deg = 0.25),
@@ -85,6 +81,9 @@ resolutions <- list(
 )
 
 ref <- lapply(names(resolutions), function(res) {
+  # Build reference rasters and netcdf files for the specified resolution.
+  # Returns a list with paths to the tif and nc files, as well as the nrc and
+  # deg values.
   list(
     tif = here("src", sprintf("ref_%s.tif", res)),
     nc = here("src", sprintf("ref_%s.nc", res)),
@@ -95,6 +94,8 @@ ref <- lapply(names(resolutions), function(res) {
 names(ref) <- names(resolutions)
 
 area <- lapply(names(resolutions), function(res) {
+  # Build area rasters and netcdf files for the specified resolution. Returns a
+  # list with paths to the tif and nc files, as well as the deg value.
   list(
     tif = here("src", sprintf("area_%s_km2.tif", res)),
     nc = here("src", sprintf("area_%s_km2.nc", res)),
@@ -103,9 +104,12 @@ area <- lapply(names(resolutions), function(res) {
 })
 names(area) <- names(resolutions)
 
-# --- config (write once per run_tag) ------------------------------------------
+#  config (write once per run_tag)
 cfg_path <- here("config", sprintf("config_%s.yml", run_tag))
-dir.create(dirname(cfg_path), recursive = TRUE, showWarnings = FALSE)
+dir.create(dirname(cfg_path),
+  recursive = TRUE,
+  showWarnings = FALSE
+)
 
 cfg <- list(
   project = list(
@@ -114,9 +118,12 @@ cfg <- list(
     name = "SNU_LAI_FPAR_natmask_global",
     crs = epsg4326,
     years = list(
-      lai_start = 1982, lai_end = 2024,
-      cci_start = 1992, cci_end = 2020,
-      glc_start = 1992, glc_end = 2020
+      lai_start = 1982,
+      lai_end = 2024,
+      cci_start = 1992,
+      cci_end = 2020,
+      glc_start = 1992,
+      glc_end = 2020
     )
   )
 )
@@ -125,26 +132,35 @@ cfg$paths <- utils::modifyList(in_dirs, dirs)
 
 cfg$grids <- list(
   grid_005 = list(
-    ref_raster = ref$`0p05`$nc, area_raster = area$`0p05`$nc
+    ref_raster = ref$`0p05`$nc,
+    area_raster = area$`0p05`$nc
   ),
   grid_025 = list(
-    ref_raster = ref$`0p25`$nc, area_raster = area$`0p25`$nc
+    ref_raster = ref$`0p25`$nc,
+    area_raster = area$`0p25`$nc
   ),
   grid_05 = list(
-    ref_raster = ref$`0p5`$nc, area_raster = area$`0p5`$nc
+    ref_raster = ref$`0p5`$nc,
+    area_raster = area$`0p5`$nc
   )
 )
 
 cfg$variables <- list(
   produce = list("LAI", "FPAR"),
   lai = list(
-    nc_var_name_primary = "LAI", nc_var_name_fallback = "auto_first_variable",
-    units = "m2 m-2", nc_lon_name = "lon", nc_lat_name = "lat",
+    nc_var_name_primary = "LAI",
+    nc_var_name_fallback = "auto_first_variable",
+    units = "m2 m-2",
+    nc_lon_name = "lon",
+    nc_lat_name = "lat",
     nc_time_names = c("time", "time_counter")
   ),
   fpar = list(
-    nc_var_name_primary = "FPAR", nc_var_name_fallback = "auto_first_variable",
-    units = "1", nc_lon_name = "lon", nc_lat_name = "lat",
+    nc_var_name_primary = "FPAR",
+    nc_var_name_fallback = "auto_first_variable",
+    units = "1",
+    nc_lon_name = "lon",
+    nc_lat_name = "lat",
     nc_time_names = c("time", "time_counter")
   )
 )
@@ -192,7 +208,9 @@ cfg$luh2 <- list(
   states_nc = here("data-raw", "LUH2_v2h", "states.nc"),
   variables = list(
     cropland_components = c("c3ann", "c4ann", "c3per", "c4per", "c3nfx"),
-    pasture = "pastr", pasture_range = "range", urban = "urban"
+    pasture = "pastr",
+    pasture_range = "range",
+    urban = "urban"
   )
 )
 
@@ -213,7 +231,7 @@ cfg$naming <- list(
 
 yaml::write_yaml(cfg, cfg_path)
 
-# --- build reference rasters + netcdf -----------------------------------------
+#  build reference rasters + netcdf
 for (k in names(ref)) {
   tif <- ref[[k]]$tif
   nc <- ref[[k]]$nc
@@ -222,15 +240,20 @@ for (k in names(ref)) {
 
 
   r <- rast(
-    nrows = nrc[1], ncols = nrc[2], xmin = -180, xmax = 180,
-    ymin = -90, ymax = 90, crs = epsg4326
+    nrows = nrc[1],
+    ncols = nrc[2],
+    xmin = -180,
+    xmax = 180,
+    ymin = -90,
+    ymax = 90,
+    crs = epsg4326
   )
   values(r) <- NA_real_
   writeRaster(r, tif, overwrite = TRUE, gdal = GDAL_OPTS)
   terra::writeCDF(r, nc, overwrite = TRUE)
 }
 
-# --- build area rasters + netcdf ----------------------------------------------
+#  build area rasters + netcdf
 for (k in names(area)) {
   tif <- area[[k]]$tif
   nc <- area[[k]]$nc
@@ -240,22 +263,36 @@ for (k in names(area)) {
   writeRaster(a, tif, overwrite = TRUE, gdal = GDAL_OPTS)
   terra::writeCDF(a, nc, overwrite = TRUE)
 }
-# --- sanity checks & manifest -------------------------------------------------
-ref_rasts <- lapply(ref, function(r) rast(r$tif))
-area_rasts <- lapply(area, function(a) rast(a$tif))
+# sanity checks & manifest
+ref_rasts <- lapply(ref, function(r) {
+  rast(r$tif)
+})
+area_rasts <- lapply(area, function(a) {
+  rast(a$tif)
+})
 
 man <- data.frame(
-  file = sapply(ref, function(r) basename(r$tif)),
+  file = sapply(ref, function(r) {
+    basename(r$tif)
+  }),
   rows = sapply(ref_rasts, nrow),
   cols = sapply(ref_rasts, ncol),
-  res_x = sapply(ref_rasts, \(r) res(r)[1]),
-  res_y = sapply(ref_rasts, \(r) res(r)[2]),
+  res_x = sapply(ref_rasts, function(r) {
+    res(r)[1]
+  }),
+  res_y = sapply(ref_rasts, function(r) {
+    res(r)[2]
+  }),
   xmin = sapply(ref_rasts, xmin),
   xmax = sapply(ref_rasts, xmax),
   ymin = sapply(ref_rasts, ymin),
   ymax = sapply(ref_rasts, ymax),
-  crs = sapply(ref_rasts, \(r) crs(r)),
-  global_area_km2 = sapply(area_rasts, \(a) as.numeric(global(a, "sum", na.rm = TRUE)[1, 1])),
+  crs = sapply(ref_rasts, function(r) {
+    crs(r)
+  }),
+  global_area_km2 = sapply(area_rasts, function(a) {
+    as.numeric(global(a, "sum", na.rm = TRUE)[1, 1])
+  }),
   timestamp = format(Sys.time(), "%Y-%m-%d %H:%M:%S")
 )
 
@@ -268,4 +305,3 @@ write.csv(man, here("src", "manifest_00.csv"), row.names = FALSE)
 # Clean up temporary objects
 rm(ref_rasts, area_rasts, resolutions, GDAL_OPTS)
 gc()
-cat("Done 00_setup.R\n")
