@@ -1,14 +1,12 @@
-## =============================================================================
+# =============================================================================
 # 04_glc_stack_0p05.R — Build annual GLC_FCS30D categorical yearstack (0.05°)
-## =============================================================================
+# =============================================================================
 
 suppressPackageStartupMessages({
   library(terra)
   library(here)
 })
 
-source(here("R", "helpers", "paths.R"))
-source(here("R", "helpers", "files.R"))
 source(here("R", "helpers", "netcdf.R"))
 source(here("R", "helpers", "plotting.R"))
 source(here("R", "helpers", "io.R"))
@@ -36,7 +34,7 @@ nodata_vals <- as.integer(unlist(cfg$glc$classes$nodata))
 
 years_for_ql <- intersect(c(1990, 2000, 2010, 2020), cfg$glc$years)
 
-# --- discover files (base R) --------------------------------------------------
+#  discover files
 all_files <- list.files(glc_dir, pattern = "\\.tif$", full.names = TRUE)
 if (!length(all_files)) {
   stop("No GLC GeoTIFFs found in: ", glc_dir)
@@ -56,11 +54,16 @@ years <- years[valid_mask][ord]
 stopifnot(length(paths) > 0)
 
 message(
-  "Found ", length(paths),
-  " GLC rasters; span [", min(years), "..", max(years), "]."
+  "Found ",
+  length(paths),
+  " GLC rasters; span [",
+  min(years),
+  "..",
+  max(years),
+  "]."
 )
 
-# --- rebuild stack ------------------------------------------------------------
+#  rebuild stack
 bands <- vector("list", length(paths))
 
 for (i in seq_along(paths)) {
@@ -89,5 +92,3 @@ for (i in seq_along(paths)) {
 stack <- rast(bands)
 writeRaster(stack, stack_out, overwrite = TRUE)
 gc()
-
-message("Wrote GLC yearstack: ", stack_out)
