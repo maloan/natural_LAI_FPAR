@@ -6,6 +6,8 @@
 .Rapp.history
 .Ruserdata
 .Rproj.user/
+.Renviron
+.Rbuildignore
 
 # --------------------------------------------------------------------------------
 # External / Raw Data (large files, managed separately)
@@ -78,5 +80,4 @@ Thumbs.db
 # --------------------------------------------------------------------------------
 # Local Environment Configuration
 # --------------------------------------------------------------------------------
-.Renviron
 .lintr
