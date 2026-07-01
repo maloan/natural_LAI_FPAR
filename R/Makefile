@@ -88,20 +88,19 @@ trends-unmasked:
 trends-masked:
 	@for m in $(MASKS); do \
 	  echo "== TRENDS $$m (RUN_TAG=$(RUN_TAG)) ==" ; \
-	  SNU_LAI_FPAR_ROOT=$(ROOT) bash $(ROOT)/trends/02_build_trends_masked_0p25.sh $(RUN_TAG) LAI  $$m ; \
-	  SNU_LAI_FPAR_ROOT=$(ROOT) bash $(ROOT)/trends/02_build_trends_masked_0p25.sh $(RUN_TAG) FPAR $$m ; \
+	  SNU_LAI_FPAR_ROOT=$(ROOT) bash $(ROOT)/trends/build_trends_masked_0p25.sh $(RUN_TAG) LAI  $$m ; \
+	  SNU_LAI_FPAR_ROOT=$(ROOT) bash $(ROOT)/trends/build_trends_masked_0p25.sh $(RUN_TAG) FPAR $$m ; \
 	done
 
 trends: trends-unmasked trends-masked
 
 # -----------------------------------------------------------------------------
 # 5) Analyses
-analysis: pipeline
 .PHONY: analysis
 analysis: pipeline
 	$(R) $(WD)/analysis/00_area_validdomain_after_nonvegetated.R
 # -----------------------------------------------------------------------------
-# Quicklooks (explicit; no extra switches)
+# Quicklooks
 # -----------------------------------------------------------------------------
 .PHONY: ql
 ql:
@@ -120,7 +119,7 @@ help:
 	@echo "  trends     -> run unmasked + masked trend workflows (incl. MK p-values)"
 	@echo "  trends-unmasked -> build georef trend products at 0.05/0.25"
 	@echo "  trends-masked   -> build masked 0.25 trend products for RUN_TAG and MASKS"
-	@echo "  analysis   -> pipeline (analysis scripts are in R/analysis folder)"
+	@echo "  analysis   -> pipeline + analysis/00_area_validdomain_after_nonvegetated.R"
 	@echo "  ql         -> regenerate quicklooks for key steps"
 	@echo ""
 	@echo "Typical runs:"
