@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # 90_fapar_tif_to_nc_utility.sh
-# Convert monthly masked fPAR GeoTIFFs (0.5°) -> single monthly NetCDF (1982–2024)
+# Convert monthly masked fPAR GeoTIFFs (0.5°) to one monthly NetCDF (1982-2024)
 # ==============================================================================
 
 set -euo pipefail
@@ -19,7 +19,7 @@ if [[ -f "$OUT" ]]; then
 fi
 
 # ------------------------------------------------------------------------------
-# 1) GeoTIFF -> per-month NetCDF (one timestep each)
+# 1) Convert GeoTIFF inputs to per-month NetCDF files
 # ------------------------------------------------------------------------------
 rm -f "$TMPDIR/nc_monthly"/FPAR_masked_*_0p5.nc
 ls -1 FPAR_masked_*_0p5.tif >/dev/null 2>&1 || {
@@ -52,7 +52,7 @@ cdo -O \
   "$TMPDIR/concat_hours.nc"
 
 # ------------------------------------------------------------------------------
-# 4) Convert time values: hours -> days, enforce CF attributes
+# 4) Convert time values from hours to days and enforce CF attributes
 # ------------------------------------------------------------------------------
 ncap2 -O -s 'time=time/24.0' \
   "$TMPDIR/concat_hours.nc" "$TMPDIR/axis_fixed.nc"
@@ -68,10 +68,10 @@ ncatted -O \
 # ------------------------------------------------------------------------------
 # 5) Rename variable and cast types to match MODIS-style choices
 # ------------------------------------------------------------------------------
-# Rename Band1 -> fpar (if needed)
+# Rename Band1 to fpar if needed
 ncrename -O -v Band1,fpar "$TMPDIR/axis_fixed.nc" 2>/dev/null || true
 
-# Cast fpar/lon/lat to float IN PLACE (no renaming of dimscales -> avoids HDF5 error)
+# Cast fpar/lon/lat to float in place to avoid dimscale renaming issues
 ncap2 -O -s 'fpar=float(fpar); lon=float(lon); lat=float(lat);' \
   "$TMPDIR/axis_fixed.nc" "$TMPDIR/typed.nc"
 rm -f "$TMPDIR/axis_fixed.nc"
