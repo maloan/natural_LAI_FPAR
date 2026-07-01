@@ -1,6 +1,5 @@
 ## =============================================================================
-# 02_cci_frac_0p05.R
-# Aggregate ESA-CCI/C3S land cover to 0.05° fractional cover
+# 02_cci_frac_0p05.R — Aggregate ESA-CCI/C3S land cover to 0.05° fractional cover
 ## =============================================================================
 
 suppressPackageStartupMessages({
@@ -8,8 +7,6 @@ suppressPackageStartupMessages({
   library(here)
 })
 
-source(here("R", "helpers", "paths.R"))
-source(here("R", "helpers", "files.R"))
 source(here("R", "helpers", "netcdf.R"))
 source(here("R", "helpers", "io.R"))
 source(here("R", "helpers", "options.R"))
@@ -30,13 +27,16 @@ skip_existing <- as_bool(Sys.getenv("skip_existing"), default = TRUE)
 esa_cci <- cfg$esa_cci$classes
 nodata_vals <- unique(c(esa_cci$nodata, 255))
 
-groups <- Filter(Negate(is.null), list(
-  cropland  = esa_cci$cropland,
-  urban     = esa_cci$urban,
-  cls30     = esa_cci$cls30,
-  cls40     = esa_cci$cls40,
-  grassland = esa_cci$grassland
-))
+groups <- Filter(
+  Negate(is.null),
+  list(
+    cropland  = esa_cci$cropland,
+    urban     = esa_cci$urban,
+    cls30     = esa_cci$cls30,
+    cls40     = esa_cci$cls40,
+    grassland = esa_cci$grassland
+  )
+)
 
 start_year <- cfg$project$years$cci_start
 end_year <- cfg$project$years$cci_end
@@ -65,8 +65,12 @@ basenames <- basenames[ok]
 
 if (!length(all_files)) {
   stop(
-    "No CCI GeoTIFFs matched years ", start_year, "-", end_year,
-    " in: ", cci_dir
+    "No CCI GeoTIFFs matched years ",
+    start_year,
+    "-",
+    end_year,
+    " in: ",
+    cci_dir
   )
 }
 
@@ -80,9 +84,9 @@ plan_year <- as.integer(names(pick_indices))
 plan_path <- all_files[pick_indices]
 out_tif <- file.path(out_dir, sprintf("ESACCI_frac_%d_0p05.tif", plan_year))
 
-# ------------------------------------------------------------------------------
+
 # Main loop
-# ------------------------------------------------------------------------------
+
 for (i in seq_along(plan_year)) {
   yr <- plan_year[i]
   f <- plan_path[i]
@@ -100,6 +104,7 @@ for (i in seq_along(plan_year)) {
   r <- terra::subst(r, nodata_vals, NA)
 
   m_stack <- rast(lapply(groups, function(cls) {
+    # Classify the raster based on the current group
     classify(r, cbind(cls, 1), others = 0)
   }))
 
@@ -123,7 +128,12 @@ for (i in seq_along(plan_year)) {
   out <- c(frac_fused, frac_grass)
   names(out) <- c("frac_fused", "frac_grass")
 
-  writeRaster(out, ot, overwrite = TRUE, gdal = gdal_opts, NAflag = -9999)
+  writeRaster(out,
+    ot,
+    overwrite = TRUE,
+    gdal = gdal_opts,
+    NAflag = -9999
+  )
 
   rm(r, m_stack, frac, out)
   gc()
