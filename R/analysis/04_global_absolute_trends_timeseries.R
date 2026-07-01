@@ -1,8 +1,6 @@
 # ==============================================================================
-# 04_global_absolute_trends_timeseries.R
-# Global annual absolute LAI time series and linear trends
-#
-# Temporal coverage: 1982–2024 (43 years)
+# 04_global_absolute_trends_timeseries.R — Global annual absolute LAI time
+# series and linear trends
 # ==============================================================================
 
 suppressPackageStartupMessages({
@@ -18,385 +16,234 @@ suppressPackageStartupMessages({
 
 source(here("R", "helpers", "weighted_means.R"))
 source(here("R", "helpers", "plotting.R"))
-source(here("R", "helpers", "statistics.R"))
+source(here("R", "helpers", "io.R"))
 
-# ==============================================================================
 # Configuration
-# ==============================================================================
-
 var <- "LAI"
-
-metrics <- c(
-  "yearmean",
-  "yearmax"
-)
-
+metrics <- c("yearmean", "yearmax")
 year0 <- 1982L
 year_end <- 2024L
 n_years <- year_end - year0 + 1L
+taus <- c("tau_0.05", "tau_0.1", "tau_0.2")
+glc_tau <- "tau_0.05"
+outdir_fig <- here("analysis", "results", "figures", "timeseries")
+outdir_tbl <- here("analysis", "results", "tables", "timeseries")
+dir.create(outdir_fig, recursive = TRUE, showWarnings = FALSE)
+dir.create(outdir_tbl, recursive = TRUE, showWarnings = FALSE)
 
-taus <- c(
-  "tau_0.05",
-  "tau_0.1",
-  "tau_0.2"
-)
-
-# Note: GLC uses only tau_0.1 as the primary masking scenario, while CCI
-# includes all three tau values to explore sensitivity to the non-vegetated area
-# threshold.
-glc_tau <- "tau_0.1"
-
-outdir <- here(
-  "analysis",
-  "results",
-  "figures",
-  "timeseries"
-)
-
-if (!dir.create(outdir, recursive = TRUE, showWarnings = FALSE)) {
-  if (!dir.exists(outdir)) {
-    stop(
-      sprintf("Failed to create output directory: %s", outdir),
-      call. = FALSE
-    )
-  }
-}
-
-# ==============================================================================
 # Area weights
-# ==============================================================================
-
-area_path <- here(
-  "src",
-  "area_0p25_validdomain_km2.nc"
-)
-
-if (!file.exists(area_path)) {
-  stop("Missing area raster: ", area_path, call. = FALSE)
-}
-
+area_path <- here("src", "area_0p25_validdomain_km2.nc")
 area <- rast(area_path)[[1]]
-
-# ==============================================================================
-# Validation helpers
-# ==============================================================================
-
-check_file <- function(path) {
-  if (!file.exists(path)) {
-    stop("Missing file: ", path, call. = FALSE)
-  }
-
-  path
-}
-
-load_checked <- function(path, area, n_years) {
-  path <- check_file(path)
-
-  r <- rast(path)
-
-  if (nlyr(r) != n_years) {
-    stop(
-      sprintf(
-        "Expected %d layers, found %d in %s",
-        n_years,
-        nlyr(r),
-        basename(path)
-      ),
-      call. = FALSE
-    )
-  }
-
-  compareGeom(r[[1]], area, stopOnError = TRUE)
-
-  r
-}
 
 make_series <- function(r, area, year0) {
   out <- global_wmean_series(r, area, year0)
-
-  if (nrow(out) == 0) {
-    stop("Weighted mean time series is empty", call. = FALSE)
-  }
-
   as_tibble(out)
 }
 
-# ==============================================================================
-# File paths
-# ==============================================================================
+compute_ols_full <- function(d,
+                             y_col = "value",
+                             x_col = "year",
+                             robust = TRUE,
+                             nw_lag = NULL) {
+  d <- d |>
+    dplyr::filter(is.finite(.data[[y_col]]), is.finite(.data[[x_col]]))
 
-path_unmasked <- function(metric) {
-  here(
-    "analysis",
-    "unmasked",
-    "0p25",
-    sprintf(
-      "%s_georef_%s_0p25.nc",
-      var,
-      metric
-    )
-  )
-}
-
-path_cci <- function(metric, tau) {
-  here(
-    "output",
-    tau,
-    "eval",
-    sprintf("trend_%s_CCI", var),
-    sprintf(
-      "%s_%s_0p25.nc",
-      var,
-      metric
-    )
-  )
-}
-
-path_glc <- function(metric, tau) {
-  here(
-    "output",
-    tau,
-    "eval",
-    sprintf("trend_%s_GLC", var),
-    sprintf(
-      "%s_%s_0p25.nc",
-      var,
-      metric
-    )
-  )
-}
-
-# ==============================================================================
-# Load data
-# ==============================================================================
-
-rows <- list()
-
-for (metric in metrics) {
-  # ---------------------------------------------------------------------------
-  # Unmasked
-  # ---------------------------------------------------------------------------
-
-  r_unmasked <- load_checked(
-    path_unmasked(metric),
-    area,
-    n_years
-  )
-
-  rows[[length(rows) + 1]] <-
-    make_series(r_unmasked, area, year0) |>
-    mutate(
-      metric = metric,
-      scenario = "Unmasked"
-    )
-
-  # ---------------------------------------------------------------------------
-  # CCI
-  # ---------------------------------------------------------------------------
-
-  for (tau in taus) {
-    r_cci <- load_checked(
-      path_cci(metric, tau),
-      area,
-      n_years
-    )
-
-    rows[[length(rows) + 1]] <-
-      make_series(r_cci, area, year0) |>
-      mutate(
-        metric = metric,
-        scenario = paste0(
-          "CCI tau=",
-          sub("^tau_", "", tau)
-        )
+  if (nrow(d) < 3) {
+    return(
+      tibble::tibble(
+        n = nrow(d),
+        slope = NA_real_,
+        ci_lower = NA_real_,
+        ci_upper = NA_real_,
+        p_value = NA_real_,
+        r2 = NA_real_,
+        sig = NA_character_,
+        se_type = ifelse(robust, "Newey-West", "OLS"),
+        nw_lag = NA_integer_
       )
+    )
   }
 
-  # ---------------------------------------------------------------------------
-  # GLC
-  # ---------------------------------------------------------------------------
+  m <- stats::lm(stats::formula(paste(y_col, "~", x_col)), data = d)
 
-  r_glc <- load_checked(
-    path_glc(metric, glc_tau),
-    area,
-    n_years
+  compute_trend_ci(
+    lm_fit = m,
+    robust = robust,
+    nw_lag = nw_lag
   )
+}
 
-  rows[[length(rows) + 1]] <-
-    make_series(r_glc, area, year0) |>
-    mutate(
-      metric = metric,
-      scenario = "GLC"
+compute_trend_ci <- function(lm_fit,
+                             robust = TRUE,
+                             nw_lag = NULL) {
+  sm <- summary(lm_fit)
+
+  n <- nrow(lm_fit$model)
+  slope <- stats::coef(lm_fit)[2]
+  r2 <- sm$r.squared
+
+  if (robust) {
+    if (is.null(nw_lag)) {
+      nw_lag <- floor(4 * (n / 100)^(2 / 9))
+    }
+
+    vc <- sandwich::NeweyWest(lm_fit,
+      lag = nw_lag,
+      prewhite = FALSE,
+      adjust = TRUE
     )
+
+    ct <- lmtest::coeftest(lm_fit, vcov. = vc)
+
+    se <- ct[2, 2]
+    p_value <- ct[2, 4]
+    se_type <- "Newey-West"
+  } else {
+    se <- sm$coefficients[2, 2]
+    p_value <- sm$coefficients[2, 4]
+    se_type <- "OLS"
+  }
+
+  tcrit <- stats::qt(0.975, df = lm_fit$df.residual)
+
+  tibble::tibble(
+    n = n,
+    slope = slope,
+    ci_lower = slope - tcrit * se,
+    ci_upper = slope + tcrit * se,
+    p_value = p_value,
+    r2 = r2,
+    sig = ifelse(p_value < 0.05, "*", ""),
+    se_type = se_type,
+    nw_lag = ifelse(robust, nw_lag, NA_integer_)
+  )
+}
+
+predict_trend_line <- function(d, y_col = "value", x_col = "year") {
+  d <- d |>
+    dplyr::filter(is.finite(.data[[y_col]]), is.finite(.data[[x_col]]))
+
+  if (nrow(d) < 3) {
+    return(tibble::tibble(!!x_col := d[[x_col]], fit = NA_real_))
+  }
+
+  m <- stats::lm(stats::formula(paste(y_col, "~", x_col)), data = d)
+
+  tibble::tibble(!!x_col := d[[x_col]], fit = stats::predict(m, newdata = d))
+}
+
+# Load data
+rows <- list()
+for (metric in metrics) {
+  # Unmasked
+  r_unmasked <- load_checked_raster(analysis_raster_path(var, metric, "unmasked", kind = "metric"),
+    area,
+    n_layers = n_years
+  )
+  rows[[length(rows) + 1]] <- make_series(r_unmasked, area, year0) |> mutate(metric = metric, scenario = "Unmasked")
+  # CCI
+  for (tau in taus) {
+    r_cci <- load_checked_raster(
+      analysis_raster_path(var, metric, "CCI", run_tag = tau, kind = "metric"),
+      area,
+      n_layers = n_years
+    )
+    rows[[length(rows) + 1]] <- make_series(r_cci, area, year0) |>
+      mutate(metric = metric, scenario = paste0("CCI tau=", sub("^tau_", "", tau)))
+  }
+  # GLC
+  r_glc <- load_checked_raster(
+    analysis_raster_path(var, metric, "GLC", run_tag = glc_tau, kind = "metric"),
+    area,
+    n_layers = n_years
+  )
+  rows[[length(rows) + 1]] <- make_series(r_glc, area, year0) |> mutate(metric = metric, scenario = "GLC")
 }
 
 df <- bind_rows(rows)
-
-if (nrow(df) == 0) {
-  stop("No data loaded from files", call. = FALSE)
-}
-
-df <- df |>
-  mutate(
-    metric = factor(
-      metric,
-      levels = c(
-        "yearmean",
-        "yearmax"
-      ),
-      labels = c(
-        "Annual mean",
-        "Annual maximum"
-      )
-    ),
-    scenario = factor(
-      scenario,
-      levels = c(
-        "Unmasked",
-        paste0(
-          "CCI tau=",
-          sub("^tau_", "", taus)
-        ),
-        "GLC"
-      )
-    )
-  )
-
-# ==============================================================================
+df <- df |> mutate(
+  metric = factor(
+    metric,
+    levels = c("yearmean", "yearmax"),
+    labels = c("Annual mean", "Annual maximum")
+  ),
+  scenario = factor(scenario, levels = c(
+    "Unmasked", paste0("CCI tau=", sub("^tau_", "", taus)), "GLC"
+  ))
+)
 # OLS trend statistics
-# ==============================================================================
-
 trend_stats <- df |>
-  group_split(metric, scenario) |>
-  map_dfr(compute_ols_full)
-
-# ==============================================================================
+  group_by(metric, scenario) |>
+  group_modify(~ compute_ols_full(.x)) |>
+  ungroup()
 # Prediction lines
-# ==============================================================================
-
 trend_df <- df |>
   nest(data = -c(metric, scenario)) |>
   mutate(trend_pred = map(data, predict_trend_line)) |>
   select(-data) |>
   unnest(trend_pred)
-
-# ==============================================================================
-# Plot
-# ==============================================================================
-
-# Define color palette
-cols <- c(
-  "Unmasked" = "grey20",
-  "CCI tau=0.05" = "#1b9e77",
-  "CCI tau=0.1" = "#d95f02",
-  "CCI tau=0.2" = "#7570b3",
-  "GLC" = "#386cb0"
-)
-
-# Verify all scenario levels have colors defined
-scenario_levels <- levels(df$scenario)
-missing_colors <- setdiff(scenario_levels, names(cols))
-if (length(missing_colors) > 0) {
-  stop(
-    sprintf(
-      "Color palette missing entries for: %s",
-      paste(missing_colors, collapse = ", ")
-    ),
-    call. = FALSE
+plot_range_df <- df |>
+  group_by(metric) |>
+  summarise(
+    y_max = max(value, na.rm = TRUE),
+    y_min = min(value, na.rm = TRUE),
+    .groups = "drop"
   )
-}
 
-p <- ggplot() +
-  geom_ribbon(
-    data = trend_df,
-    aes(
-      x = year,
-      ymin = ci_lower,
-      ymax = ci_upper,
-      fill = scenario
-    ),
-    alpha = 0.15
-  ) +
-  geom_line(
-    data = df,
-    aes(
-      x = year,
-      y = value,
-      colour = scenario
-    ),
-    alpha = 0.35,
-    linewidth = 0.3
-  ) +
-  geom_line(
-    data = trend_df,
-    aes(
-      x = year,
-      y = fit,
-      colour = scenario
-    ),
-    linewidth = 0.9
-  ) +
-  facet_wrap(
-    ~metric,
-    scales = "fixed"
-  ) +
-  scale_colour_manual(values = cols) +
-  scale_fill_manual(
-    values = cols,
-    guide = "none"
-  ) +
-  labs(
-    x = "Year",
-    y = "Global mean LAI (dimensionless)",
-    title = "Global LAI trajectories and linear trends (1982–2024)",
-    subtitle = "Shaded bands: 95% confidence interval of fitted mean response"
-  ) +
-  theme_pub(base_size = 11)
-
-# ==============================================================================
+# Trend annotations
+annotation_df <- trend_stats |>
+  left_join(plot_range_df, by = "metric") |>
+  filter(scenario %in% c("Unmasked", "CCI tau=0.1", "GLC")) |>
+  group_by(metric) |>
+  arrange(match(scenario, c("Unmasked", "CCI tau=0.1", "GLC")), .by_group = TRUE) |>
+  summarise(
+    x = 2024.1,
+    y = first(y_min) + 0.03 * (first(y_max) - first(y_min)),
+    label = {
+      lines <- paste0(
+        scenario,
+        ": slope = ",
+        sprintf("%.4f", slope),
+        " ± ",
+        sprintf("%.4f", (ci_upper - ci_lower) / (2 * stats::qt(0.975, df = n - 2)))
+      )
+      lines[length(lines)] <- paste0(
+        lines[length(lines)],
+        "\n(p = ",
+        format.pval(p_value[length(p_value)], digits = 4, eps = 1e-5),
+        ")"
+      )
+      paste(lines, collapse = "\n")
+    },
+    .groups = "drop"
+  ) |>
+  ungroup()
+p <- plot_timeseries(df, trend_df, annotation_df, theme_pub)
 # Output
-# ==============================================================================
-
 write_csv(
-  df,
-  file.path(
-    outdir,
-    "global_timeseries_absolute_trends.csv"
-  )
+  round_numeric(df, 5),
+  file.path(outdir_tbl, "global_timeseries_absolute_trends.csv")
 )
-
 write_csv(
-  trend_df,
-  file.path(
-    outdir,
-    "global_timeseries_absolute_trends_fit.csv"
-  )
+  round_numeric(trend_df, 5),
+  file.path(outdir_tbl, "global_timeseries_absolute_trends_fit.csv")
 )
-
 write_csv(
-  trend_stats,
+  round_numeric(trend_stats, 5),
   file.path(
-    outdir,
+    outdir_tbl,
     "global_timeseries_absolute_trends_statistics.csv"
   )
 )
-
 ggsave(
-  filename = file.path(
-    outdir,
-    "global_timeseries_absolute_trends.png"
-  ),
+  filename = file.path(outdir_fig, "global_timeseries_absolute_trends.png"),
   plot = p,
   width = 11,
   height = 5.8,
   dpi = 350
 )
-
 ggsave(
-  filename = file.path(
-    outdir,
-    "global_timeseries_absolute_trends.pdf"
-  ),
+  filename = file.path(outdir_fig, "global_timeseries_absolute_trends.pdf"),
   plot = p,
   width = 11,
   height = 5.8
