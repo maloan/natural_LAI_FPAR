@@ -21,15 +21,15 @@ var <- "LAI"
 f_rel <- here(
   "analysis",
   "results",
-  "figures",
-  "summaries",
+  "tables",
+  "zonal",
   sprintf("zonal_relative_trends_all_masks_%s.csv", tau)
 )
 f_amp <- here(
   "analysis",
   "results",
-  "figures",
-  "summaries",
+  "tables",
+  "zonal",
   sprintf(
     "zonal_yearamp_timeMean_%s_all_masks_%s.csv",
     toupper(var),
