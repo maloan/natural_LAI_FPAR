@@ -29,7 +29,7 @@ default_cfg <- list(
   mask = "CCI",
   var = "LAI",
   metric = "yearmean",
-  use_relative = FALSE,
+  use_relative = TRUE,
   lc_year_start = 1992L,
   lc_year_end = 2021L,
   n_boot = 1000L,
@@ -154,10 +154,10 @@ if (length(missing_lc)) {
 
 message("Reading fractional land-cover files...")
 frac_stack <- rast(lc_files)
-frac_stack <- align_to_ref(frac_stack, ref025, method = "bilinear")
+frac_stack <- align_to_template(frac_stack, ref025, method = "bilinear")
 frac_stack <- mask(frac_stack, area)
 class_names <- unique(names(frac_stack))
-frac_mean_file <- file.path(out_dir, sprintf(
+frac_mean_file <- file.path(outdir_fig, sprintf(
   "lc025_fraction_mean_%d-%d.tif",
   min(lc_years),
   max(lc_years)
@@ -181,8 +181,8 @@ writeRaster(
 tf <- trend_files(use_relative)
 r_unm <- rast(tf$unm)[[1]]
 r_msk <- rast(tf$msk)[[1]]
-r_unm <- align_to_ref(r_unm, ref025, method = "bilinear")
-r_msk <- align_to_ref(r_msk, ref025, method = "bilinear")
+r_unm <- align_to_template(r_unm, ref025, method = "bilinear")
+r_msk <- align_to_template(r_msk, ref025, method = "bilinear")
 
 if (use_relative) {
   scale_factor <- 100
@@ -337,7 +337,7 @@ paper_tab <- lc_tab |>
   )
 
 out_csv_paper <- file.path(
-  paper_fig_dir,
+  outdir_tbl,
   sprintf(
     "table_lc_fraction_trend_summary_%s_%s_%s_%s_main.csv",
     var,
