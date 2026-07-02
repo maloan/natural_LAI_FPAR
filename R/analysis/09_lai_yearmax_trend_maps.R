@@ -219,11 +219,11 @@ row_rel <- row_label("Relative trend") + p_rel_grid +
 fig <- row_abs / row_rel
 
 out_png <- file.path(
-  outdir,
+  outdir_fig,
   sprintf("%s_%s_trend_map_%s_%s_main.png", var, metric, mask, tau)
 )
 out_pdf <- file.path(
-  outdir,
+  outdir_fig,
   sprintf("%s_%s_trend_map_%s_%s_main.pdf", var, metric, mask, tau)
 )
 ggsave(out_png,
