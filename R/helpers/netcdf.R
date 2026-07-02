@@ -3,11 +3,13 @@
 # variable selection, time extraction, and raster conversion.
 # ==============================================================================
 
-`%||%` <- function(a, b)
-  if (is.null(a))
+`%||%` <- function(a, b) {
+  if (is.null(a)) {
     b
-else
-  a
+  } else {
+    a
+  }
+}
 
 pick_varname <- function(nc, cfg_vars, var) {
   # Determine the appropriate variable name in a NetCDF file based on
@@ -17,8 +19,7 @@ pick_varname <- function(nc, cfg_vars, var) {
   fallback <- cfg_vars$nc_var_name_fallback %||% "auto_first_variable"
 
   var_u <- toupper(var)
-  extras <- switch(
-    var_u,
+  extras <- switch(var_u,
     LAI  = c("lai", "LAI", "Leaf_Area_Index"),
     FPAR = c("FPAR", "fPAR", "fpar", "Fpar"),
     character(0)
@@ -26,8 +27,9 @@ pick_varname <- function(nc, cfg_vars, var) {
 
   candidates <- unique(c(primary, fallback, extras))
   for (nm in candidates) {
-    if (identical(nm, "auto_first_variable"))
+    if (identical(nm, "auto_first_variable")) {
       next
+    }
     if (nm %in% vars) {
       return(nm)
     }
@@ -109,15 +111,18 @@ get_lonlat <- function(nc, vcfg) {
 }
 
 
-
 same_grid <- function(x, y) {
   # Check if two SpatRaster objects have the same grid (CRS, resolution, extent)
-  tryCatch({
-    identical(terra::crs(x), terra::crs(y)) &&
-      isTRUE(all.equal(terra::res(x), terra::res(y))) &&
-      isTRUE(all.equal(terra::ext(x), terra::ext(y)))
-  }, error = function(e)
-    FALSE)
+  tryCatch(
+    {
+      identical(terra::crs(x), terra::crs(y)) &&
+        isTRUE(all.equal(terra::res(x), terra::res(y))) &&
+        isTRUE(all.equal(terra::ext(x), terra::ext(y)))
+    },
+    error = function(e) {
+      FALSE
+    }
+  )
 }
 
 transpose_lonlat <- function(arr, lon_len, lat_len) {
@@ -148,7 +153,7 @@ rotate_if_360 <- function(r, lon_vals = NULL) {
 
   ex <- terra::ext(r)
   if (is.finite(ex[2]) &&
-      ex[2] > 180 && is.finite(ex[1]) && ex[1] >= 0) {
+    ex[2] > 180 && is.finite(ex[1]) && ex[1] >= 0) {
     return(terra::rotate(r))
   }
   r
@@ -159,7 +164,8 @@ rotate_if_360 <- function(r, lon_vals = NULL) {
   # position and corresponding dates.
   if (!requireNamespace("ncdf4", quietly = TRUE)) {
     stop("Package 'ncdf4' is required for NetCDF time handling.",
-         call. = FALSE)
+      call. = FALSE
+    )
   }
 
   dims <- nc$var[[varnm]]$dim
@@ -170,9 +176,10 @@ rotate_if_360 <- function(r, lon_vals = NULL) {
   if (!length(tpos)) {
     for (i in seq_along(dims)) {
       u <- try(ncdf4::ncatt_get(nc, dims[[i]]$name, "units")$value,
-               silent = TRUE)
+        silent = TRUE
+      )
       if (is.character(u) &&
-          grepl("since", u, ignore.case = TRUE)) {
+        grepl("since", u, ignore.case = TRUE)) {
         tpos <- i
         break
       }
@@ -191,7 +198,8 @@ rotate_if_360 <- function(r, lon_vals = NULL) {
   # POSIXct dates.
   if (!requireNamespace("ncdf4", quietly = TRUE)) {
     stop("Package 'ncdf4' is required for NetCDF time handling.",
-         call. = FALSE)
+      call. = FALSE
+    )
   }
 
   all_vars <- names(nc$var)
@@ -214,8 +222,10 @@ rotate_if_360 <- function(r, lon_vals = NULL) {
     return(NULL)
   }
 
-  m <- regexec("^\\s*(seconds|minutes|hours|days)\\s+since\\s+(.+)$",
-               tolower(units))
+  m <- regexec(
+    "^\\s*(seconds|minutes|hours|days)\\s+since\\s+(.+)$",
+    tolower(units)
+  )
   mm <- regmatches(tolower(units), m)[[1]]
   if (length(mm) < 3) {
     return(NULL)
@@ -230,8 +240,7 @@ rotate_if_360 <- function(r, lon_vals = NULL) {
     paste0(origin_str, " 00:00:00")
   }, tz = "UTC")
 
-  mult <- switch(
-    step,
+  mult <- switch(step,
     seconds = 1,
     minutes = 60,
     hours = 3600,
@@ -240,8 +249,9 @@ rotate_if_360 <- function(r, lon_vals = NULL) {
   )
 
   as.POSIXct(as.numeric(origin) + tv * mult,
-             origin = "1970-01-01",
-             tz = "UTC")
+    origin = "1970-01-01",
+    tz = "UTC"
+  )
 }
 
 extract_time_slice <- function(arr, varnm, nc, ym_fallback) {
@@ -284,10 +294,11 @@ extract_time_slice <- function(arr, varnm, nc, ym_fallback) {
     sprintf(
       "[extract_time_slice]\n    No time dim found; using full array (ym=%s, src=%s, var=%s).",
       ym_fallback,
-      if (inherits(src, "try-error"))
+      if (inherits(src, "try-error")) {
         "<unknown>"
-      else
-        src,
+      } else {
+        src
+      },
       varnm
     )
   )
@@ -317,13 +328,15 @@ agg005_to_025_aw <- function(r005, area005, ref025) {
 
   w <- terra::ifel(is.finite(r005), area005, 0)
   num <- terra::aggregate(r005 * w,
-                          fact = fact,
-                          fun = sum,
-                          na.rm = TRUE)
+    fact = fact,
+    fun = sum,
+    na.rm = TRUE
+  )
   den <- terra::aggregate(w,
-                          fact = fact,
-                          fun = sum,
-                          na.rm = TRUE)
+    fact = fact,
+    fun = sum,
+    na.rm = TRUE
+  )
   out <- terra::ifel(den == 0, NA, num / den)
 
   if (!same_grid(out, ref025)) {
@@ -345,12 +358,15 @@ nc_month_to_raster <- function(nc_file,
   # aligning it to a reference raster.
   if (!requireNamespace("ncdf4", quietly = TRUE)) {
     stop("Package 'ncdf4' is required for nc_month_to_raster().",
-         call. = FALSE)
+      call. = FALSE
+    )
   }
 
-  stopifnot(is.character(nc_file),
-            length(nc_file) == 1L,
-            file.exists(nc_file))
+  stopifnot(
+    is.character(nc_file),
+    length(nc_file) == 1L,
+    file.exists(nc_file)
+  )
   stopifnot(inherits(ref, "SpatRaster"))
   stopifnot(is.character(ym), nchar(ym) >= 6)
 
@@ -376,8 +392,9 @@ nc_month_to_raster <- function(nc_file,
   ll <- get_lonlat(nc, vcfg)
   if (is.null(ll$lon) || is.null(ll$lat)) {
     stop("Could not determine lon/lat coordinates in NetCDF file: ",
-         nc_file,
-         call. = FALSE)
+      nc_file,
+      call. = FALSE
+    )
   }
 
   if (length(dim(arr)) == 2L) {
@@ -392,8 +409,9 @@ nc_month_to_raster <- function(nc_file,
     )
   } else {
     stop("Expected a 2D slice after time extraction for file: ",
-         nc_file,
-         call. = FALSE)
+      nc_file,
+      call. = FALSE
+    )
   }
 
   r <- rotate_if_360(r, lon_vals = ll$lon)
