@@ -23,7 +23,7 @@ default_cfg <- list(
   mask = "CCI",
   var = "LAI",
   metric = "yearmean",
-  use_relative = TRUE,
+  use_relative = FALSE,
   kg_res = "coarse",
   chunk_size = 500L,
   n_boot = 1000L,
@@ -177,8 +177,8 @@ make_kg_raster <- function(ref, kg_code, codes, name) {
 r_unm <- terra::rast(f_unm)[[1]]
 r_msk <- terra::rast(f_msk)[[1]]
 
-r_unm <- align_to_ref(r_unm, ref025, method = "bilinear")
-r_msk <- align_to_ref(r_msk, ref025, method = "bilinear")
+r_unm <- align_to_template(r_unm, ref025, method = "bilinear")
+r_msk <- align_to_template(r_msk, ref025, method = "bilinear")
 
 stopifnot(
   terra::compareGeom(ref025, r_unm, stopOnError = TRUE),
