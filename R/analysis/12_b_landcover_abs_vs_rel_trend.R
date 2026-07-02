@@ -43,10 +43,7 @@ dir.create(outdir_tbl, recursive = TRUE, showWarnings = FALSE)
 
 summary_csv <- function(kind) {
   here::here(
-    "analysis",
-    "results",
-    "lc_fraction_trends",
-    tau,
+    outdir_tbl,
     sprintf("lc_fraction_class_%s_%s_%s_%s.csv", var, metric, mask, kind)
   )
 }
