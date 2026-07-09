@@ -1,5 +1,5 @@
 # ==============================================================================
-# 06_zonal_relative_trends_all_masks.R — zonal relative trends for annual mean
+# 06_zonal_absolute_trends_all_masks.R — zonal absolute trends for annual mean
 # and annual max
 # ==============================================================================
 
@@ -42,7 +42,7 @@ zonal_wmean_latbands_ci <- function(r,
                                     block_id,
                                     band_deg = 1L,
                                     scale_factor = 1,
-                                    n_boot = 500L,
+                                    n_boot = 1000L,
                                     conf = 0.95) {
   lat <- terra::init(area, "y")
   lat_vals <- terra::values(lat, dataframe = FALSE)
@@ -80,17 +80,17 @@ zonal_wmean_latbands_ci <- function(r,
       value = ci$mean,
       ci_lower = ci$lower,
       ci_upper = ci$upper,
-      n_pixels = ci$n_eff
+      n_pixels = sum(ok)
     )
   }
   dplyr::bind_rows(results)
 }
 rows <- list()
 for (met in metrics) {
-  f_unmasked <- analysis_raster_path(var, met, "unmasked", kind = "trend_relative")
+  f_unmasked <- analysis_raster_path(var, met, "unmasked", kind = "trend_slope")
   check_file_exists(
     f_unmasked,
-    sprintf("unmasked relative-trend raster (%s)", met)
+    sprintf("unmasked absolute-trend raster (%s)", met)
   )
   r_unmasked <- load_checked_raster(f_unmasked, area, label = "Unmasked", first_layer = TRUE)
   rows[[length(rows) + 1]] <- zonal_wmean_latbands_ci(
@@ -98,19 +98,19 @@ for (met in metrics) {
     area,
     block_id,
     band_deg = 1L,
-    scale_factor = 100,
-    n_boot = 500L
+    scale_factor = 1,
+    n_boot = 1000L
   ) |>
     as_tibble() |>
-    rename(reltrend_pct_per_year = value) |>
+    rename(abstrend_m2m2yr = value) |>
     arrange(.data$lat_band) |>
     mutate(metric = met, scenario = "Unmasked")
 
   for (tau in taus_cci) {
-    f_cci <- analysis_raster_path(var, met, "CCI", run_tag = tau, kind = "trend_relative")
+    f_cci <- analysis_raster_path(var, met, "CCI", run_tag = tau, kind = "trend_slope")
     check_file_exists(
       f_cci,
-      sprintf("CCI relative-trend raster (%s, %s)", met, tau)
+      sprintf("CCI absolute-trend raster (%s, %s)", met, tau)
     )
     r_cci <- load_checked_raster(f_cci,
       area,
@@ -122,19 +122,19 @@ for (met in metrics) {
       area,
       block_id,
       band_deg = 1L,
-      scale_factor = 100,
-      n_boot = 500L
+      scale_factor = 1,
+      n_boot = 1000L
     ) |>
       as_tibble() |>
-      rename(reltrend_pct_per_year = value) |>
+      rename(abstrend_m2m2yr = value) |>
       arrange(.data$lat_band) |>
       mutate(metric = met, scenario = sprintf("CCI %s", gsub("tau_", "tau=", tau)))
   }
 
-  f_glc <- analysis_raster_path(var, met, "GLC", run_tag = tau_glc, kind = "trend_relative")
+  f_glc <- analysis_raster_path(var, met, "GLC", run_tag = tau_glc, kind = "trend_slope")
   check_file_exists(
     f_glc,
-    sprintf("GLC relative-trend raster (%s, %s)", met, tau_glc)
+    sprintf("GLC absolute-trend raster (%s, %s)", met, tau_glc)
   )
   r_glc <- load_checked_raster(f_glc, area, label = "GLC", first_layer = TRUE)
   rows[[length(rows) + 1]] <- zonal_wmean_latbands_ci(
@@ -142,11 +142,11 @@ for (met in metrics) {
     area,
     block_id,
     band_deg = 1L,
-    scale_factor = 100,
-    n_boot = 500L
+    scale_factor = 1,
+    n_boot = 1000L
   ) |>
     as_tibble() |>
-    rename(reltrend_pct_per_year = value) |>
+    rename(abstrend_m2m2yr = value) |>
     arrange(.data$lat_band) |>
     mutate(metric = met, scenario = "GLC")
 }
@@ -166,39 +166,39 @@ df <- bind_rows(rows) |>
 # write table
 write_csv(round_numeric(df, 5), file.path(
   outdir_tbl,
-  sprintf("zonal_relative_trends_all_masks_%s.csv", tau_glc)
+  sprintf("zonal_absolute_trends_all_masks_%s.csv", tau_glc)
 ))
 
-p_mean <- plot_zonal_reltrend(
+p_mean <- plot_zonal_abstrend(
   df |> filter(metric == "Annual mean"),
-  "Zonal relative trends: annual mean"
+  "Zonal absolute trends: annual mean"
 )
-p_max <- plot_zonal_reltrend(
+p_max <- plot_zonal_abstrend(
   df |> filter(metric == "Annual maximum"),
-  "Zonal relative trends: annual maximum"
+  "Zonal absolute trends: annual maximum"
 )
 ggsave(
-  file.path(outdir_fig, "zonal_relative_trends_yearmean_all_masks.png"),
+  file.path(outdir_fig, "zonal_absolute_trends_yearmean_all_masks.png"),
   p_mean,
   width = 10,
   height = 4.7,
   dpi = 320
 )
 ggsave(
-  file.path(outdir_fig, "zonal_relative_trends_yearmean_all_masks.pdf"),
+  file.path(outdir_fig, "zonal_absolute_trends_yearmean_all_masks.pdf"),
   p_mean,
   width = 10,
   height = 4.7
 )
 ggsave(
-  file.path(outdir_fig, "zonal_relative_trends_yearmax_all_masks.png"),
+  file.path(outdir_fig, "zonal_absolute_trends_yearmax_all_masks.png"),
   p_max,
   width = 10,
   height = 4.7,
   dpi = 320
 )
 ggsave(
-  file.path(outdir_fig, "zonal_relative_trends_yearmax_all_masks.pdf"),
+  file.path(outdir_fig, "zonal_absolute_trends_yearmax_all_masks.pdf"),
   p_max,
   width = 10,
   height = 4.7

@@ -18,12 +18,12 @@ theme_pub_fn <- get("theme_pub", mode = "function")
 tau <- "tau_0.1"
 var <- "LAI"
 
-f_rel <- here(
+f_abs <- here(
   "analysis",
   "results",
   "tables",
   "zonal",
-  sprintf("zonal_relative_trends_all_masks_%s.csv", tau)
+  sprintf("zonal_absolute_trends_all_masks_%s.csv", tau)
 )
 f_amp <- here(
   "analysis",
@@ -37,54 +37,54 @@ f_amp <- here(
   )
 )
 
-if (!file.exists(f_rel)) {
-  stop("Missing relative-trends table: ", f_rel)
+if (!file.exists(f_abs)) {
+  stop("Missing absolute-trends table: ", f_abs)
 }
 if (!file.exists(f_amp)) {
   stop("Missing seasonal-amplitude table: ", f_amp)
 }
 
-df_rel <- read_csv(f_rel, show_col_types = FALSE)
+df_abs <- read_csv(f_abs, show_col_types = FALSE)
 df_amp <- read_csv(f_amp, show_col_types = FALSE)
 
 scenario_levels <- c("Unmasked", "CCI tau=0.05", "CCI tau=0.1", "CCI tau=0.2", "GLC")
-df_rel <- df_rel |>
+df_abs <- df_abs |>
   mutate(scenario = factor(.data$scenario, levels = scenario_levels))
 df_amp <- df_amp |>
   mutate(scenario = factor(.data$scenario, levels = scenario_levels))
 
-df_rel_mean <- df_rel |> filter(metric == "Annual mean")
-df_rel_max <- df_rel |> filter(metric == "Annual maximum")
-rel_ylim <- range(
+df_abs_mean <- df_abs |> filter(metric == "Annual mean")
+df_abs_max <- df_abs |> filter(metric == "Annual maximum")
+abs_ylim <- range(
   c(
-    df_rel_mean$reltrend_pct_per_year,
-    df_rel_max$reltrend_pct_per_year
+    df_abs_mean$abstrend_m2m2yr,
+    df_abs_max$abstrend_m2m2yr
   ),
   na.rm = TRUE
 )
-rel_pad <- 0.05 * diff(rel_ylim)
-rel_ylim <- rel_ylim + c(-rel_pad, rel_pad)
+abs_pad <- 0.05 * diff(abs_ylim)
+abs_ylim <- abs_ylim + c(-abs_pad, abs_pad)
 
 p1 <- plot_zonal_diagnostics(
-  df_rel_mean,
-  "reltrend_pct_per_year",
-  "Annual Mean Relative Trend",
-  expression("Relative trend (% yr"^
+  df_abs_mean,
+  "abstrend_m2m2yr",
+  "Annual Mean Absolute Trend",
+  expression("Absolute trend (% yr"^
     {
       -1
     } * ")"),
-  y_limits = rel_ylim
+  y_limits = abs_ylim
 )
 
 p2 <- plot_zonal_diagnostics(
-  df_rel_max,
-  "reltrend_pct_per_year",
-  "Annual Maximum Relative Trend",
-  expression("Relative trend (% yr"^
+  df_abs_max,
+  "abstrend_m2m2yr",
+  "Annual Maximum Absolute Trend",
+  expression("Absolute trend (% yr"^
     {
       -1
     } * ")"),
-  y_limits = rel_ylim
+  y_limits = abs_ylim
 )
 p3 <- plot_zonal_diagnostics(
   df_amp,

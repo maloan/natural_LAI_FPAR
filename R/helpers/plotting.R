@@ -782,12 +782,7 @@ plot_seasonal_amplitude <- function(z_abs) {
   p
 }
 
-plot_zonal_reltrend <- function(df_plot, ttl) {
-  # Generate a zonal plot of relative trends (df_plot) using ggplot2, with
-  # latitude on the x-axis and relative trend percentage per year on the y-axis.
-  # The plot includes confidence bands, lines for different scenarios, custom
-  # colors, and labels. The theme_pub function is used for consistent styling.
-  lat_breaks_30 <- seq(-90, 90, by = 30)
+plot_zonal_abstrend <- function(df, ttl, y_limits = NULL) {
   col_map <- c(
     "Unmasked" = "grey20",
     "CCI tau=0.05" = "#1b9e77",
@@ -797,50 +792,63 @@ plot_zonal_reltrend <- function(df_plot, ttl) {
   )
 
   p <- ggplot(
-    df_plot,
+    df,
     aes(
-      .data$lat_band,
-      .data$reltrend_pct_per_year,
-      colour = .data$scenario
+      x      = .data$lat_band,
+      y      = .data$abstrend_m2m2yr,
+      colour = .data$scenario,
+      fill   = .data$scenario,
+      group  = .data$scenario
     )
   ) +
-    # Confidence band (shaded ribbon)
+    geom_hline(yintercept = 0, colour = "grey40", linewidth = 0.4) +
     geom_ribbon(
-      aes(
-        ymin = .data$ci_lower,
-        ymax = .data$ci_upper,
-        fill = .data$scenario
-      ),
-      alpha = 0.15,
-      colour = NA,
-      na.rm = TRUE
+      aes(ymin = .data$ci_lower, ymax = .data$ci_upper),
+      alpha = 0.08,
+      linewidth = 0,
+      na.rm = TRUE,
+      show.legend = FALSE
     ) +
-    geom_hline(
-      yintercept = 0,
-      colour = "grey90",
-      linewidth = 0.25
-    ) +
-    geom_line(linewidth = 0.85, na.rm = TRUE) +
+    geom_line(linewidth = 0.5, na.rm = TRUE) +
     scale_colour_manual(values = col_map, drop = FALSE) +
-    scale_fill_manual(
-      values = col_map,
-      drop = FALSE,
-      guide = "none"
-    ) +
+    scale_fill_manual(values = col_map, drop = FALSE) +
     scale_x_continuous(
       limits = c(-60, 90),
-      breaks = lat_breaks_30,
+      breaks = seq(-60, 90, by = 30),
       labels = lat_labels
     ) +
     labs(
+      title = ttl,
       x = "Latitude",
-      y = expression("Relative LAI trend (% yr"^
-        {
-          -1
-        } * ")"),
-      colour = NULL
+      y = expression(paste(
+        "Absolute LAI trend (m"^2, " m"^-2, " yr"^-1, ")"
+      )),
+      colour = "Mask scenario",
+      fill = "Mask scenario"
     ) +
-    theme_pub(include_legend = TRUE, include_strip = TRUE)
+    theme_pub(base_size = 10.5, include_legend = TRUE) +
+    theme(
+      plot.title       = element_text(size = 11, face = "bold", hjust = 0.5),
+      axis.text        = element_text(size = 9.5),
+      axis.title       = element_text(size = 10),
+      legend.text      = element_text(size = 9),
+      legend.position  = "right",
+      legend.direction = "vertical",
+      legend.box       = "horizontal",
+      legend.margin    = margin(t = 10, b = 10),
+      panel.grid.minor = element_blank(),
+      panel.grid.major = element_line(color = "grey95", linewidth = 0.1)
+    ) +
+    guides(colour = guide_legend(
+      nrow  = 5,
+      byrow = TRUE,
+      title = "Mask scenario"
+    ))
+
+  if (!is.null(y_limits)) {
+    p <- p + coord_cartesian(ylim = y_limits)
+  }
+
   p
 }
 
@@ -927,7 +935,7 @@ plot_zonal_diagnostics <- function(df, ycol, ttl, ylab, y_limits = NULL) {
     scale_x_continuous(
       limits = c(-60, 90),
       breaks = seq(-60, 90, by = 30),
-      labels = lat_label_fn
+      labels = lat_labels
     ) +
     labs(
       title = ttl,
@@ -935,7 +943,7 @@ plot_zonal_diagnostics <- function(df, ycol, ttl, ylab, y_limits = NULL) {
       y = ylab,
       colour = "Mask Scenario"
     ) +
-    theme_pub_fn(base_size = 10.5, include_legend = TRUE) +
+    theme_pub(base_size = 10.5, include_legend = TRUE) +
     theme(
       plot.title = element_text(
         size = 11,
