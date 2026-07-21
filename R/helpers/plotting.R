@@ -804,7 +804,7 @@ plot_zonal_abstrend <- function(df, ttl, y_limits = NULL) {
     geom_hline(yintercept = 0, colour = "grey40", linewidth = 0.4) +
     geom_ribbon(
       aes(ymin = .data$ci_lower, ymax = .data$ci_upper),
-      alpha = 0.08,
+      alpha = 0.02,
       linewidth = 0,
       na.rm = TRUE,
       show.legend = FALSE
@@ -972,7 +972,7 @@ plot_zonal_diagnostics <- function(df, ycol, ttl, ylab, y_limits = NULL) {
           fill = .data$scenario,
           group = .data$scenario
         ),
-        alpha = 0.08,
+        alpha = 0.02,
         linewidth = 0,
         na.rm = TRUE,
         show.legend = FALSE
