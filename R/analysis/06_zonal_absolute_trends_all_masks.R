@@ -19,8 +19,8 @@ source(here("R", "helpers", "io.R"))
 # config
 var <- "LAI"
 metrics <- c("yearmean", "yearmax")
-taus_cci <- c("tau_0.05", "tau_0.1", "tau_0.2")
-tau_glc <- "tau_0.1"
+alphas_cci <- c("alpha_0.05", "alpha_0.1", "alpha_0.2")
+alpha_glc <- "alpha_0.1"
 outdir_fig <- here("analysis", "results", "figures", "summaries")
 outdir_tbl <- here("analysis", "results", "tables", "zonal")
 dir.create(outdir_fig, recursive = TRUE, showWarnings = FALSE)
@@ -106,15 +106,15 @@ for (met in metrics) {
     arrange(.data$lat_band) |>
     mutate(metric = met, scenario = "Unmasked")
 
-  for (tau in taus_cci) {
-    f_cci <- analysis_raster_path(var, met, "CCI", run_tag = tau, kind = "trend_slope")
+  for (alpha in alphas_cci) {
+    f_cci <- analysis_raster_path(var, met, "CCI", run_tag = alpha, kind = "trend_slope")
     check_file_exists(
       f_cci,
-      sprintf("CCI absolute-trend raster (%s, %s)", met, tau)
+      sprintf("CCI absolute-trend raster (%s, %s)", met, alpha)
     )
     r_cci <- load_checked_raster(f_cci,
       area,
-      label = paste("CCI", tau),
+      label = paste("CCI", alpha),
       first_layer = TRUE
     )
     rows[[length(rows) + 1]] <- zonal_wmean_latbands_ci(
@@ -128,13 +128,13 @@ for (met in metrics) {
       as_tibble() |>
       rename(abstrend_m2m2yr = value) |>
       arrange(.data$lat_band) |>
-      mutate(metric = met, scenario = sprintf("CCI %s", gsub("tau_", "tau=", tau)))
+      mutate(metric = met, scenario = sprintf("CCI %s", gsub("alpha_", "alpha=", alpha)))
   }
 
-  f_glc <- analysis_raster_path(var, met, "GLC", run_tag = tau_glc, kind = "trend_slope")
+  f_glc <- analysis_raster_path(var, met, "GLC", run_tag = alpha_glc, kind = "trend_slope")
   check_file_exists(
     f_glc,
-    sprintf("GLC absolute-trend raster (%s, %s)", met, tau_glc)
+    sprintf("GLC absolute-trend raster (%s, %s)", met, alpha_glc)
   )
   r_glc <- load_checked_raster(f_glc, area, label = "GLC", first_layer = TRUE)
   rows[[length(rows) + 1]] <- zonal_wmean_latbands_ci(
@@ -159,14 +159,14 @@ df <- bind_rows(rows) |>
     ),
     scenario = factor(
       scenario,
-      levels = c("Unmasked", "CCI tau=0.05", "CCI tau=0.1", "CCI tau=0.2", "GLC")
+      levels = c("Unmasked", "CCI alpha=0.05", "CCI alpha=0.1", "CCI alpha=0.2", "GLC")
     )
   )
 
 # write table
 write_csv(round_numeric(df, 5), file.path(
   outdir_tbl,
-  sprintf("zonal_absolute_trends_all_masks_%s.csv", tau_glc)
+  sprintf("zonal_absolute_trends_all_masks_%s.csv", alpha_glc)
 ))
 
 p_mean <- plot_zonal_abstrend(

@@ -45,15 +45,15 @@ parse_cli_args <- function(defaults) {
   vals
 }
 
-create_scenario_spec <- function(cci_taus = c("tau_0.05", "tau_0.1", "tau_0.2"),
-                                 glc_run_tag = "tau_0.1") {
+create_scenario_spec <- function(cci_alphas = c("alpha_0.05", "alpha_0.1", "alpha_0.2"),
+                                 glc_run_tag = "alpha_0.1") {
   # Create a tibble of scenario specifications for the analysis.
   tibble::tibble(
-    scenario = c("Unmasked", sprintf("CCI tau=%s", sub(
-      "tau_", "", cci_taus
+    scenario = c("Unmasked", sprintf("CCI alpha=%s", sub(
+      "alpha_", "", cci_alphas
     )), "GLC"),
-    source = c("unmasked", rep("CCI", length(cci_taus)), "GLC"),
-    run_tag = c(NA_character_, cci_taus, glc_run_tag)
+    source = c("unmasked", rep("CCI", length(cci_alphas)), "GLC"),
+    run_tag = c(NA_character_, cci_alphas, glc_run_tag)
   )
 }
 

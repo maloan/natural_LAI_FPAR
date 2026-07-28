@@ -2,13 +2,13 @@
 # ==============================================================================
 # 02_batch_build_trends_masked.sh
 # Batch wrapper for build_trends_masked_0p25.sh
-# Generates masked trend products for multiple (TAU, VAR, MASKTAG) combinations
+# Generates masked trend products for multiple (ALPHA, VAR, MASKTAG) combinations
 #
 # Usage:
-#   TAUS="0.05 0.1 0.2" VARS="LAI FPAR" MASKS="CCI GLC" bash ./02_batch_build_trends_masked.sh
+#   ALPHAS="0.05 0.1 0.2" VARS="LAI FPAR" MASKS="CCI GLC" bash ./02_batch_build_trends_masked.sh
 #
 # Environment variables (optional)
-#   TAUS:  space-separated list of tau values (default: "0.05 0.1 0.2")
+#   ALPHAS:  space-separated list of alpha values (default: "0.05 0.1 0.2")
 #   VARS:  space-separated list of variables (default: "LAI FPAR")
 #   MASKS: space-separated list of mask sources (default: "CCI GLC")
 # ==============================================================================
@@ -22,7 +22,7 @@ BUILD_SCRIPT="$SCRIPT_DIR/build_trends_masked_0p25.sh"
   exit 1
 }
 
-read -r -a TAUS_ARR <<< "${TAUS:-0.05 0.1 0.2}"
+read -r -a ALPHAS_ARR <<< "${ALPHAS:-0.05 0.1 0.2}"
 read -r -a VARS_ARR <<< "${VARS:-LAI FPAR}"
 read -r -a MASKS_ARR <<< "${MASKS:-CCI GLC}"
 
@@ -30,12 +30,12 @@ total_jobs=0
 failed_jobs=0
 FAILED_LIST=()
 
-for TAU in "${TAUS_ARR[@]}"; do
-  [[ "$TAU" =~ ^[0-9]*\.?[0-9]+$ ]] || {
-    echo "WARNING: Invalid TAU value: $TAU"
+for ALPHA in "${ALPHAS_ARR[@]}"; do
+  [[ "$ALPHA" =~ ^[0-9]*\.?[0-9]+$ ]] || {
+    echo "WARNING: Invalid ALPHA value: $ALPHA"
     continue
   }
-  RUN_TAG="tau_${TAU}"
+  RUN_TAG="alpha_${ALPHA}"
   for VAR in "${VARS_ARR[@]}"; do
     for MASK in "${MASKS_ARR[@]}"; do
       total_jobs=$((total_jobs + 1))

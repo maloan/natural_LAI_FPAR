@@ -19,7 +19,7 @@ source(here::here("R", "helpers", "plotting.R"))
 source(here::here("R", "helpers", "io.R"))
 
 default_cfg <- list(
-  tau = "tau_0.1",
+  alpha = "alpha_0.1",
   mask = "CCI",
   var = "LAI",
   metric = "yearmean",
@@ -32,7 +32,7 @@ default_cfg <- list(
 
 cfg <- parse_cli_args(default_cfg)
 
-tau <- as.character(cfg$tau)
+alpha <- as.character(cfg$alpha)
 mask <- as.character(cfg$mask)
 var <- as.character(cfg$var)
 metric <- as.character(cfg$metric)
@@ -70,7 +70,7 @@ f_unm <- here::here(
 
 f_msk <- here::here(
   "output",
-  tau,
+  alpha,
   "eval",
   sprintf("trend_%s_%s", var, mask),
   sprintf("%s_%s_%s_0p25.nc", var, metric, trend_suffix)
@@ -538,7 +538,7 @@ out_png <- file.path(
     var,
     metric,
     mask,
-    tau
+    alpha
   )
 )
 
@@ -549,7 +549,7 @@ out_pdf <- file.path(
     var,
     metric,
     mask,
-    tau
+    alpha
   )
 )
 

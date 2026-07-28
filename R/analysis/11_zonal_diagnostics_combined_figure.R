@@ -15,7 +15,7 @@ source(here("R", "helpers", "plotting.R"))
 lat_label_fn <- get("lat_labels", mode = "function")
 theme_pub_fn <- get("theme_pub", mode = "function")
 
-tau <- "tau_0.1"
+alpha <- "alpha_0.1"
 var <- "LAI"
 
 f_abs <- here(
@@ -23,7 +23,7 @@ f_abs <- here(
   "results",
   "tables",
   "zonal",
-  sprintf("zonal_absolute_trends_all_masks_%s.csv", tau)
+  sprintf("zonal_absolute_trends_all_masks_%s.csv", alpha)
 )
 f_amp <- here(
   "analysis",
@@ -33,7 +33,7 @@ f_amp <- here(
   sprintf(
     "zonal_yearamp_timeMean_%s_all_masks_%s.csv",
     toupper(var),
-    tau
+    alpha
   )
 )
 
@@ -47,7 +47,7 @@ if (!file.exists(f_amp)) {
 df_abs <- read_csv(f_abs, show_col_types = FALSE)
 df_amp <- read_csv(f_amp, show_col_types = FALSE)
 
-scenario_levels <- c("Unmasked", "CCI tau=0.05", "CCI tau=0.1", "CCI tau=0.2", "GLC")
+scenario_levels <- c("Unmasked", "CCI alpha=0.05", "CCI alpha=0.1", "CCI alpha=0.2", "GLC")
 df_abs <- df_abs |>
   mutate(scenario = factor(.data$scenario, levels = scenario_levels))
 df_amp <- df_amp |>
@@ -114,7 +114,7 @@ dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 out_stub <- sprintf(
   "zonal_diagnostics_mean_max_amplitude_%s_all_masks_%s",
   toupper(var),
-  tau
+  alpha
 )
 ggsave(
   file.path(outdir, paste0(out_stub, ".png")),

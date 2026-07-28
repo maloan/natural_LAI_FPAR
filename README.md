@@ -55,7 +55,7 @@ Useful variants:
 
 ```bash
 make pipeline MASKS=CCI
-make pipeline RUN_TAG=tau_0.2
+make pipeline RUN_TAG=alpha_0.2
 make ql
 ```
 

@@ -265,7 +265,7 @@ cfg_read <- function() {
   # Read configuration options from a YAML file specified by environment
   # variables, with fallbacks.
   root <- exp_(Sys.getenv("SNU_LAI_FPAR_ROOT", unset = "~/GitHub/natural_LAI_FPAR"))
-  run_tag <- Sys.getenv("run_tag", "tau_0.1")
+  run_tag <- Sys.getenv("run_tag", "alpha_0.1")
   cfg_file <- file.path(root, "config", sprintf("config_%s.yml", run_tag))
 
   # Fall back to generic config if run_tag specific one doesn't exist

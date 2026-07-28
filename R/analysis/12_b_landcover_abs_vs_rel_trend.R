@@ -19,7 +19,7 @@ default_cfg <- list(
   var = "LAI",
   metric = "yearmean",
   mask = "CCI",
-  tau = "tau_0.1",
+  alpha = "alpha_0.1",
   include_nonveg = FALSE,
   n_label_area = 20L,
   n_label_outlier = 5L
@@ -30,7 +30,7 @@ cfg <- parse_cli_args(default_cfg)
 var <- as.character(cfg$var)
 metric <- as.character(cfg$metric)
 mask <- as.character(cfg$mask)
-tau <- as.character(cfg$tau)
+alpha <- as.character(cfg$alpha)
 
 include_nonveg <- as.logical(cfg$include_nonveg)
 n_label_area <- as.integer(cfg$n_label_area)
@@ -198,7 +198,7 @@ out_png <- file.path(
   outdir_fig,
   sprintf(
     "plot_lc_fraction_trend_abs_vs_rel_%s_%s_%s_%s.png",
-    tau,
+    alpha,
     var,
     metric,
     mask
@@ -209,7 +209,7 @@ out_pdf <- file.path(
   outdir_fig,
   sprintf(
     "plot_lc_fraction_trend_abs_vs_rel_%s_%s_%s_%s.pdf",
-    tau,
+    alpha,
     var,
     metric,
     mask

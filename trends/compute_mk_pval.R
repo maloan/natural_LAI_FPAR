@@ -14,7 +14,7 @@ mode <- Sys.getenv("RUN_MODE", "masked")
 var <- Sys.getenv("VAR", "LAI")
 metric <- Sys.getenv("METRIC", "yearmax")
 
-tau <- Sys.getenv("RUN_TAG", "tau_0.1")
+alpha <- Sys.getenv("RUN_TAG", "alpha_0.1")
 mask <- Sys.getenv("MASK", "CCI")
 
 # Optional explicit fill value override; leave NA to rely on NetCDF metadata.
@@ -36,12 +36,12 @@ if (mode == "unmasked") {
   )
 } else if (mode == "masked") {
   f_ts <- here(
-    "output", tau, "eval",
+    "output", alpha, "eval",
     sprintf("trend_%s_%s", var, mask),
     sprintf("%s_%s_0p25.nc", var, metric)
   )
   out_p <- here(
-    "output", tau, "eval",
+    "output", alpha, "eval",
     sprintf("trend_%s_%s", var, mask),
     sprintf("%s_%s_trend_mk_pval_0p25.nc", var, metric)
   )

@@ -3,8 +3,8 @@
 # build_trends_masked_0p25.sh — Run masked 0.25° trend workflow from repo root
 #
 # Examples
-#   ./build_trends_masked_0p25.sh tau_0.2 FPAR GLC
-#   ./build_trends_masked_0p25.sh tau_0.1 LAI  CCI
+#   ./build_trends_masked_0p25.sh alpha_0.2 FPAR GLC
+#   ./build_trends_masked_0p25.sh alpha_0.1 LAI  CCI
 # ==============================================================================
 
 set -euo pipefail
@@ -33,13 +33,13 @@ need_cmd cdo
 need_cmd Rscript
 if [[ $# -lt 3 ]]; then
   cat >&2 << 'EOF'
-Usage: ./build_trends_masked_0p25.sh TAU VAR MASKTAG
+Usage: ./build_trends_masked_0p25.sh ALPHA VAR MASKTAG
 Example:
-  ./build_trends_masked_0p25.sh tau_0.1 LAI CCI
+  ./build_trends_masked_0p25.sh alpha_0.1 LAI CCI
 EOF
   exit 1
 fi
-TAU="$1"
+ALPHA="$1"
 VAR="$2"
 MASKTAG="$3"
 RES="0p25"
@@ -60,8 +60,8 @@ RES="0p25"
 # Paths
 # ------------------------------------------------------------------------------
 ROOT="${SNU_LAI_FPAR_ROOT:-$HOME/GitHub/natural_LAI_FPAR}"
-IN_DIR="${ROOT}/output/${TAU}/masked_0p25/${VAR}/masked_${VAR}_${MASKTAG}"
-OUT_EVAL="${ROOT}/output/${TAU}/eval/trend_${VAR}_${MASKTAG}"
+IN_DIR="${ROOT}/output/${ALPHA}/masked_0p25/${VAR}/masked_${VAR}_${MASKTAG}"
+OUT_EVAL="${ROOT}/output/${ALPHA}/eval/trend_${VAR}_${MASKTAG}"
 mkdir -p "$OUT_EVAL"
 LOG_FILE="${OUT_EVAL}/build_trends.log"
 : > "$LOG_FILE"
@@ -84,7 +84,7 @@ log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
 }
 log "========== START =========="
-log "TAU=$TAU VAR=$VAR MASKTAG=$MASKTAG"
+log "ALPHA=$ALPHA VAR=$VAR MASKTAG=$MASKTAG"
 
 # ------------------------------------------------------------------------------
 # Input validation
@@ -264,7 +264,7 @@ for met in yearmean yearmax yearmin yearamp; do
   (
     cd "$ROOT"
     RUN_MODE=masked \
-    RUN_TAG="$TAU" \
+    RUN_TAG="$ALPHA" \
     MASK="$MASKTAG" \
     VAR="$VAR" \
     METRIC="$met" \

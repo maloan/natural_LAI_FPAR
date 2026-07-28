@@ -18,7 +18,7 @@ suppressPackageStartupMessages({
 source(here("R", "helpers", "plotting.R"))
 
 # config
-tau <- "tau_0.1"
+alpha <- "alpha_0.1"
 mask <- "CCI"
 var <- "LAI"
 metric <- "yearmax"
@@ -33,7 +33,7 @@ f_p_unm <- here(
 )
 f_p_msk <- here(
   "output",
-  tau,
+  alpha,
   "eval",
   sprintf("trend_%s_%s", var, mask),
   sprintf("%s_%s_trend_mk_pval_0p25.nc", var, metric)
@@ -46,7 +46,7 @@ f_abs_unm <- here(
 )
 f_abs_msk <- here(
   "output",
-  tau,
+  alpha,
   "eval",
   sprintf("trend_%s_%s", var, mask),
   sprintf("%s_%s_trend_slope_peryear_0p25.nc", var, metric)
@@ -59,7 +59,7 @@ f_rel_unm <- here(
 )
 f_rel_msk <- here(
   "output",
-  tau,
+  alpha,
   "eval",
   sprintf("trend_%s_%s", var, mask),
   sprintf("%s_%s_trend_relative_peryear_0p25.nc", var, metric)
@@ -220,11 +220,11 @@ fig <- row_abs / row_rel
 
 out_png <- file.path(
   outdir_fig,
-  sprintf("%s_%s_trend_map_%s_%s_main.png", var, metric, mask, tau)
+  sprintf("%s_%s_trend_map_%s_%s_main.png", var, metric, mask, alpha)
 )
 out_pdf <- file.path(
   outdir_fig,
-  sprintf("%s_%s_trend_map_%s_%s_main.pdf", var, metric, mask, tau)
+  sprintf("%s_%s_trend_map_%s_%s_main.pdf", var, metric, mask, alpha)
 )
 ggsave(out_png,
   fig,

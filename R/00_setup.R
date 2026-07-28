@@ -13,8 +13,8 @@ source(here("R", "helpers", "io.R"))
 terraOptions(progress = 1, memfrac = 0.25)
 
 epsg4326 <- "EPSG:4326"
-run_tag <- Sys.getenv("run_tag", unset = "tau_0.1")
-tau_cci <- as.numeric(Sys.getenv("tau_cci", "0.1"))
+run_tag <- Sys.getenv("run_tag", unset = "alpha_0.1")
+alpha_cci <- as.numeric(Sys.getenv("alpha_cci", "0.1"))
 GDAL_OPTS <- gdal_co_int()
 
 #  paths
@@ -114,7 +114,7 @@ dir.create(dirname(cfg_path),
 cfg <- list(
   project = list(
     run_tag = run_tag,
-    tau_cci = tau_cci,
+    alpha_cci = alpha_cci,
     name = "SNU_LAI_FPAR_natmask_global",
     crs = epsg4326,
     years = list(

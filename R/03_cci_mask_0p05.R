@@ -20,7 +20,7 @@ out_dir <- cfg$paths$masks_cci_dir
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 #  parameters (env-only defaults)
-tau_cci <- as.numeric(Sys.getenv("tau_cci", "0.1"))
+alpha_cci <- as.numeric(Sys.getenv("alpha_cci", "0.1"))
 k_cci <- as.integer(Sys.getenv("k_cci", "3"))
 skip_existing <- as_bool(Sys.getenv("skip_existing"), default = TRUE)
 
@@ -73,31 +73,31 @@ k_eff <- min(k_cci, nl)
 
 message(
   sprintf(
-    "CCI stack: band=%s, nlayers=%d, years=[%d..%d], tau=%.3f, k=%d",
+    "CCI stack: band=%s, nlayers=%d, years=[%d..%d], alpha=%.3f, k=%d",
     band_name,
     nl,
     min(years),
     max(years),
-    tau_cci,
+    alpha_cci,
     k_eff
   )
 )
 
 #  majority mask
-used_year <- cci_stack >= tau_cci
+used_year <- cci_stack >= alpha_cci
 mask_log <- app(used_year, sum, na.rm = TRUE) >= k_eff
 mask_byte <- ifel(mask_log, 1L, 0L)
 
 y1 <- min(years)
 y2 <- max(years)
-tau_tok <- gsub("\\.", "p", sprintf("%.2f", tau_cci))
+alpha_tok <- gsub("\\.", "p", sprintf("%.2f", alpha_cci))
 
 out_mask_cci <- file.path(
   out_dir,
   sprintf(
-    "mask_used_%s_tau%s_k%d_%d-%d_0p05.tif",
+    "mask_used_%s_alpha%s_k%d_%d-%d_0p05.tif",
     band_name,
-    tau_tok,
+    alpha_tok,
     k_eff,
     y1,
     y2

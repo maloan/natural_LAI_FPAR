@@ -9,7 +9,7 @@ trends/ (shell scripts)
   ↓
   Computes annual metrics, OLS trends, relative trends, MK p-values
   ↓
-output/<TAU>/eval/trend_<VAR>_<MASK>/*.nc (trend rasters)
+output/<ALPHA>/eval/trend_<VAR>_<MASK>/*.nc (trend rasters)
   ↓
 R/analysis/*.R (this folder)
   ↓

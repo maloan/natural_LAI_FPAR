@@ -76,7 +76,7 @@ Typical outputs include annual summaries, trend slopes, significance tests, mask
 - [output/](../output/) holds masked data, evaluation products, and quicklooks.
 - [analysis/](../analysis/) holds summaries and figures.
 
-Outputs are grouped by run tag, such as `tau_0.1` or `tau_0.2`.
+Outputs are grouped by run tag, such as `alpha_0.1` or `alpha_0.2`.
 
 ## Running it
 
@@ -97,7 +97,7 @@ To use only one masking branch:
 ``` bash
 make pipeline MASKS=CCI
 make pipeline MASKS=GLC
-make pipeline RUN_TAG=tau_0.1
+make pipeline RUN_TAG=alpha_0.1
 ```
 
 To regenerate quicklooks:

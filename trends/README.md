@@ -12,12 +12,12 @@ Standalone scripts for computing OLS trends, Mann-Kendall significance, and rela
 
 **Masked trends** (for specific mask combination):
 ```bash
-./build_trends_masked_0p25.sh tau_0.1 LAI CCI
+./build_trends_masked_0p25.sh alpha_0.1 LAI CCI
 ```
 
 **Batch masked trends** (all combinations):
 ```bash
-TAUS="0.05 0.1 0.2" VARS="LAI FPAR" MASKS="CCI GLC" bash ./02_batch_build_trends_masked.sh
+ALPHAS="0.05 0.1 0.2" VARS="LAI FPAR" MASKS="CCI GLC" bash ./02_batch_build_trends_masked.sh
 ```
 
 
@@ -89,12 +89,12 @@ Computes masked trend products at 0.25° for a specific run tag and mask source.
 
 **Usage:**
 ```bash
-./build_trends_masked_0p25.sh tau_0.2 FPAR GLC
-./build_trends_masked_0p25.sh tau_0.1 LAI CCI
+./build_trends_masked_0p25.sh alpha_0.2 FPAR GLC
+./build_trends_masked_0p25.sh alpha_0.1 LAI CCI
 ```
 
 **Arguments:**
-- TAU: mask folder name (e.g., tau_0.1, tau_0.2)
+- ALPHA: mask folder name (e.g., alpha_0.1, alpha_0.2)
 - VAR: LAI or FPAR
 - MASKTAG: CCI or GLC (mask source)
 
@@ -110,7 +110,7 @@ Computes masked trend products at 0.25° for a specific run tag and mask source.
 4. Relative trends: slope / temporal_mean (only where mean ≥ EPS)
 5. MK significance: pixel-wise Mann-Kendall p-values (parallel)
 
-**Outputs** (in `output/<TAU>/eval/trend_<VAR>_<MASKTAG>/`):
+**Outputs** (in `output/<ALPHA>/eval/trend_<VAR>_<MASKTAG>/`):
 - Monthly: `<VAR>_masked_monthly_0p25.nc`
 - Annual metrics: `<VAR>_yearmean_0p25.nc` etc.
 - Absolute trends: `<VAR>_yearmean_trend_slope_peryear_0p25.nc` etc.
@@ -119,15 +119,15 @@ Computes masked trend products at 0.25° for a specific run tag and mask source.
 
 ### 02_batch_build_trends_masked.sh
 
-Batch wrapper for generating masked trend products across multiple (TAU, VAR, MASKTAG) combinations.
+Batch wrapper for generating masked trend products across multiple (ALPHA, VAR, MASKTAG) combinations.
 
 **Usage:**
 ```bash
-TAUS="0.05 0.1 0.2" VARS="LAI FPAR" MASKS="CCI GLC" bash ./02_batch_build_trends_masked.sh
+ALPHAS="0.05 0.1 0.2" VARS="LAI FPAR" MASKS="CCI GLC" bash ./02_batch_build_trends_masked.sh
 ```
 
 **Environment variables (optional):**
-- `TAUS`: space-separated list of tau values (default: "0.05 0.1 0.2")
+- `ALPHAS`: space-separated list of alpha values (default: "0.05 0.1 0.2")
 - `VARS`: space-separated list of variables (default: "LAI FPAR")
 - `MASKS`: space-separated list of mask sources (default: "CCI GLC")
 
@@ -137,7 +137,7 @@ Computes pixel-wise Mann-Kendall p-values from annual stacks (called automatical
 
 **Environment variables:**
 - `RUN_MODE`: masked or unmasked
-- `RUN_TAG`: tau folder (e.g., tau_0.1)
+- `RUN_TAG`: alpha folder (e.g., alpha_0.1)
 - `MASK`: mask source (CCI or GLC, ignored if unmasked)
 - `VAR`: LAI or FPAR
 - `METRIC`: yearmean, yearmax, yearmin, or yearamp

@@ -29,7 +29,7 @@ in_dir <- cfg$paths[[sprintf("georef_%s_0p05_dir", var_lower)]]
 # non-vegetated mask
 nonveg_mask_path <- file.path(
   cfg$paths$mask_nonvegetated_dir,
-  "mask_nonvegetated_CCI_2007_tauW0p05_tauI0p05_0p05.tif"
+  "mask_nonvegetated_CCI_2007_alphaW0p05_alphaI0p05_0p05.tif"
 )
 nonveg_mask <- rast(nonveg_mask_path)
 

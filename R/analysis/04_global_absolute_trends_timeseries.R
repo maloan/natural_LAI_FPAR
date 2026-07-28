@@ -24,8 +24,8 @@ metrics <- c("yearmean", "yearmax")
 year0 <- 1982L
 year_end <- 2024L
 n_years <- year_end - year0 + 1L
-taus <- c("tau_0.05", "tau_0.1", "tau_0.2")
-glc_tau <- "tau_0.05"
+alphas <- c("alpha_0.05", "alpha_0.1", "alpha_0.2")
+glc_alpha <- "alpha_0.05"
 outdir_fig <- here("analysis", "results", "figures", "timeseries")
 outdir_tbl <- here("analysis", "results", "tables", "timeseries")
 dir.create(outdir_fig, recursive = TRUE, showWarnings = FALSE)
@@ -142,18 +142,18 @@ for (metric in metrics) {
   )
   rows[[length(rows) + 1]] <- make_series(r_unmasked, area, year0) |> mutate(metric = metric, scenario = "Unmasked")
   # CCI
-  for (tau in taus) {
+  for (alpha in alphas) {
     r_cci <- load_checked_raster(
-      analysis_raster_path(var, metric, "CCI", run_tag = tau, kind = "metric"),
+      analysis_raster_path(var, metric, "CCI", run_tag = alpha, kind = "metric"),
       area,
       n_layers = n_years
     )
     rows[[length(rows) + 1]] <- make_series(r_cci, area, year0) |>
-      mutate(metric = metric, scenario = paste0("CCI tau=", sub("^tau_", "", tau)))
+      mutate(metric = metric, scenario = paste0("CCI alpha=", sub("^alpha_", "", alpha)))
   }
   # GLC
   r_glc <- load_checked_raster(
-    analysis_raster_path(var, metric, "GLC", run_tag = glc_tau, kind = "metric"),
+    analysis_raster_path(var, metric, "GLC", run_tag = glc_alpha, kind = "metric"),
     area,
     n_layers = n_years
   )
@@ -168,7 +168,7 @@ df <- df |> mutate(
     labels = c("Annual mean", "Annual maximum")
   ),
   scenario = factor(scenario, levels = c(
-    "Unmasked", paste0("CCI tau=", sub("^tau_", "", taus)), "GLC"
+    "Unmasked", paste0("CCI alpha=", sub("^alpha_", "", alphas)), "GLC"
   ))
 )
 # OLS trend statistics
@@ -193,9 +193,9 @@ plot_range_df <- df |>
 # Trend annotations
 annotation_df <- trend_stats |>
   left_join(plot_range_df, by = "metric") |>
-  filter(scenario %in% c("Unmasked", "CCI tau=0.1", "GLC")) |>
+  filter(scenario %in% c("Unmasked", "CCI alpha=0.1", "GLC")) |>
   group_by(metric) |>
-  arrange(match(scenario, c("Unmasked", "CCI tau=0.1", "GLC")), .by_group = TRUE) |>
+  arrange(match(scenario, c("Unmasked", "CCI alpha=0.1", "GLC")), .by_group = TRUE) |>
   summarise(
     x = 2024.1,
     y = first(y_min) + 0.03 * (first(y_max) - first(y_min)),

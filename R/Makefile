@@ -6,14 +6,14 @@ R       ?= Rscript
 ROOT    ?= $(HOME)/GitHub/natural_LAI_FPAR
 WD      := $(ROOT)/R
 
-RUN_TAG ?= tau_0.1
-TAU_CCI ?= 0.1
+RUN_TAG ?= alpha_0.1
+ALPHA_CCI ?= 0.1
 MASKS   ?= CCI GLC
 SKIP_EXISTING?= TRUE
 REMAKE_QL?= FALSE
 
 # Minimal environment passed to all scripts
-ENV := RUN_TAG=$(RUN_TAG) TAU_CCI=$(TAU_CCI) REMAKE_QL=$(REMAKE_QL) SKIP_EXISTING=$(SKIP_EXISTING)
+ENV := RUN_TAG=$(RUN_TAG) ALPHA_CCI=$(ALPHA_CCI) REMAKE_QL=$(REMAKE_QL) SKIP_EXISTING=$(SKIP_EXISTING)
 
 # Convenience macro
 run = $(ENV) $(R) $(WD)/$1
@@ -123,7 +123,7 @@ help:
 	@echo "  ql         -> regenerate quicklooks for key steps"
 	@echo ""
 	@echo "Typical runs:"
-	@echo "  make pipeline RUN_TAG=tau_0.1"
-	@echo "  make trends RUN_TAG=tau_0.1 MASKS='CCI GLC'"
+	@echo "  make pipeline RUN_TAG=alpha_0.1"
+	@echo "  make trends RUN_TAG=alpha_0.1 MASKS='CCI GLC'"
 	@echo "  make pipeline MASKS='CCI'"
 	@echo "  make pipeline MASKS='GLC'"

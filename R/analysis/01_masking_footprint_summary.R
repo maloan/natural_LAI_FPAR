@@ -13,19 +13,19 @@ suppressPackageStartupMessages({
 
 source(here("R", "helpers", "io.R"))
 
-cci_taus <- c("tau_0.05", "tau_0.1", "tau_0.2")
-glc_run_tag <- "tau_0.05"
+cci_alphas <- c("alpha_0.05", "alpha_0.1", "alpha_0.2")
+glc_run_tag <- "alpha_0.05"
 
 outdir <- here("analysis", "results", "tables", "masks")
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
-tau_to_token <- function(run_tag) {
-  tau_num <- as.numeric(sub("^tau_", "", run_tag))
-  sprintf("tau0p%02d", round(tau_num * 100))
+alpha_to_token <- function(run_tag) {
+  alpha_num <- as.numeric(sub("^alpha_", "", run_tag))
+  sprintf("alpha0p%02d", round(alpha_num * 100))
 }
 load_scenario_masks <- function(run_tag, lu_kind = c("CCI", "GLC")) {
   lu_kind <- match.arg(lu_kind)
-  tau_token <- tau_to_token(run_tag)
+  alpha_token <- alpha_to_token(run_tag)
 
   lu_path <- if (lu_kind == "CCI") {
     here(
@@ -35,7 +35,7 @@ load_scenario_masks <- function(run_tag, lu_kind = c("CCI", "GLC")) {
       "mask_cci",
       sprintf(
         "mask_used_frac_fused_%s_k3_1992-2020_0p05.tif",
-        tau_token
+        alpha_token
       )
     )
   } else {
@@ -147,10 +147,10 @@ component_area_global <- function(lu_005, luh_005) {
 all_compact <- list()
 all_partition <- list()
 
-for (tau in cci_taus) {
-  ms <- load_scenario_masks(run_tag = tau, lu_kind = "CCI")
-  lab <- sprintf("CCI tau=%s", sub("^tau_", "", tau))
-  s <- summarise_005(ms$lu, ms$luh, lab, tau)
+for (alpha in cci_alphas) {
+  ms <- load_scenario_masks(run_tag = alpha, lu_kind = "CCI")
+  lab <- sprintf("CCI alpha=%s", sub("^alpha_", "", alpha))
+  s <- summarise_005(ms$lu, ms$luh, lab, alpha)
   all_compact[[length(all_compact) + 1]] <- s$compact
   all_partition[[length(all_partition) + 1]] <- s$partition
 }
@@ -162,7 +162,7 @@ all_partition[[length(all_partition) + 1]] <- s_glc$partition
 tbl_land <- dplyr::bind_rows(all_compact)
 tbl_overlap <- dplyr::bind_rows(all_partition)
 
-scenario_order <- c("CCI tau=0.05", "CCI tau=0.1", "CCI tau=0.2", "GLC")
+scenario_order <- c("CCI alpha=0.05", "CCI alpha=0.1", "CCI alpha=0.2", "GLC")
 
 tbl_land <- tbl_land |>
   mutate(scenario = factor(scenario, levels = scenario_order)) |>

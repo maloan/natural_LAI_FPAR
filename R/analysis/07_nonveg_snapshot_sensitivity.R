@@ -15,7 +15,7 @@ run_tag <- cfg$project$run_tag
 nonveg_dir <- here("output", run_tag, "masks", "mask_nonvegetated")
 
 # Read all matching mask files
-mask_files <- list.files(nonveg_dir, pattern = "^mask_nonvegetated_CCI_\\d{4}_tauW0p05_tauI0p05_0p05\\.tif$", full.names = TRUE)
+mask_files <- list.files(nonveg_dir, pattern = "^mask_nonvegetated_CCI_\\d{4}_alphaW0p05_alphaI0p05_0p05\\.tif$", full.names = TRUE)
 if (length(mask_files) == 0) {
   stop("No non-vegetated mask files found in: ", nonveg_dir)
 }

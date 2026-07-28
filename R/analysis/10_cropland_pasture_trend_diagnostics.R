@@ -18,7 +18,7 @@ source(here("R", "helpers", "weighted_means.R"))
 source(here("R", "helpers", "plotting.R"))
 source(here("R", "helpers", "io.R"))
 
-tau <- "tau_0.1"
+alpha <- "alpha_0.1"
 var <- "LAI"
 metric <- "yearmean"
 luh_source <- "CCI"
@@ -29,11 +29,11 @@ if (!luh_source %in% c("CCI", "GLC")) {
   stop("luh_source must be CCI or GLC; got: ", luh_source)
 }
 
-tau_num <- as.numeric(sub("^tau_", "", tau))
-if (!is.finite(tau_num)) {
-  stop("Could not parse tau from config: ", tau)
+alpha_num <- as.numeric(sub("^alpha_", "", alpha))
+if (!is.finite(alpha_num)) {
+  stop("Could not parse alpha from config: ", alpha)
 }
-tau_tag2 <- gsub("\\.", "p", sprintf("%.2f", tau_num))
+alpha_tag2 <- gsub("\\.", "p", sprintf("%.2f", alpha_num))
 outdir_fig <- here("analysis", "results", "figures", "maps")
 outdir_tbl <- here("analysis", "results", "tables", "maps")
 dir.create(outdir_fig, recursive = TRUE, showWarnings = FALSE)
@@ -71,7 +71,7 @@ f_p_tr <- here(
 )
 f_abs_tr_cci_nat <- here(
   "output",
-  tau,
+  alpha,
   "eval",
   sprintf("trend_%s_%s", var, "CCI"),
   sprintf("%s_%s_trend_slope_peryear_0p25.nc", var, metric)
@@ -84,17 +84,17 @@ f_ts_abs <- here(
 )
 f_mask_cci_005 <- here(
   "output",
-  tau,
+  alpha,
   "masks",
   "mask_cci",
   sprintf(
-    "mask_used_frac_fused_tau%s_k3_1992-2020_0p05.tif",
-    tau_tag2
+    "mask_used_frac_fused_alpha%s_k3_1992-2020_0p05.tif",
+    alpha_tag2
   )
 )
 f_mask_luh_005 <- here(
   "output",
-  tau,
+  alpha,
   "masks",
   "mask_luh_overlap",
   sprintf(

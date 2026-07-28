@@ -25,7 +25,7 @@ terraOptions(
 
 # config
 default_cfg <- list(
-  tau = "tau_0.1",
+  alpha = "alpha_0.1",
   mask = "CCI",
   var = "LAI",
   metric = "yearmean",
@@ -38,7 +38,7 @@ default_cfg <- list(
 
 cfg <- parse_cli_args(default_cfg)
 
-tau <- as.character(cfg$tau)
+alpha <- as.character(cfg$alpha)
 mask <- as.character(cfg$mask)
 var <- as.character(cfg$var)
 metric <- as.character(cfg$metric)
@@ -86,7 +86,7 @@ trend_files <- function(use_relative) {
     ),
     msk = here(
       "output",
-      tau,
+      alpha,
       "eval",
       sprintf("trend_%s_%s", var, mask),
       sprintf("%s_%s_%s_0p25.nc", var, metric, suf)
@@ -343,7 +343,7 @@ out_csv_paper <- file.path(
     var,
     metric,
     mask,
-    tau
+    alpha
   )
 )
 write_csv(round_numeric(paper_tab, 5), out_csv_paper)
@@ -397,7 +397,7 @@ out_png <- file.path(
     var,
     metric,
     mask,
-    tau,
+    alpha,
     suffix
   )
 )
@@ -408,7 +408,7 @@ out_pdf <- file.path(
     var,
     metric,
     mask,
-    tau,
+    alpha,
     suffix
   )
 )

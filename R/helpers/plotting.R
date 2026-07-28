@@ -667,9 +667,9 @@ plot_timeseries <- function(df, trend_df, annotation_df, theme_pub) {
   # function is used for consistent styling.
   cols <- c(
     "Unmasked" = "black",
-    "CCI tau=0.05" = "#1b9e77",
-    "CCI tau=0.1" = "#d95f02",
-    "CCI tau=0.2" = "#7570b3",
+    "CCI alpha=0.05" = "#1b9e77",
+    "CCI alpha=0.1" = "#d95f02",
+    "CCI alpha=0.2" = "#7570b3",
     "GLC" = "#386cb0"
   )
   metric_labs <- c("Annual mean" = "(a) Annual mean", "Annual maximum" = "(b) Annual maximum")
@@ -707,9 +707,9 @@ plot_timeseries <- function(df, trend_df, annotation_df, theme_pub) {
     scale_linetype_manual(
       values = c(
         "Unmasked" = "solid",
-        "CCI tau=0.05" = "dashed",
-        "CCI tau=0.1" = "dashed",
-        "CCI tau=0.2" = "dashed",
+        "CCI alpha=0.05" = "dashed",
+        "CCI alpha=0.1" = "dashed",
+        "CCI alpha=0.2" = "dashed",
         "GLC" = "dotdash"
       ),
       name = "Mask Scenario"
@@ -753,9 +753,9 @@ plot_seasonal_amplitude <- function(z_abs) {
   # theme_pub function is used for consistent styling.
   col_abs <- c(
     "Unmasked" = "grey20",
-    "CCI tau=0.05" = "#1b9e77",
-    "CCI tau=0.1" = "#d95f02",
-    "CCI tau=0.2" = "#7570b3",
+    "CCI alpha=0.05" = "#1b9e77",
+    "CCI alpha=0.1" = "#d95f02",
+    "CCI alpha=0.2" = "#7570b3",
     "GLC" = "#386cb0"
   )
 
@@ -785,9 +785,9 @@ plot_seasonal_amplitude <- function(z_abs) {
 plot_zonal_abstrend <- function(df, ttl, y_limits = NULL) {
   col_map <- c(
     "Unmasked" = "grey20",
-    "CCI tau=0.05" = "#1b9e77",
-    "CCI tau=0.1" = "#d95f02",
-    "CCI tau=0.2" = "#7570b3",
+    "CCI alpha=0.05" = "#1b9e77",
+    "CCI alpha=0.1" = "#d95f02",
+    "CCI alpha=0.2" = "#7570b3",
     "GLC" = "#386cb0"
   )
 
@@ -919,9 +919,9 @@ plot_zonal_diagnostics <- function(df, ycol, ttl, ylab, y_limits = NULL) {
   # and labels. The theme_pub function is used for consistent styling.
   col_map <- c(
     "Unmasked" = "grey20",
-    "CCI tau=0.05" = "#1b9e77",
-    "CCI tau=0.1" = "#d95f02",
-    "CCI tau=0.2" = "#7570b3",
+    "CCI alpha=0.05" = "#1b9e77",
+    "CCI alpha=0.1" = "#d95f02",
+    "CCI alpha=0.2" = "#7570b3",
     "GLC" = "#386cb0"
   )
   p <- ggplot(df, aes(.data$lat_band, .data[[ycol]], colour = .data$scenario)) +
@@ -1126,7 +1126,7 @@ plot_lc_abs_vs_rel <- function(plot_df) {
           -1
         } * ")"),
       title = "Absolute vs. Relative LAI Trends by Land Cover",
-      subtitle = sprintf("Masked trends (%s, %s); Point size = Global area", mask, tau)
+      subtitle = sprintf("Masked trends (%s, %s); Point size = Global area", mask, alpha)
     ) +
     theme_bw(base_size = 11) +
     theme(

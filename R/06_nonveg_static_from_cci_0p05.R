@@ -21,24 +21,24 @@ terraOptions(progress = 1, memfrac = 0.6)
 ref005 <- rast(cfg$grids$grid_005$ref_raster)
 cci_dir <- cfg$paths$cci_dir
 
-tau_water <- as.numeric(Sys.getenv("tau_water", "0.05"))
-tau_ice <- as.numeric(Sys.getenv("tau_ice", "0.05"))
+alpha_water <- as.numeric(Sys.getenv("alpha_water", "0.05"))
+alpha_ice <- as.numeric(Sys.getenv("alpha_ice", "0.05"))
 skip_existing <- as_bool(Sys.getenv("skip_existing"), default = FALSE)
 year <- as.integer(Sys.getenv("year", "2007"))
 
 out_dir <- file.path(cfg$paths$masks_root_dir, "mask_nonvegetated")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
-tau_w_tok <- gsub("\\.", "p", sprintf("%.2f", tau_water))
-tau_i_tok <- gsub("\\.", "p", sprintf("%.2f", tau_ice))
+alpha_w_tok <- gsub("\\.", "p", sprintf("%.2f", alpha_water))
+alpha_i_tok <- gsub("\\.", "p", sprintf("%.2f", alpha_ice))
 
 out_tif <- file.path(
   out_dir,
   sprintf(
-    "mask_nonvegetated_CCI_%d_tauW%s_tauI%s_0p05.tif",
+    "mask_nonvegetated_CCI_%d_alphaW%s_alphaI%s_0p05.tif",
     year,
-    tau_w_tok,
-    tau_i_tok
+    alpha_w_tok,
+    alpha_i_tok
   )
 )
 
@@ -82,8 +82,8 @@ pW <- resample(classify(r, cbind(vals_water, 1), others = 0), ref005, method = "
 pI <- resample(classify(r, cbind(vals_ice, 1), others = 0), ref005, method = "average")
 
 # Create drop masks
-water_drop <- ifel(pW >= tau_water, 1L, 0L)
-ice_drop <- ifel(pI >= tau_ice, 1L, 0L)
+water_drop <- ifel(pW >= alpha_water, 1L, 0L)
+ice_drop <- ifel(pI >= alpha_ice, 1L, 0L)
 both_drop <- ifel(water_drop & ice_drop, 1L, 0L)
 nonveg_mask_combined <- ifel(water_drop | ice_drop, 1L, 0L)
 

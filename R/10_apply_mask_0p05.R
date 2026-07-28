@@ -131,7 +131,7 @@ if (!file.exists(mask_combined_path) || overwrite) {
     wopt = wopt_byte(opts$speed_over_size, na = 255L)
   )
 }
-drop_mask <- rast(here("output", "tau_  ")) # sanity check
+drop_mask <- rast(here("output", "alpha_  ")) # sanity check
 plot(drop_mask, main = sprintf("Combined mask (%s)", mask_kind))
 files <- sort(list.files(
   in_dir,

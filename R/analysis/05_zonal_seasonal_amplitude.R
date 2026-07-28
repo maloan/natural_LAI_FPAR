@@ -17,10 +17,10 @@ source(here("R", "helpers", "plotting.R"))
 source(here("R", "helpers", "io.R"))
 # config
 var <- "LAI"
-taus_cci <- c("tau_0.05", "tau_0.1", "tau_0.2")
-tau_glc <- "tau_0.1"
+alphas_cci <- c("alpha_0.05", "alpha_0.1", "alpha_0.2")
+alpha_glc <- "alpha_0.1"
 band_deg <- 1L
-scenario_levels <- c("Unmasked", "CCI tau=0.05", "CCI tau=0.1", "CCI tau=0.2", "GLC")
+scenario_levels <- c("Unmasked", "CCI alpha=0.05", "CCI alpha=0.1", "CCI alpha=0.2", "GLC")
 # paths
 area_path <- here("src", "area_0p25_validdomain_km2.nc")
 outdir_fig <- here("analysis", "results", "figures", "summaries")
@@ -47,20 +47,20 @@ z_unm <- zonal_wmean_latbands(time_mean(r_unm), area, band_deg = band_deg) |>
   rename(mean_yearamp = value) |>
   mutate(scenario = "Unmasked")
 rows[[length(rows) + 1]] <- z_unm
-for (tau in taus_cci) {
+for (alpha in alphas_cci) {
   r_cci <- load_checked_raster(
-    analysis_raster_path(var, "yearamp", "CCI", run_tag = tau, kind = "metric"),
+    analysis_raster_path(var, "yearamp", "CCI", run_tag = alpha, kind = "metric"),
     area,
-    label = tau
+    label = alpha
   )
   rows[[length(rows) + 1]] <-
     zonal_wmean_latbands(time_mean(r_cci), area, band_deg = band_deg) |>
     as_tibble() |>
     rename(mean_yearamp = value) |>
-    mutate(scenario = sprintf("CCI %s", gsub("tau_", "tau=", tau)))
+    mutate(scenario = sprintf("CCI %s", gsub("alpha_", "alpha=", alpha)))
 }
 r_glc <- load_checked_raster(
-  analysis_raster_path(var, "yearamp", "GLC", run_tag = tau_glc, kind = "metric"),
+  analysis_raster_path(var, "yearamp", "GLC", run_tag = alpha_glc, kind = "metric"),
   area,
   label = "GLC"
 )
@@ -76,12 +76,12 @@ z_abs <- zonal_tbl |>
   filter(is.finite(mean_yearamp))
 p <- plot_seasonal_amplitude(z_abs)
 out_png <- file.path(outdir_fig,
-                     sprintf("zonal_yearamp_timeMean_%s_all_masks_tau_0.1.png", var))
+                     sprintf("zonal_yearamp_timeMean_%s_all_masks_alpha_0.1.png", var))
 out_pdf <- file.path(outdir_fig,
-                     sprintf("zonal_yearamp_timeMean_%s_all_masks_tau_0.1.pdf", var))
+                     sprintf("zonal_yearamp_timeMean_%s_all_masks_alpha_0.1.pdf", var))
 # write output
 out_csv <- file.path(outdir_tbl,
-                     sprintf("zonal_yearamp_timeMean_%s_all_masks_tau_0.1.csv", var))
+                     sprintf("zonal_yearamp_timeMean_%s_all_masks_alpha_0.1.csv", var))
 write_csv(round_numeric(zonal_tbl, 5), out_csv)
 ggsave(out_png,
        p,

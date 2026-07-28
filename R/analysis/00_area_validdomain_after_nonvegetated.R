@@ -18,10 +18,10 @@ dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 area_005 <- here("src", "area_0p05_km2.nc")
 mask_nonveg <- here(
   "output",
-  "tau_0.1",
+  "alpha_0.1",
   "masks",
   "mask_nonvegetated",
-  "mask_nonvegetated_CCI_2007_tauW0p05_tauI0p05_0p05.tif"
+  "mask_nonvegetated_CCI_2007_alphaW0p05_alphaI0p05_0p05.tif"
 )
 
 area <- rast(area_005)[[1]]

@@ -28,14 +28,14 @@ utils::globalVariables(
   )
 )
 # Configuration
-cci_taus <- c("tau_0.05", "tau_0.1", "tau_0.2")
-glc_run_tag <- "tau_0.1"
+cci_alphas <- c("alpha_0.05", "alpha_0.1", "alpha_0.2")
+glc_run_tag <- "alpha_0.1"
 vars <- c("LAI")
 metrics <- c("yearmean", "yearmax")
 dir_unmask <- here("analysis", "unmasked", "0p25")
 outdir <- here("analysis", "results", "tables", "trends")
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
-scenario_spec <- create_scenario_spec(cci_taus, glc_run_tag)
+scenario_spec <- create_scenario_spec(cci_alphas, glc_run_tag)
 # Load spatial weights (area in km²)
 area_file <- here("src", "area_0p25_validdomain_km2.nc")
 if (!file.exists(area_file)) {
