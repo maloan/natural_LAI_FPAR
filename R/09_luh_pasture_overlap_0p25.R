@@ -24,7 +24,7 @@ remake_ql <- as_bool(Sys.getenv("remake_ql"), default = TRUE)
 
 g_min <- as.numeric(Sys.getenv("g_min", "0.1"))
 p_min <- as.numeric(Sys.getenv("p_min", "0.1"))
-alpha <- as.numeric(Sys.getenv("alpha", "0.5"))
+beta <- as.numeric(Sys.getenv("beta", "0.5"))
 
 year_0 <- env_get_int("LUH_AVG_START", cfg$project$years$cci_start)
 year_1 <- env_get_int("LUH_AVG_END", cfg$project$years$cci_end)
@@ -48,11 +48,11 @@ year_span <- function(y) {
   paste(range(y), collapse = "-")
 }
 tag <- sprintf(
-  "%s_Gmin%s_Pmin%s_alpha%s_%d-%d",
+  "%s_Gmin%s_Pmin%s_beta%s_%d-%d",
   grass_source,
   tok(g_min),
   tok(p_min),
-  tok(alpha),
+  tok(beta),
   year_0,
   year_1
 )
@@ -145,7 +145,7 @@ names(pasture_025) <- "pasture_025"
 #  4) decision at 0.25°
 ratio <- clamp(pasture_025 / (grass_025 + 1e-9), 0, 1)
 drop_025 <- (grass_025 >= g_min) &
-  (pasture_025 >= p_min) & (ratio >= alpha)
+  (pasture_025 >= p_min) & (ratio >= beta)
 mask_025 <- ifel(drop_025, 1L, 0L)
 
 #  5) write 0.25° + 0.05° replica
@@ -215,7 +215,7 @@ if (remake_ql || !file.exists(ql_global)) {
     ql_global,
     sprintf(
       "LUH overlap (α=%s, G≥%s, P≥%s), %s, %d–%d",
-      tok(alpha),
+      tok(beta),
       tok(g_min),
       tok(p_min),
       grass_source,
