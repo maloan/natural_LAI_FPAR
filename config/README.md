@@ -3,14 +3,13 @@
 This folder holds the main settings for the natural vegetation LAI/FPAR workflow.
 In practice, almost every script reads this configuration through cfg_read().
 
-The main file is config.yml. It describes what a run should do and where it should read and write data.
+Each scenario has its own generated configuration file. Scripts require the
+exact file matching `RUN_TAG`; they do not fall back to another scenario.
 
 ## What is in this folder
 
-- config.yml
-    Active run configuration used by scripts via cfg_read().
-- config_tau_0.05.yml, config_tau_0.1.yml, config_tau_0.2.yml
-    Saved configuration snapshots for common tau runs.
+- config_alpha_0.05.yml, config_alpha_0.1.yml, config_alpha_0.2.yml
+    Generated configurations for the three CCI masking thresholds.
 
 All config files share the same schema and include:
 project metadata (run tag, CRS, time span),
@@ -36,4 +35,4 @@ Scripts load the configuration like this:
 cfg <- cfg_read()
 ```
 
-The file config.yml is generated/updated by R/00_setup.R for each run.
+Run `R/00_setup.R` once for each required `RUN_TAG` to create the corresponding configuration file.

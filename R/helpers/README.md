@@ -1,14 +1,13 @@
 # R Helpers
 
 This folder contains shared helper modules used by scripts in R/.
-They provide reusable functions for paths, file discovery, raster I/O,
-NetCDF handling, options parsing, and plotting support.
+They provide reusable functions for raster I/O, NetCDF handling,
+area-weighted summaries, bootstrap intervals, and plotting.
 
 ## Modules
 
 - netcdf.R: NetCDF variable handling and raster alignment helpers.
 - io.R: shared raster I/O, path builders, safe numeric utilities, and write helpers.
-- options.R: environment-variable parsing for runtime flags.
 - plotting.R: shared plotting styles and quicklook helpers.
 - cli_args.R: command-line argument parsing plus standardized scenario table helpers.
 - weighted_means.R: area-weighted aggregation utilities.

@@ -23,5 +23,5 @@ analysis/results/ (tables, figures)
 2. Restrict to valid domain (nonmissing mask)
 3. Weight by pixel area (0.25° = varying km² per latitude)
 4. Compute area-weighted mean: Σ(trend × area) / Σ(area)
-5. Bootstrap confidence interval: resample pixels with replacement (preserving weights)
+5. Bootstrap confidence interval: resample 5° × 5° spatial blocks with replacement
 6. Significance: mark with * if 95% CI does not cross zero

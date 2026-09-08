@@ -38,12 +38,6 @@ vignettes/    Extended documentation
 
 ## Quick start
 
-Set project root (optional):
-
-```r
-Sys.setenv(SNU_LAI_FPAR_ROOT = "~/path/to/natural_LAI_FPAR")
-```
-
 Run from R/:
 
 ```bash
@@ -51,18 +45,16 @@ make pipeline
 make analysis
 ```
 
-Useful variants:
+To run another CCI threshold scenario:
 
 ```bash
-make pipeline MASKS=CCI
 make pipeline RUN_TAG=alpha_0.2
-make ql
 ```
 
 ## Configuration
 
-Core settings are generated in config/config.yml (paths, years, classes,
-thresholds, grid references).
+Core settings are generated in `config/config_<RUN_TAG>.yml` (paths, years,
+classes, thresholds, and grid references).
 
 ## Requirements
 

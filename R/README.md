@@ -52,7 +52,7 @@ R/
 ### Setup
 
 - 00_setup.R: Builds reference grids and area layers, sets paths, and writes
-  config/config.yml for the selected run tag.
+  the exact `config/config_<RUN_TAG>.yml` file for the selected scenario.
 
 ### Georeferencing
 
@@ -65,7 +65,7 @@ R/
 - 04_glc_stack_0p05.R: Harmonizes and stacks GLC_FCS30D maps on the project
   grid.
 - 12_make_lc025_fractions.R: Generates annual 0.25° land-cover fraction products
-  from ESACCI classes (1992-2020), used by downstream land-cover trend analysis. Auto-triggered by analysis scripts if needed.
+  from ESACCI classes (1992–2022), used by downstream land-cover trend analysis. Auto-triggered by analysis scripts if needed.
 
 ### Mask construction
 
@@ -90,9 +90,8 @@ Mask convention is consistent across scripts:
 
 ## Helpers
 
-The helper scripts in helpers/ are shared utilities and are not intended to be
-run directly. They cover common tasks like file I/O, NetCDF handling, options parsing,
-visualization helpers, and utility wrappers used throughout the pipeline.
+The helper scripts in helpers/ contain operations that are reused across scripts,
+such as raster I/O, area-weighted aggregation, bootstrap intervals, and plotting.
 
 ## Makefile Usage
 
@@ -110,6 +109,5 @@ Common targets:
 
 ```bash
 make pipeline
-make pipeline MASKS=CCI
-make ql
+make trends
 ```

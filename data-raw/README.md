@@ -23,7 +23,7 @@ Included content:
 
 - Download scripts: `download_landcover_1992_2015.py` and
   `download_landcover_2016_2022.py`.
-- Annual maps in ESACCI/ESACCI_1992-2020/.
+- Annual maps in ESACCI/ESACCI_1992-2022/.
 
 Data source:
 - https://cds.climate.copernicus.eu/datasets/satellite-land-cover?tab=download
