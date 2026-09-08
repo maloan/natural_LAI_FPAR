@@ -5,7 +5,7 @@ import time
 
 import cdsapi
 
-OUTDIR = "./ESACCI_1992-2020"
+OUTDIR = "./ESACCI_1992-2022"
 os.makedirs(OUTDIR, exist_ok=True)
 
 YEARS   = range(1992, 2016)   # 1992..2015
@@ -39,4 +39,3 @@ for year in YEARS:
                 wait = 30 * attempt
                 print(f"[{year}] error: {e} — retrying in {wait}s")
                 time.sleep(wait)
-
