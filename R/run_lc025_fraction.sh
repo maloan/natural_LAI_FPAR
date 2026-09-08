@@ -9,7 +9,7 @@
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=128G
-#SBATCH --array=1992-2020
+#SBATCH --array=1992-2022
 #SBATCH --mail-type=END,FAIL
 
 set -euo pipefail
@@ -27,6 +27,5 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${SCRIPT_DIR}"
 
 export LC_YEAR="${SLURM_ARRAY_TASK_ID}"
-export REMAKE_ALL=FALSE
 
 Rscript 12_make_lc025_fractions.R
