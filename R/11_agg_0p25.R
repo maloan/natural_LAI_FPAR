@@ -10,21 +10,15 @@ suppressPackageStartupMessages({
 
 source(here("R", "helpers", "netcdf.R"))
 source(here("R", "helpers", "io.R"))
-source(here("R", "helpers", "options.R"))
 source(here("R", "helpers", "plotting.R"))
 
 cfg <- cfg_read()
-opts <- opts_read()
 
 terraOptions(progress = 1, memfrac = 0.25)
 
 
-skip_existing <- as_bool(Sys.getenv("skip_existing"), default = TRUE)
-overwrite <- as_bool(Sys.getenv("overwrite"), default = FALSE)
-remake_ql <- as_bool(Sys.getenv("remake_ql"), default = FALSE)
-
-var <- toupper(Sys.getenv("var", "LAI")) # allowed values: LAI or FPAR
-mask <- toupper(Sys.getenv("mask", "CCI")) # allowed values: CCI or GLC
+var <- toupper(Sys.getenv("VAR", "LAI")) # allowed values: LAI or FPAR
+mask <- toupper(Sys.getenv("MASK", "CCI")) # allowed values: CCI or GLC
 if (!var %in% c("LAI", "FPAR")) {
   stop_msg("Unsupported var: ", var, ". Use LAI or FPAR")
 }
@@ -50,7 +44,6 @@ out_dir <- cfg$paths[[key_out]]
 stopifnot(is.character(in_dir), length(in_dir) == 1, nzchar(in_dir))
 stopifnot(is.character(out_dir), length(out_dir) == 1, nzchar(out_dir))
 
-patt <- sprintf("^%s_\\d{6}_0p05_masked\\.tif$", var)
 ql_title <- var
 
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
@@ -60,17 +53,28 @@ dir.create(qdir, recursive = TRUE, showWarnings = FALSE)
 
 # inputs
 stopifnot(dir.exists(in_dir))
-files <- sort(list.files(in_dir, pattern = patt, full.names = TRUE))
-stopifnot(length(files) > 0L)
+months <- format(
+  seq(
+    as.Date(sprintf("%d-01-01", cfg$project$years$lai_start)),
+    as.Date(sprintf("%d-12-01", cfg$project$years$lai_end)),
+    by = "month"
+  ),
+  "%Y%m"
+)
+files <- file.path(in_dir, sprintf("%s_%s_0p05_masked.tif", var, months))
+missing_files <- files[!file.exists(files)]
+if (length(missing_files)) {
+  stop("Missing expected monthly masked files:\n", paste(missing_files, collapse = "\n"))
+}
 
 # Aggregation loop
 for (f in files) {
   ym <- extract_ym_from_filename(f)
   out <- file.path(out_dir, sprintf("%s_masked_%s_0p25.tif", var, ym))
 
-  do_write <- overwrite || !file.exists(out)
+  do_write <- !file.exists(out)
   do_ql <- (substr(ym, 5, 6) %in% c("01", "07")) &&
-    (remake_ql || !file.exists(file.path(
+    (!file.exists(file.path(
       qdir, sprintf("quicklook_%s_0p25_%s.png", ql_title, ym)
     )))
 
@@ -96,7 +100,7 @@ for (f in files) {
     r025 <- ifel(den == 0, NA, num / den)
     r025 <- align_to_template(r025, ref025, method = "near")
 
-    wopt <- wopt_f32(opts$speed_over_size)
+    wopt <- wopt_f32(FALSE)
     writeRaster(r025, out, overwrite = TRUE, wopt = wopt)
   } else {
     # Load existing aggregated file for quicklook

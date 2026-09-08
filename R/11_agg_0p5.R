@@ -10,19 +10,14 @@ suppressPackageStartupMessages({
 
 source(here("R", "helpers", "netcdf.R"))
 source(here("R", "helpers", "io.R"))
-source(here("R", "helpers", "options.R"))
 
 cfg <- cfg_read()
-opts <- opts_read()
 
 terraOptions(progress = 1, memfrac = 0.25)
 
 
-skip_existing <- as_bool(Sys.getenv("skip_existing"), default = TRUE)
-overwrite <- as_bool(Sys.getenv("overwrite"), default = FALSE)
-
-var <- toupper(Sys.getenv("var", "LAI")) # allowed values: LAI or FPAR
-mask <- toupper(Sys.getenv("mask", "CCI")) # allowed values: CCI or GLC
+var <- toupper(Sys.getenv("VAR", "LAI")) # allowed values: LAI or FPAR
+mask <- toupper(Sys.getenv("MASK", "CCI")) # allowed values: CCI or GLC
 
 
 # Refs and weights
@@ -49,20 +44,30 @@ stopifnot(
   dir.exists(in_dir)
 )
 stopifnot(is.character(out_dir), length(out_dir) == 1, nzchar(out_dir))
-patt <- sprintf("^%s_\\d{6}_0p05_masked\\.tif$", var)
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 
 # inputs
 stopifnot(dir.exists(in_dir))
-files <- sort(list.files(in_dir, pattern = patt, full.names = TRUE))
-stopifnot(length(files) > 0L)
+months <- format(
+  seq(
+    as.Date(sprintf("%d-01-01", cfg$project$years$lai_start)),
+    as.Date(sprintf("%d-12-01", cfg$project$years$lai_end)),
+    by = "month"
+  ),
+  "%Y%m"
+)
+files <- file.path(in_dir, sprintf("%s_%s_0p05_masked.tif", var, months))
+missing_files <- files[!file.exists(files)]
+if (length(missing_files)) {
+  stop("Missing expected monthly masked files:\n", paste(missing_files, collapse = "\n"))
+}
 
 #  loop
 for (f in files) {
   ym <- extract_ym_from_filename(f)
   out <- file.path(out_dir, sprintf("%s_masked_%s_0p5.tif", var, ym))
-  do_write <- overwrite || !file.exists(out)
+  do_write <- !file.exists(out)
   if (!do_write) {
     next
   }
@@ -83,6 +88,6 @@ for (f in files) {
   r050 <- ifel(den == 0, NA, num / den)
   r050 <- align_to_template(r050, ref050, method = "near")
 
-  wopt <- wopt_f32(opts$speed_over_size)
+  wopt <- wopt_f32(FALSE)
   writeRaster(r050, out, overwrite = TRUE, wopt = wopt)
 }
