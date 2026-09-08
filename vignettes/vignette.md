@@ -92,18 +92,10 @@ To include the analysis steps:
 make analysis
 ```
 
-To use only one masking branch:
+To run another CCI threshold scenario:
 
 ``` bash
-make pipeline MASKS=CCI
-make pipeline MASKS=GLC
-make pipeline RUN_TAG=alpha_0.1
-```
-
-To regenerate quicklooks:
-
-``` bash
-make ql
+make pipeline RUN_TAG=alpha_0.2
 ```
 
 ## Customization
