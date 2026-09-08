@@ -34,8 +34,6 @@ area_sum <- function(cond) {
 support_dom <- is.finite(area) & (area > 0)
 nonveg_excl <- support_dom & (m_nonveg == 1)
 land_dom <- support_dom & !nonveg_excl & is.finite(m_nonveg)
-nonveg_excl <- (m_nonveg == 1)
-land_dom <- support_dom & !nonveg_excl
 
 area_support <- area_sum(support_dom)
 area_nonveg_excl <- area_sum(support_dom & nonveg_excl)
