@@ -2,18 +2,15 @@
 # Makefile — natural_LAI_FPAR
 # =============================================================================
 
-R       ?= Rscript
-ROOT    ?= $(HOME)/GitHub/natural_LAI_FPAR
-WD      := $(ROOT)/R
+R    ?= Rscript
+ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
+WD   := $(ROOT)/R
 
 RUN_TAG ?= alpha_0.1
-ALPHA_CCI ?= 0.1
-MASKS   ?= CCI GLC
-SKIP_EXISTING?= TRUE
-REMAKE_QL?= FALSE
+MASKS   := CCI GLC
 
-# Minimal environment passed to all scripts
-ENV := RUN_TAG=$(RUN_TAG) ALPHA_CCI=$(ALPHA_CCI) REMAKE_QL=$(REMAKE_QL) SKIP_EXISTING=$(SKIP_EXISTING)
+# The run tag selects the CCI threshold scenario.
+ENV := RUN_TAG=$(RUN_TAG)
 
 # Convenience macro
 run = $(ENV) $(R) $(WD)/$1
@@ -48,11 +45,12 @@ prep: georef cci-frac glc-stack
 # 2) Masks (build all base masks)
 # -----------------------------------------------------------------------------
 .PHONY: masks
-masks:
+masks: setup
 	$(call run,03_cci_mask_0p05.R)
 	$(call run,05_glc_mask_0p05.R)
 	$(call run,06_nonveg_static_from_cci_0p05.R)
-	$(call run,09_luh_pasture_overlap_0p25.R)
+	GRASS_SOURCE=CCI $(call run,09_luh_pasture_overlap_0p25.R)
+	GRASS_SOURCE=GLC $(call run,09_luh_pasture_overlap_0p25.R)
 
 # -----------------------------------------------------------------------------
 # 3) Apply masks (0.05°) + aggregate (0.25°)
@@ -83,13 +81,13 @@ pipeline: prep masks apply agg
 # -----------------------------------------------------------------------------
 .PHONY: trends trends-unmasked trends-masked
 trends-unmasked:
-	SNU_LAI_FPAR_ROOT=$(ROOT) VARS="LAI FPAR" bash $(ROOT)/trends/01_build_georef_products.sh 0p05
+	bash $(ROOT)/trends/01_build_georef_products.sh
 
 trends-masked:
 	@for m in $(MASKS); do \
 	  echo "== TRENDS $$m (RUN_TAG=$(RUN_TAG)) ==" ; \
-	  SNU_LAI_FPAR_ROOT=$(ROOT) bash $(ROOT)/trends/build_trends_masked_0p25.sh $(RUN_TAG) LAI  $$m ; \
-	  SNU_LAI_FPAR_ROOT=$(ROOT) bash $(ROOT)/trends/build_trends_masked_0p25.sh $(RUN_TAG) FPAR $$m ; \
+	  bash $(ROOT)/trends/build_trends_masked_0p25.sh $(RUN_TAG) LAI  $$m ; \
+	  bash $(ROOT)/trends/build_trends_masked_0p25.sh $(RUN_TAG) FPAR $$m ; \
 	done
 
 trends: trends-unmasked trends-masked
@@ -99,16 +97,6 @@ trends: trends-unmasked trends-masked
 .PHONY: analysis
 analysis: pipeline
 	$(R) $(WD)/analysis/00_area_validdomain_after_nonvegetated.R
-# -----------------------------------------------------------------------------
-# Quicklooks
-# -----------------------------------------------------------------------------
-.PHONY: ql
-ql:
-	REMAKE_QL=TRUE $(call run,02_cci_frac_0p05.R)
-	REMAKE_QL=TRUE $(call run,03_cci_mask_0p05.R)
-	REMAKE_QL=TRUE $(call run,04_glc_stack_0p05.R)
-	REMAKE_QL=TRUE $(call run,05_glc_mask_0p05.R)
-
 # -----------------------------------------------------------------------------
 # Help
 # -----------------------------------------------------------------------------
@@ -120,10 +108,8 @@ help:
 	@echo "  trends-unmasked -> build georef trend products at 0.05/0.25"
 	@echo "  trends-masked   -> build masked 0.25 trend products for RUN_TAG and MASKS"
 	@echo "  analysis   -> pipeline + analysis/00_area_validdomain_after_nonvegetated.R"
-	@echo "  ql         -> regenerate quicklooks for key steps"
 	@echo ""
 	@echo "Typical runs:"
-	@echo "  make pipeline RUN_TAG=alpha_0.1"
-	@echo "  make trends RUN_TAG=alpha_0.1 MASKS='CCI GLC'"
-	@echo "  make pipeline MASKS='CCI'"
-	@echo "  make pipeline MASKS='GLC'"
+	@echo "  make pipeline"
+	@echo "  make trends"
+	@echo "  make pipeline RUN_TAG=alpha_0.2  # optional sensitivity run"
