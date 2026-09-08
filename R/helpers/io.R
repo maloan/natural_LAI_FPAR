@@ -96,7 +96,7 @@ trend_path_factory <- function(var,
   # Return the file path for a trend raster based on the specified parameters.
   if (source == "unmasked") {
     suffix <- if (is_relative) {
-      "trend_relative_peryear"
+      "trend_relative_percent_peryear"
     } else {
       "trend_slope_peryear"
     }
@@ -109,7 +109,7 @@ trend_path_factory <- function(var,
       stop("run_tag required for ", source, " source")
     }
     suffix <- if (is_relative) {
-      "trend_relative_peryear"
+      "trend_relative_percent_peryear"
     } else {
       "trend_slope_peryear"
     }
@@ -138,7 +138,7 @@ analysis_raster_path <- function(var,
     file_name <- switch(kind,
       metric = sprintf("%s_georef_%s_%s.nc", var, met, grid_tag),
       trend_relative = sprintf(
-        "%s_georef_%s_trend_relative_peryear_%s.nc",
+        "%s_georef_%s_trend_relative_percent_peryear_%s.nc",
         var,
         met,
         grid_tag
@@ -161,7 +161,12 @@ analysis_raster_path <- function(var,
 
   file_name <- switch(kind,
     metric = sprintf("%s_%s_%s.nc", var, met, grid_tag),
-    trend_relative = sprintf("%s_%s_trend_relative_peryear_%s.nc", var, met, grid_tag),
+    trend_relative = sprintf(
+      "%s_%s_trend_relative_percent_peryear_%s.nc",
+      var,
+      met,
+      grid_tag
+    ),
     trend_slope = sprintf("%s_%s_trend_slope_peryear_%s.nc", var, met, grid_tag),
     trend_mk_pval = sprintf("%s_%s_trend_mk_pval_%s.nc", var, met, grid_tag)
   )
@@ -262,15 +267,13 @@ exp_ <- function(p) {
 }
 
 cfg_read <- function() {
-  # Read configuration options from a YAML file specified by environment
-  # variables, with fallbacks.
-  root <- exp_(Sys.getenv("SNU_LAI_FPAR_ROOT", unset = "~/GitHub/natural_LAI_FPAR"))
-  run_tag <- Sys.getenv("run_tag", "alpha_0.1")
+  # Read the exact configuration for the selected analysis scenario.
+  root <- here::here()
+  run_tag <- Sys.getenv("RUN_TAG", "alpha_0.1")
   cfg_file <- file.path(root, "config", sprintf("config_%s.yml", run_tag))
 
-  # Fall back to generic config if run_tag specific one doesn't exist
   if (!file.exists(cfg_file)) {
-    cfg_file <- file.path(root, "config", "config.yml")
+    stop("Missing configuration file: ", cfg_file, ". Run R/00_setup.R first.")
   }
 
   yaml::read_yaml(cfg_file)
