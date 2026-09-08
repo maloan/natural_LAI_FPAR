@@ -2,10 +2,7 @@
 # ==============================================================================
 # 01_build_georef_products.sh - Full LAI/FPAR georeferenced workflow
 # (GeoTIFF → trends → MK p-values → relative trends)
-# Usage:
-# ./01_build_georef_products.sh LAI 0p05
-# ./01_build_georef_products.sh FPAR 0p05
-# Or run both with VARS="LAI FPAR" bash ./01_build_georef_products.sh 0p05
+# Processes both LAI and FPAR at 0.05°.
 # ==============================================================================
 set -euo pipefail
 
@@ -35,41 +32,18 @@ need_cmd cdo
 need_cmd Rscript
 
 # ------------------------------------------------------------------------------
-# Parse arguments
+# Fixed workflow
 # ------------------------------------------------------------------------------
-if [[ $# -eq 2 ]]; then
-  VAR="$1"
-  RES005="$2"
-  VARS_ARR=("$VAR")
-elif [[ $# -eq 1 ]]; then
-  RES005="$1"
-  VARS_ARR=(${VARS:-"LAI FPAR"})
-else
-  cat >&2 << EOF
-Usage (single variable):
-  ./01_build_georef_products.sh LAI 0p05
-Usage (both variables):
-  VARS="LAI FPAR" bash ./01_build_georef_products.sh 0p05
-EOF
-  exit 1
-fi
-
-for VAR in "${VARS_ARR[@]}"; do
-  case "$VAR" in
-    LAI|FPAR) ;;
-    *)
-      echo "VAR must be LAI or FPAR, got: $VAR" >&2
-      exit 1
-      ;;
-  esac
-done
+RES005="0p05"
+VARS_ARR=(LAI FPAR)
 
 # ------------------------------------------------------------------------------
 # Configuration
 # ------------------------------------------------------------------------------
-ROOT="${SNU_LAI_FPAR_ROOT:-$HOME/GitHub/natural_LAI_FPAR}"
-EPS_LAI="${EPS_LAI:-0.05}"
-EPS_FPAR="${EPS_FPAR:-0.02}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(dirname "$SCRIPT_DIR")"
+EPS_LAI=0.05
+EPS_FPAR=0.02
 START_YEAR=1982
 END_YEAR=2024
 N_YEARS=$((END_YEAR - START_YEAR + 1))
@@ -360,10 +334,7 @@ for VAR in "${VARS_ARR[@]}"; do
   for metric in yearmean yearmax yearmin yearamp; do
     (
       cd "$ROOT"
-      RUN_MODE=unmasked \
-      VAR="$VAR" \
-      METRIC="$metric" \
-      Rscript "trends/compute_mk_pval.R"
+      Rscript "trends/compute_mk_pval.R" unmasked "$VAR" "$metric"
     ) &
     mk_pids+=("$!")
   done

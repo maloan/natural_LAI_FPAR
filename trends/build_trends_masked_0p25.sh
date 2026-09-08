@@ -59,7 +59,8 @@ RES="0p25"
 # ------------------------------------------------------------------------------
 # Paths
 # ------------------------------------------------------------------------------
-ROOT="${SNU_LAI_FPAR_ROOT:-$HOME/GitHub/natural_LAI_FPAR}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(dirname "$SCRIPT_DIR")"
 IN_DIR="${ROOT}/output/${ALPHA}/masked_0p25/${VAR}/masked_${VAR}_${MASKTAG}"
 OUT_EVAL="${ROOT}/output/${ALPHA}/eval/trend_${VAR}_${MASKTAG}"
 mkdir -p "$OUT_EVAL"
@@ -69,8 +70,8 @@ LOG_FILE="${OUT_EVAL}/build_trends.log"
 # ------------------------------------------------------------------------------
 # Thresholds
 # ------------------------------------------------------------------------------
-EPS_LAI="${EPS_LAI:-0.05}"
-EPS_FPAR="${EPS_FPAR:-0.02}"
+EPS_LAI=0.05
+EPS_FPAR=0.02
 if [[ "$VAR" == "LAI" ]]; then
   EPS="$EPS_LAI"
 else
@@ -263,12 +264,7 @@ pids=()
 for met in yearmean yearmax yearmin yearamp; do
   (
     cd "$ROOT"
-    RUN_MODE=masked \
-    RUN_TAG="$ALPHA" \
-    MASK="$MASKTAG" \
-    VAR="$VAR" \
-    METRIC="$met" \
-    Rscript "trends/compute_mk_pval.R"
+    Rscript "trends/compute_mk_pval.R" masked "$VAR" "$met" "$ALPHA" "$MASKTAG"
   ) >>"$LOG_FILE" 2>&1 &
   pids+=($!)
 done

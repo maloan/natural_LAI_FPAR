@@ -9,13 +9,18 @@ suppressPackageStartupMessages({
   library(trend)
 })
 
-# config
-mode <- Sys.getenv("RUN_MODE", "masked")
-var <- Sys.getenv("VAR", "LAI")
-metric <- Sys.getenv("METRIC", "yearmax")
+args <- commandArgs(trailingOnly = TRUE)
+if (length(args) < 1L ||
+  (args[1] == "unmasked" && length(args) != 3L) ||
+  (args[1] == "masked" && length(args) != 5L)) {
+  stop("Usage: compute_mk_pval.R MODE VAR METRIC [RUN_TAG MASK]")
+}
 
-alpha <- Sys.getenv("RUN_TAG", "alpha_0.1")
-mask <- Sys.getenv("MASK", "CCI")
+mode <- args[1]
+var <- args[2]
+metric <- args[3]
+alpha <- if (mode == "masked") args[4] else NULL
+mask <- if (mode == "masked") args[5] else NULL
 
 # Optional explicit fill value override; leave NA to rely on NetCDF metadata.
 fill_value <- NA_real_

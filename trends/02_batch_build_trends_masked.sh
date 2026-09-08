@@ -4,27 +4,21 @@
 # Batch wrapper for build_trends_masked_0p25.sh
 # Generates masked trend products for multiple (ALPHA, VAR, MASKTAG) combinations
 #
-# Usage:
-#   ALPHAS="0.05 0.1 0.2" VARS="LAI FPAR" MASKS="CCI GLC" bash ./02_batch_build_trends_masked.sh
-#
-# Environment variables (optional)
-#   ALPHAS:  space-separated list of alpha values (default: "0.05 0.1 0.2")
-#   VARS:  space-separated list of variables (default: "LAI FPAR")
-#   MASKS: space-separated list of mask sources (default: "CCI GLC")
+# Runs all configured combinations directly.
 # ==============================================================================
 
 set -euo pipefail
-ROOT="${SNU_LAI_FPAR_ROOT:-$HOME/GitHub/natural_LAI_FPAR}"
-SCRIPT_DIR="$ROOT/trends"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(dirname "$SCRIPT_DIR")"
 BUILD_SCRIPT="$SCRIPT_DIR/build_trends_masked_0p25.sh"
 [[ -x "$BUILD_SCRIPT" ]] || {
   echo "ERROR: Missing executable script: $BUILD_SCRIPT" >&2
   exit 1
 }
 
-read -r -a ALPHAS_ARR <<< "${ALPHAS:-0.05 0.1 0.2}"
-read -r -a VARS_ARR <<< "${VARS:-LAI FPAR}"
-read -r -a MASKS_ARR <<< "${MASKS:-CCI GLC}"
+ALPHAS_ARR=(0.05 0.1 0.2)
+VARS_ARR=(LAI FPAR)
+MASKS_ARR=(CCI GLC)
 
 total_jobs=0
 failed_jobs=0
