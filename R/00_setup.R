@@ -13,15 +13,18 @@ source(here("R", "helpers", "io.R"))
 terraOptions(progress = 1, memfrac = 0.25)
 
 epsg4326 <- "EPSG:4326"
-run_tag <- Sys.getenv("run_tag", unset = "alpha_0.1")
-alpha_cci <- as.numeric(Sys.getenv("alpha_cci", "0.1"))
+run_tag <- Sys.getenv("RUN_TAG", unset = "alpha_0.1")
+alpha_cci <- as.numeric(sub("^alpha_", "", run_tag))
+if (!is.finite(alpha_cci)) {
+  stop("RUN_TAG must have the form alpha_<threshold>; received: ", run_tag)
+}
 GDAL_OPTS <- gdal_co_int()
 
 #  paths
 in_dirs <- list(
   lai_nc_dir = exp_(here("data-raw", "LAI", "lai_1982-2024")),
   fpar_nc_dir = exp_(here("data-raw", "FPAR", "fpar_1982-2024")),
-  cci_dir = exp_(here("data-raw", "ESACCI", "ESACCI_1992-2020")),
+  cci_dir = exp_(here("data-raw", "ESACCI", "ESACCI_1992-2022")),
   luh2_dir = exp_(here("data-raw", "LUH2_v2h")),
   glc_dir = exp_(here("data-raw", "GLC_FCS30D")),
   valid_tiles_info = exp_(here(
@@ -121,9 +124,11 @@ cfg <- list(
       lai_start = 1982,
       lai_end = 2024,
       cci_start = 1992,
-      cci_end = 2020,
+      cci_end = 2022,
       glc_start = 1992,
-      glc_end = 2020
+      glc_end = 2022,
+      luh_start = 1992,
+      luh_end = 2015
     )
   )
 )
@@ -179,10 +184,19 @@ cfg$esa_cci <- list(
     water = 210,
     snow_ice = 220
   ),
-  mask_window_years = c(1992, 2020),
+  mask_window_years = c(1992, 2022),
   clean_majority_threshold = 0.5,
   clean_operator = "<=",
-  weights = list(cls30 = 0.75, cls40 = 0.25)
+  weights = list(cls30 = 0.75, cls40 = 0.25),
+  used_land = list(
+    threshold = alpha_cci,
+    persistence_years = 3
+  ),
+  nonvegetated = list(
+    year = 2007,
+    water_threshold = 0.05,
+    ice_threshold = 0.05
+  )
 )
 
 cfg$glc <- list(
@@ -199,9 +213,10 @@ cfg$glc <- list(
     nodata = c(0, 250)
   ),
   years = c(1985, 1990, 1995, 2000:2022),
-  mask_window_years = c(1992, 2020),
+  mask_window_years = c(1992, 2022),
   clean_majority_threshold = 0.5,
-  clean_operator = "<="
+  clean_operator = "<=",
+  used_land = list(persistence_years = 3)
 )
 
 cfg$luh2 <- list(
@@ -211,6 +226,13 @@ cfg$luh2 <- list(
     pasture = "pastr",
     pasture_range = "range",
     urban = "urban"
+  ),
+  pasture_mask = list(
+    start_year = 1992,
+    end_year = 2015,
+    grass_min = 0.1,
+    pasture_min = 0.1,
+    pasture_grass_ratio_min = 0.5
   )
 )
 

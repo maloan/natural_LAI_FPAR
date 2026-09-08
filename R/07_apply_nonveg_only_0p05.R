@@ -11,16 +11,14 @@ suppressPackageStartupMessages({
 
 source(here("R", "helpers", "netcdf.R"))
 source(here("R", "helpers", "io.R"))
-source(here("R", "helpers", "options.R"))
 
 cfg <- cfg_read()
-opts <- opts_read()
 
 terraOptions(progress = 1, memfrac = 0.25)
 
 
 # Config
-var <- toupper(Sys.getenv("var", "FPAR"))
+var <- toupper(Sys.getenv("VAR", "FPAR"))
 stopifnot(var %in% c("LAI", "FPAR"))
 
 var_lower <- tolower(var)
@@ -37,7 +35,7 @@ nonveg_mask <- rast(nonveg_mask_path)
 out_dir <- file.path(here("output"), "nonvegetated_only_0p05", var)
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
-wopt <- wopt_f32(opts$speed_over_size)
+wopt <- wopt_f32(FALSE)
 
 # Inputs
 files <- sort(list.files(
@@ -55,7 +53,7 @@ for (f in files) {
     sprintf("%s_%s_0p05_masked_nonvegetated.tif", var, ym)
   )
 
-  if (opts$skip_existing && file.exists(out)) {
+  if (file.exists(out)) {
     next
   }
   r <- rast(f)

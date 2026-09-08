@@ -9,19 +9,17 @@ suppressPackageStartupMessages({
 
 source(here("R", "helpers", "netcdf.R"))
 source(here("R", "helpers", "io.R"))
-source(here("R", "helpers", "options.R"))
 
 cfg <- cfg_read()
-opts <- opts_read()
 
 terraOptions(progress = 1, memfrac = 0.25)
 
 # Config
-var <- toupper(Sys.getenv("var", "FPAR"))
+var <- toupper(Sys.getenv("VAR", "FPAR"))
 stopifnot(var %in% c("LAI", "FPAR"))
 
 var_lower <- tolower(var)
-wopt <- wopt_f32(opts$speed_over_size)
+wopt <- wopt_f32(FALSE)
 
 ref005 <- rast(cfg$grids$grid_005$ref_raster)
 vcfg <- cfg$variables[[var_lower]]
@@ -45,7 +43,7 @@ stopifnot(length(files) > 0L)
 for (f in files) {
   ym <- extract_ym_from_filename(f)
   out_tif <- file.path(out_georef, sprintf("%s_%s_0p05.tif", var, ym))
-  if (!opts$force && opts$skip_existing && file.exists(out_tif)) {
+  if (file.exists(out_tif)) {
     next
   }
 

@@ -10,10 +10,8 @@ suppressPackageStartupMessages({
 source(here("R", "helpers", "netcdf.R"))
 source(here("R", "helpers", "plotting.R"))
 source(here("R", "helpers", "io.R"))
-source(here("R", "helpers", "options.R"))
 
 cfg <- cfg_read()
-opts <- opts_read()
 
 terraOptions(progress = 1, memfrac = 0.9)
 
@@ -24,9 +22,6 @@ out_dir <- cfg$paths$glc_out_dir
 stack_out <- file.path(out_dir, "glc_cat_yearstack_0p05.tif")
 
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
-
-skip_existing <- as_bool(Sys.getenv("skip_existing"), default = TRUE)
-overwrite <- as_bool(Sys.getenv("overwrite"), default = FALSE)
 
 cropland_vals <- as.integer(unlist(cfg$glc$classes$cropland))
 urban_vals <- as.integer(unlist(cfg$glc$classes$urban))

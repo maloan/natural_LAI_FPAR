@@ -9,14 +9,13 @@ suppressPackageStartupMessages({
 })
 
 source(here("R", "helpers", "io.R"))
-source(here("R", "helpers", "options.R"))
 
 cfg <- cfg_read()
 
 year_start <- as.integer(cfg$project$years$cci_start)
 year_end <- as.integer(cfg$project$years$cci_end)
 
-lc_year <- Sys.getenv("LC_YEAR", unset = Sys.getenv("lc_year", unset = NA_character_))
+lc_year <- Sys.getenv("LC_YEAR", unset = NA_character_)
 if (!is.na(lc_year) && nzchar(lc_year)) {
   years <- as.integer(lc_year)
   if (anyNA(years)) {
@@ -135,11 +134,7 @@ for (year in years) {
 
   majority_file <- file.path(out_dir_majority, sprintf("lc025_majority_%d.tif", year))
 
-  if (file.exists(frac_file) &&
-    file.exists(majority_file) &&
-    !isTRUE(as.logical(Sys.getenv(
-      "REMAKE_ALL", Sys.getenv("remake_all", "FALSE")
-    )))) {
+  if (file.exists(frac_file) && file.exists(majority_file)) {
     message("Outputs exist, skipping year ", year)
     next
   }

@@ -7,21 +7,15 @@ suppressPackageStartupMessages({
   library(here)
 })
 
-source(here("R", "helpers", "paths.R"))
-source(here("R", "helpers", "files.R"))
 source(here("R", "helpers", "netcdf.R"))
 source(here("R", "helpers", "io.R"))
 source(here("R", "helpers", "plotting.R"))
-source(here("R", "helpers", "options.R"))
 
 cfg <- cfg_read()
-opts <- opts_read()
 
 terraOptions(progress = 1, memfrac = 0.9)
 
-skip_existing <- as_bool(Sys.getenv("skip_existing"), default = TRUE)
-overwrite <- as_bool(Sys.getenv("overwrite"), default = FALSE)
-n_years <- as.integer(Sys.getenv("used_n_years", "3"))
+n_years <- as.integer(cfg$glc$used_land$persistence_years)
 
 glc_out_dir <- cfg$paths$glc_out_dir
 masks_dir <- cfg$paths$masks_glc_dir
@@ -67,7 +61,7 @@ message(sprintf(
   nlyr(s)
 ))
 
-ncores <- opts$n_workers
+ncores <- max(1L, parallel::detectCores(logical = TRUE) - 1L)
 
 cnt_cropland <- app(s, function(v, vals) {
   sum(v %in% vals, na.rm = TRUE)
@@ -88,20 +82,20 @@ out_used <- file.path(
 )
 out_counts <- file.path(masks_dir, "glc_counts_crop_urban_0p05.tif")
 
-if (overwrite || !(skip_existing && file.exists(out_used))) {
+if (!file.exists(out_used)) {
   writeRaster(
     used_byte,
     out_used,
     overwrite = TRUE,
-    wopt = wopt_byte(opts$speed_over_size, na = 255L)
+    wopt = wopt_byte(FALSE, na = 255L)
   )
 }
-if (overwrite || !(skip_existing && file.exists(out_counts))) {
+if (!file.exists(out_counts)) {
   writeRaster(
     c(cnt_cropland, cnt_urban),
     out_counts,
     overwrite = TRUE,
-    wopt = wopt_int(opts$speed_over_size)
+    wopt = wopt_int(FALSE)
   )
 }
 

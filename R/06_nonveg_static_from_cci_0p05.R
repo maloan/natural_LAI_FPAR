@@ -11,20 +11,17 @@ suppressPackageStartupMessages({
 
 source(here("R", "helpers", "netcdf.R"))
 source(here("R", "helpers", "io.R"))
-source(here("R", "helpers", "options.R"))
 
 cfg <- cfg_read()
-opts <- opts_read()
 
 terraOptions(progress = 1, memfrac = 0.6)
 
 ref005 <- rast(cfg$grids$grid_005$ref_raster)
 cci_dir <- cfg$paths$cci_dir
 
-alpha_water <- as.numeric(Sys.getenv("alpha_water", "0.05"))
-alpha_ice <- as.numeric(Sys.getenv("alpha_ice", "0.05"))
-skip_existing <- as_bool(Sys.getenv("skip_existing"), default = FALSE)
-year <- as.integer(Sys.getenv("year", "2007"))
+alpha_water <- cfg$esa_cci$nonvegetated$water_threshold
+alpha_ice <- cfg$esa_cci$nonvegetated$ice_threshold
+year <- as.integer(cfg$esa_cci$nonvegetated$year)
 
 out_dir <- file.path(cfg$paths$masks_root_dir, "mask_nonvegetated")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
@@ -42,7 +39,7 @@ out_tif <- file.path(
   )
 )
 
-if (skip_existing && file.exists(out_tif)) {
+if (file.exists(out_tif)) {
   message("✓ Non-vegetated mask already exists — skipping: ", out_tif)
   return(invisible(NULL))
 }

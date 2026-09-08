@@ -16,8 +16,8 @@ cfg <- cfg_read()
 
 terraOptions(progress = 1, memfrac = 0.25)
 
-year_0 <- as.integer(Sys.getenv("LUH_AVG_START", cfg$project$years$cci_start))
-year_1 <- as.integer(Sys.getenv("LUH_AVG_END", cfg$project$years$cci_end))
+year_0 <- as.integer(cfg$luh2$pasture_mask$start_year)
+year_1 <- as.integer(cfg$luh2$pasture_mask$end_year)
 tag <- sprintf("%d-%d", year_0, year_1)
 
 ref005 <- rast(cfg$grids$grid_005$ref_raster)
@@ -30,7 +30,7 @@ dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 luh_nc <- cfg$luh2$states_nc
 v_pas <- cfg$luh2$variables$pasture
-v_rng <- cfg$luh2$variables$rangeland %||% cfg$luh2$variables$range
+v_rng <- cfg$luh2$variables$pasture_range
 
 pas <- rast(luh_nc, subds = v_pas)
 rng <- rast(luh_nc, subds = v_rng)

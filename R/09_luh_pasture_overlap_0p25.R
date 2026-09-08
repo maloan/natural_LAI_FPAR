@@ -12,22 +12,20 @@ source(here("R", "helpers", "netcdf.R"))
 source(here("R", "helpers", "io.R"))
 
 source(here("R", "helpers", "plotting.R"))
-source(here("R", "helpers", "options.R"))
 
 cfg <- cfg_read()
 
 terraOptions(progress = 1, memfrac = 0.25)
 
 #  params
-grass_source <- toupper(Sys.getenv("grass_source", "GLC")) # allowed values: CCI or GLC
-remake_ql <- as_bool(Sys.getenv("remake_ql"), default = TRUE)
+grass_source <- toupper(Sys.getenv("GRASS_SOURCE", "GLC"))
+g_min <- cfg$luh2$pasture_mask$grass_min
+p_min <- cfg$luh2$pasture_mask$pasture_min
+beta <- cfg$luh2$pasture_mask$pasture_grass_ratio_min
 
-g_min <- as.numeric(Sys.getenv("g_min", "0.1"))
-p_min <- as.numeric(Sys.getenv("p_min", "0.1"))
-beta <- as.numeric(Sys.getenv("beta", "0.5"))
-
-year_0 <- env_get_int("LUH_AVG_START", cfg$project$years$cci_start)
-year_1 <- env_get_int("LUH_AVG_END", cfg$project$years$cci_end)
+# LUH2 v2h historical averaging window used in the manuscript.
+year_0 <- as.integer(cfg$luh2$pasture_mask$start_year)
+year_1 <- as.integer(cfg$luh2$pasture_mask$end_year)
 
 ref005 <- rast(cfg$grids$grid_005$ref_raster)
 ref025 <- rast(cfg$grids$grid_025$ref_raster)
@@ -64,23 +62,13 @@ out005 <- file.path(out_dir, sprintf("mask_luh_overlap_%s_0p05_rep.tif", tag))
 grass_005 <- switch(grass_source,
   CCI = {
     frac_dir <- cfg$paths$cci_out_dir
-    ff <- list.files(frac_dir, pattern = "ESACCI_frac_\\d{4}_0p05\\.tif$", full.names = TRUE)
-    if (!length(ff)) {
-      stop_msg("No ESACCI fraction files found in: ", frac_dir)
+    yrs <- year_0:year_1
+    ff <- file.path(frac_dir, sprintf("ESACCI_frac_%d_0p05.tif", yrs))
+    missing_files <- ff[!file.exists(ff)]
+    if (length(missing_files)) {
+      stop("Missing expected CCI fraction files:\n", paste(missing_files, collapse = "\n"))
     }
-    yrs <- as.integer(sub(".*?(\\d{4}).*", "\\1", basename(ff)))
-    keep <- filter_by_year_range(yrs, year_0, year_1)
-    if (!length(keep)) {
-      stop_msg(
-        "No ESACCI files in requested window ",
-        year_0,
-        "-",
-        year_1,
-        ". Available years: ",
-        year_span(yrs)
-      )
-    }
-    stk <- rast(lapply(ff[keep], function(x) {
+    stk <- rast(lapply(ff, function(x) {
       rast(x)[["frac_grass"]]
     }))
     mean(stk, na.rm = TRUE)
@@ -207,7 +195,7 @@ write_3panel <- function(g, p, m, out_png, main) {
 }
 
 ql_global <- file.path(ql_dir, sprintf("quicklook_global_%s.png", tag))
-if (remake_ql || !file.exists(ql_global)) {
+if (!file.exists(ql_global)) {
   write_3panel(
     grass_025,
     pasture_025,

@@ -9,7 +9,6 @@ suppressPackageStartupMessages({
 
 source(here("R", "helpers", "netcdf.R"))
 source(here("R", "helpers", "io.R"))
-source(here("R", "helpers", "options.R"))
 
 cfg <- cfg_read()
 
@@ -20,9 +19,6 @@ out_dir <- cfg$paths$cci_out_dir
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 tmpl <- rast(cfg$grids$grid_005$ref_raster)
-
-remake_all <- as_bool(Sys.getenv("remake_all"), default = FALSE)
-skip_existing <- as_bool(Sys.getenv("skip_existing"), default = TRUE)
 
 esa_cci <- cfg$esa_cci$classes
 nodata_vals <- unique(c(esa_cci$nodata, 255))
@@ -92,7 +88,7 @@ for (i in seq_along(plan_year)) {
   f <- plan_path[i]
   ot <- out_tif[i]
 
-  if (skip_existing && file.exists(ot) && !remake_all) {
+  if (file.exists(ot)) {
     message("✓ Year ", yr, " already complete — skipping.")
     next
   }
