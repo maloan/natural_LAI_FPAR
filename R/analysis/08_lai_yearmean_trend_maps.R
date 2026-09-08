@@ -18,12 +18,12 @@ suppressPackageStartupMessages({
 source(here("R", "helpers", "plotting.R"))
 
 # config
-alpha <- "alpha_0.1"
+run_tag <- "alpha_0.1"
 mask <- "CCI"
 var <- "LAI"
 metric <- "yearmean"
 include_masked_out <- FALSE
-alpha <- 0.05
+significance_alpha <- 0.05
 
 f_p_unm <- here(
   "analysis",
@@ -33,7 +33,7 @@ f_p_unm <- here(
 )
 f_p_msk <- here(
   "output",
-  alpha,
+  run_tag,
   "eval",
   sprintf("trend_%s_%s", var, mask),
   sprintf("%s_%s_trend_mk_pval_0p25.nc", var, metric)
@@ -46,7 +46,7 @@ f_abs_unm <- here(
 )
 f_abs_msk <- here(
   "output",
-  alpha,
+  run_tag,
   "eval",
   sprintf("trend_%s_%s", var, mask),
   sprintf("%s_%s_trend_slope_peryear_0p25.nc", var, metric)
@@ -55,14 +55,14 @@ f_rel_unm <- here(
   "analysis",
   "unmasked",
   "0p25",
-  sprintf("%s_georef_%s_trend_relative_peryear_0p25.nc", var, metric)
+  sprintf("%s_georef_%s_trend_relative_percent_peryear_0p25.nc", var, metric)
 )
 f_rel_msk <- here(
   "output",
-  alpha,
+  run_tag,
   "eval",
   sprintf("trend_%s_%s", var, mask),
-  sprintf("%s_%s_trend_relative_peryear_0p25.nc", var, metric)
+  sprintf("%s_%s_trend_relative_percent_peryear_0p25.nc", var, metric)
 )
 outdir <- here("analysis", "results", "figures", "maps")
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
@@ -80,10 +80,6 @@ rel_unm <- rast(f_rel_unm)[[1]]
 rel_msk <- rast(f_rel_msk)[[1]]
 p_unm <- rast(f_p_unm)[[1]]
 p_msk <- rast(f_p_msk)[[1]]
-
-# convert to %/yr:
-rel_unm <- 100 * rel_unm
-rel_msk <- 100 * rel_msk
 
 # common limits
 abs_all <- c(abs_unm, abs_msk)
@@ -103,13 +99,13 @@ abs_out[!mask_out_abs] <- NA
 rel_out <- rel_unm
 rel_out[!mask_out_rel] <- NA
 
-# grey overlay where NOT significant (alpha <- 0.05) but data exists
-grey_unm_abs <- (p_unm > alpha) & !is.na(abs_unm)
-grey_msk_abs <- (p_msk > alpha) & !is.na(abs_msk)
-grey_out_abs <- (p_unm > alpha) & !is.na(abs_out)
-grey_unm_rel <- (p_unm > alpha) & !is.na(rel_unm)
-grey_msk_rel <- (p_msk > alpha) & !is.na(rel_msk)
-grey_out_rel <- (p_unm > alpha) & !is.na(rel_out)
+# Grey overlay where the trend is not significant but data exist.
+grey_unm_abs <- (p_unm > significance_alpha) & !is.na(abs_unm)
+grey_msk_abs <- (p_msk > significance_alpha) & !is.na(abs_msk)
+grey_out_abs <- (p_unm > significance_alpha) & !is.na(abs_out)
+grey_unm_rel <- (p_unm > significance_alpha) & !is.na(rel_unm)
+grey_msk_rel <- (p_msk > significance_alpha) & !is.na(rel_msk)
+grey_out_rel <- (p_unm > significance_alpha) & !is.na(rel_out)
 # data frames
 df_abs_unm <- to_df(abs_unm, "z")
 df_abs_msk <- to_df(abs_msk, "z")
@@ -217,11 +213,11 @@ fig <- row_abs / row_rel
 
 out_png <- file.path(
   outdir,
-  sprintf("%s_%s_trend_map_%s_%s_main.png", var, metric, mask, alpha)
+  sprintf("%s_%s_trend_map_%s_%s_main.png", var, metric, mask, run_tag)
 )
 out_pdf <- file.path(
   outdir,
-  sprintf("%s_%s_trend_map_%s_%s_main.pdf", var, metric, mask, alpha)
+  sprintf("%s_%s_trend_map_%s_%s_main.pdf", var, metric, mask, run_tag)
 )
 ggsave(out_png,
   fig,

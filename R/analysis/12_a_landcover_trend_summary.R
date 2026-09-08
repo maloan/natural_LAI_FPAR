@@ -31,7 +31,7 @@ default_cfg <- list(
   metric = "yearmean",
   use_relative = TRUE,
   lc_year_start = 1992L,
-  lc_year_end = 2021L,
+  lc_year_end = 2022L,
   n_boot = 1000L,
   conf = 0.95
 )
@@ -72,7 +72,7 @@ block_id <- make_block_id(area, block_size_deg = 5)
 
 trend_files <- function(use_relative) {
   suf <- if (use_relative) {
-    "trend_relative_peryear"
+    "trend_relative_percent_peryear"
   } else {
     "trend_slope_peryear"
   }
@@ -185,7 +185,7 @@ r_unm <- align_to_template(r_unm, ref025, method = "bilinear")
 r_msk <- align_to_template(r_msk, ref025, method = "bilinear")
 
 if (use_relative) {
-  scale_factor <- 100
+  scale_factor <- 1
   suffix <- "rel"
   unit_label <- "% yr-1"
 } else {

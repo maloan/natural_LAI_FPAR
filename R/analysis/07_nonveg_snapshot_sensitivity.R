@@ -14,19 +14,18 @@ cfg <- cfg_read()
 run_tag <- cfg$project$run_tag
 nonveg_dir <- here("output", run_tag, "masks", "mask_nonvegetated")
 
-# Read all matching mask files
-mask_files <- list.files(nonveg_dir, pattern = "^mask_nonvegetated_CCI_\\d{4}_alphaW0p05_alphaI0p05_0p05\\.tif$", full.names = TRUE)
-if (length(mask_files) == 0) {
-  stop("No non-vegetated mask files found in: ", nonveg_dir)
+yrs <- c(1995L, 2007L, 2022L)
+mask_files <- file.path(
+  nonveg_dir,
+  sprintf(
+    "mask_nonvegetated_CCI_%d_alphaW0p05_alphaI0p05_0p05.tif",
+    yrs
+  )
+)
+missing_files <- mask_files[!file.exists(mask_files)]
+if (length(missing_files)) {
+  stop("Missing expected non-vegetated masks:\n", paste(missing_files, collapse = "\n"))
 }
-# Extract and sort by year
-get_year <- function(p) {
-  as.integer(sub("^.*_CCI_(\\d{4})_.*$", "\\1", basename(p)))
-}
-yrs <- vapply(mask_files, get_year, integer(1))
-ord <- order(yrs)
-mask_files <- mask_files[ord]
-yrs <- yrs[ord]
 # area raster (km²)
 area005 <- rast(cfg$grids$grid_005$area_raster)
 support_dom <- is.finite(area005) & area005 > 0

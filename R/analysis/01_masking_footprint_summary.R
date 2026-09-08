@@ -14,7 +14,7 @@ suppressPackageStartupMessages({
 source(here("R", "helpers", "io.R"))
 
 cci_alphas <- c("alpha_0.05", "alpha_0.1", "alpha_0.2")
-glc_run_tag <- "alpha_0.05"
+glc_run_tag <- "alpha_0.1"
 
 outdir <- here("analysis", "results", "tables", "masks")
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
@@ -34,7 +34,7 @@ load_scenario_masks <- function(run_tag, lu_kind = c("CCI", "GLC")) {
       "masks",
       "mask_cci",
       sprintf(
-        "mask_used_frac_fused_%s_k3_1992-2020_0p05.tif",
+        "mask_used_frac_fused_%s_k3_1992-2022_0p05.tif",
         alpha_token
       )
     )
@@ -44,7 +44,7 @@ load_scenario_masks <- function(run_tag, lu_kind = c("CCI", "GLC")) {
       run_tag,
       "masks",
       "mask_glc",
-      "mask_used_ge3_1992-2020_0p05.tif"
+      "mask_used_ge3_1992-2022_0p05.tif"
     )
   }
 
@@ -54,7 +54,7 @@ load_scenario_masks <- function(run_tag, lu_kind = c("CCI", "GLC")) {
     "masks",
     "mask_luh_overlap",
     sprintf(
-      "mask_luh_overlap_%s_Gmin0p10_Pmin0p10_alpha0p50_1992-2020_0p05_rep.tif",
+      "mask_luh_overlap_%s_Gmin0p10_Pmin0p10_beta0p50_1992-2015_0p05_rep.tif",
       lu_kind
     )
   )

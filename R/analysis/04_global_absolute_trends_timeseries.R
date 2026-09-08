@@ -25,7 +25,7 @@ year0 <- 1982L
 year_end <- 2024L
 n_years <- year_end - year0 + 1L
 alphas <- c("alpha_0.05", "alpha_0.1", "alpha_0.2")
-glc_alpha <- "alpha_0.05"
+glc_alpha <- "alpha_0.1"
 outdir_fig <- here("analysis", "results", "figures", "timeseries")
 outdir_tbl <- here("analysis", "results", "tables", "timeseries")
 dir.create(outdir_fig, recursive = TRUE, showWarnings = FALSE)

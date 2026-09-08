@@ -18,20 +18,20 @@ source(here("R", "helpers", "weighted_means.R"))
 source(here("R", "helpers", "plotting.R"))
 source(here("R", "helpers", "io.R"))
 
-alpha <- "alpha_0.1"
+run_tag <- "alpha_0.1"
 var <- "LAI"
 metric <- "yearmean"
 luh_source <- "CCI"
-alpha <- 0.05
+significance_alpha <- 0.05
 limit_q <- 0.95
 luh_source <- toupper(luh_source)
 if (!luh_source %in% c("CCI", "GLC")) {
   stop("luh_source must be CCI or GLC; got: ", luh_source)
 }
 
-alpha_num <- as.numeric(sub("^alpha_", "", alpha))
+alpha_num <- as.numeric(sub("^alpha_", "", run_tag))
 if (!is.finite(alpha_num)) {
-  stop("Could not parse alpha from config: ", alpha)
+  stop("Could not parse alpha from run tag: ", run_tag)
 }
 alpha_tag2 <- gsub("\\.", "p", sprintf("%.2f", alpha_num))
 outdir_fig <- here("analysis", "results", "figures", "maps")
@@ -61,7 +61,7 @@ f_rel_tr <- here(
   "analysis",
   "unmasked",
   "0p25",
-  sprintf("%s_georef_%s_trend_relative_peryear_0p25.nc", var, metric)
+  sprintf("%s_georef_%s_trend_relative_percent_peryear_0p25.nc", var, metric)
 )
 f_p_tr <- here(
   "analysis",
@@ -71,7 +71,7 @@ f_p_tr <- here(
 )
 f_abs_tr_cci_nat <- here(
   "output",
-  alpha,
+  run_tag,
   "eval",
   sprintf("trend_%s_%s", var, "CCI"),
   sprintf("%s_%s_trend_slope_peryear_0p25.nc", var, metric)
@@ -84,21 +84,21 @@ f_ts_abs <- here(
 )
 f_mask_cci_005 <- here(
   "output",
-  alpha,
+  run_tag,
   "masks",
   "mask_cci",
   sprintf(
-    "mask_used_frac_fused_alpha%s_k3_1992-2020_0p05.tif",
+    "mask_used_frac_fused_alpha%s_k3_1992-2022_0p05.tif",
     alpha_tag2
   )
 )
 f_mask_luh_005 <- here(
   "output",
-  alpha,
+  run_tag,
   "masks",
   "mask_luh_overlap",
   sprintf(
-    "mask_luh_overlap_%s_Gmin0p10_Pmin0p10_alpha0p50_1992-2020_0p05_rep.tif",
+    "mask_luh_overlap_%s_Gmin0p10_Pmin0p10_beta0p50_1992-2015_0p05_rep.tif",
     luh_source
   )
 )
@@ -124,7 +124,6 @@ abs_tr <- rast(f_abs_tr)[[1]]
 rel_tr <- rast(f_rel_tr)[[1]]
 p_tr <- rast(f_p_tr)[[1]]
 abs_tr_cci_nat <- rast(f_abs_tr_cci_nat)[[1]]
-rel_tr <- 100 * rel_tr
 ts_abs <- rast(f_ts_abs)
 years <- 1982:(1982 + nlyr(ts_abs) - 1)
 mask_cci_005 <- rast(f_mask_cci_005)[[1]]
@@ -256,13 +255,13 @@ map_luh_rel <- mk_map_df(rel_tr, w_luh_map, area025, min_excl_frac = 0)
 map_cci_nonsig <- mk_nonsig_df(p_tr,
   w_cci_map,
   area025,
-  alpha = alpha,
+  alpha = significance_alpha,
   min_excl_frac = 0
 )
 map_luh_nonsig <- mk_nonsig_df(p_tr,
   w_luh_map,
   area025,
-  alpha = alpha,
+  alpha = significance_alpha,
   min_excl_frac = 0
 )
 sym_vec_lim <- function(x, q = 0.95) {

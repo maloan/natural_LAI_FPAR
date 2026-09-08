@@ -69,7 +69,7 @@ p1 <- plot_zonal_diagnostics(
   df_abs_mean,
   "abstrend_m2m2yr",
   "Annual Mean Absolute Trend",
-  expression("Absolute trend (% yr"^
+  expression("Absolute trend (m"^2 * " m"^-2 * " yr"^
     {
       -1
     } * ")"),
@@ -80,7 +80,7 @@ p2 <- plot_zonal_diagnostics(
   df_abs_max,
   "abstrend_m2m2yr",
   "Annual Maximum Absolute Trend",
-  expression("Absolute trend (% yr"^
+  expression("Absolute trend (m"^2 * " m"^-2 * " yr"^
     {
       -1
     } * ")"),

@@ -73,8 +73,7 @@ for (var in vars) {
       if (length(r_vals) != length(area_vals)) {
         stop("Geometry mismatch: ")
       }
-      # Unit conversion: relative trends are fractional (0-1), output as % per year
-      r_vals <- r_vals * 100
+      # Relative-trend products are already stored in % yr-1.
       ok <- is.finite(r_vals) & is.finite(area_vals) & area_vals > 0
       ci <- bootstrap_ci_global(
         x = r_vals[ok],
