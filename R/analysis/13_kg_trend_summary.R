@@ -50,9 +50,9 @@ valid_domain_cells <- which(is.finite(area_vals) & area_vals > 0)
 block_id <- make_block_id(area, block_size_deg = 5)
 
 if (use_relative) {
-  trend_suffix <- "trend_relative_peryear"
+  trend_suffix <- "trend_relative_percent_peryear"
   suffix <- "rel"
-  scale_factor <- 100
+  scale_factor <- 1
   unit_label <- expression("LAI Trend (% yr"^-1 * ")")
 } else {
   trend_suffix <- "trend_slope_peryear"
