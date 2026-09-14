@@ -1,24 +1,16 @@
 # Configuration (config)
 
-This folder holds the main settings for the natural vegetation LAI/FPAR workflow.
-In practice, almost every script reads this configuration through cfg_read().
+This folder holds the main settings for the natural vegetation LAI/FPAR workflow. Almost every script reads this configuration through cfg_read(). Each scenario has its own generated configuration file. Scripts require the exact file matching `RUN_TAG`.
 
-Each scenario has its own generated configuration file. Scripts require the
-exact file matching `RUN_TAG`; they do not fall back to another scenario.
-
-## What is in this folder
+## Folder content
 
 - config_alpha_0.05.yml, config_alpha_0.1.yml, config_alpha_0.2.yml
-    Generated configurations for the three CCI masking thresholds.
+-> Generated configurations for the three CCI masking thresholds.
 
 All config files share the same schema and include:
-project metadata (run tag, CRS, time span),
-input/output paths,
-reference and area grids,
-land-cover class mappings (ESA-CCI, GLC-FCS30D, LUH2),
-and output naming templates.
+project metadata (run tag, CRS, time span), input/output paths, reference and area grids, land-cover class mappings (ESA-CCI, GLC-FCS30D, LUH2), and output naming templates.
 
-## What you usually edit
+## To edit
 
 Most updates are small and focused:
 
@@ -35,4 +27,4 @@ Scripts load the configuration like this:
 cfg <- cfg_read()
 ```
 
-Run `R/00_setup.R` once for each required `RUN_TAG` to create the corresponding configuration file.
+Run `R/00_setup.R` once for each required `RUN_TAG` to create the corresponding configuration file. Only the 0.05-degree processing grid and 0.25-degree analysis grid are created.
