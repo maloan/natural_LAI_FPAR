@@ -157,7 +157,6 @@ if (!file.exists(mask_combined_path)) {
     wopt = wopt_byte(FALSE, na = 255L)
   )
 }
-plot(drop_mask, main = sprintf("Combined mask (%s)", mask_kind))
 months <- format(
   seq(
     as.Date(sprintf("%d-01-01", cfg$project$years$lai_start)),
@@ -180,15 +179,16 @@ for (f in files) {
 
   do_write <- !file.exists(out)
 
-  r <- rast(f)
-
   if (do_write) {
+    r <- rast(f)
     r_masked <- terra::mask(r,
       drop_mask,
       maskvalues = 1,
       updatevalue = NA
     )
     writeRaster(r_masked, out, overwrite = TRUE, wopt = wopt)
+    rm(r, r_masked)
+    gc(verbose = FALSE)
   }
 }
 
