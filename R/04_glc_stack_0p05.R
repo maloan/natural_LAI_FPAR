@@ -20,54 +20,35 @@ ref005 <- rast(cfg$grids$grid_005$ref_raster)
 glc_dir <- cfg$paths$glc_dir
 out_dir <- cfg$paths$glc_out_dir
 stack_out <- file.path(out_dir, "glc_cat_yearstack_0p05.tif")
+grass_out <- file.path(out_dir, "glc_grass_yearstack_0p05.tif")
 
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
-cropland_vals <- as.integer(unlist(cfg$glc$classes$cropland))
-urban_vals <- as.integer(unlist(cfg$glc$classes$urban))
 nodata_vals <- as.integer(unlist(cfg$glc$classes$nodata))
 
-years_for_ql <- intersect(c(1990, 2000, 2010, 2020), cfg$glc$years)
-
-#  discover files
-all_files <- list.files(glc_dir, pattern = "\\.tif$", full.names = TRUE)
-if (!length(all_files)) {
-  stop("No GLC GeoTIFFs found in: ", glc_dir)
+years <- as.integer(cfg$glc$years)
+annual_files <- file.path(
+  glc_dir,
+  sprintf("GLC_FCS30D_mode_0p05_%d.tif", years)
+)
+missing_files <- annual_files[!file.exists(annual_files)]
+if (length(missing_files)) {
+  stop(
+    "Missing expected GLC annual files:\n",
+    paste(missing_files, collapse = "\n")
+  )
 }
 
-# Extract years from filenames (first 4 characters are year YYYY)
-basenames <- basename(all_files)
-years <- as.integer(substr(basenames, 1, 4))
-
-# Filter to valid years and sort
-valid_mask <- years %in% cfg$glc$years
-ord <- order(years[valid_mask])
-
-paths <- all_files[valid_mask][ord]
-years <- years[valid_mask][ord]
-
-stopifnot(length(paths) > 0)
-
-message(
-  "Found ",
-  length(paths),
-  " GLC rasters; span [",
-  min(years),
-  "..",
-  max(years),
-  "]."
-)
-
 #  rebuild stack
-bands <- vector("list", length(paths))
+bands <- vector("list", length(years))
 
-for (i in seq_along(paths)) {
+for (i in seq_along(years)) {
   yr <- years[i]
-  f <- paths[i]
+  annual_file <- annual_files[i]
 
-  message("→ Processing ", basename(f))
+  message("→ Processing ", basename(annual_file))
+  r <- rast(annual_file)[[1]]
 
-  r <- rast(f)[[1]]
   if (is.na(crs(r))) {
     crs(r) <- crs(ref005)
   }
@@ -86,4 +67,27 @@ for (i in seq_along(paths)) {
 
 stack <- rast(bands)
 writeRaster(stack, stack_out, overwrite = TRUE)
+
+grass_file <- file.path(
+  glc_dir,
+  "GLC_FCS30D_grass_fraction_0p05_1985_2022.tif"
+)
+if (!file.exists(grass_file)) {
+  stop("Missing expected GLC grass-fraction file:\n", grass_file)
+}
+
+message("→ Processing ", basename(grass_file))
+grass <- rast(grass_file)
+
+if (nlyr(grass) != length(years)) {
+  stop(
+    "Expected ", length(years), " grass-fraction layers, found ",
+    nlyr(grass)
+  )
+}
+
+grass <- align_to_template(grass, ref005, method = "bilinear")
+grass <- clamp(grass, 0, 1)
+names(grass) <- sprintf("Y%04d", years)
+writeRaster(grass, grass_out, overwrite = TRUE)
 gc()
