@@ -23,7 +23,10 @@ Included content:
 
 - Download scripts: `download_landcover_1992_2015.py` and
   `download_landcover_2016_2022.py`.
-- Annual maps in ESACCI/ESACCI_1992-2022/.
+- Downloaded ZIP archives and extracted annual NetCDF maps in
+  `ESACCI/ESACCI_1992-2022/`.
+
+The preprocessing reads the `lccs_class` variable directly from the extracted NetCDF files. The expected versions are v2.0.7cds for 1992--2015 and v2.1.1 for 2016--2022.
 
 Data source:
 - https://cds.climate.copernicus.eu/datasets/satellite-land-cover?tab=download
@@ -31,17 +34,19 @@ Data source:
 
 ### GLC_FCS30D (GLC_FCS30D)
 
-Used for the independent GLC-based masking branch.
+Used for the GLC-based masking branch.
 
 Included content:
 
-- Annual GeoTIFF maps.
-- Export recipe in `R/_ref_google_engine_glc_code.txt`.
+- The 36 original GLC_FCS30D v2 ZIP archives are stored in `data-raw/GLC_FCS30D/archives/` (approximately 135.8 GB in total). This local raw-data directory is excluded from version control.
+- Global categorical 0.05 degree GeoTIFF maps named `GLC_FCS30D_mode_0p05_<year>.tif`.
+- A global fractional-grass stack named `GLC_FCS30D_grass_fraction_0p05_1985_2022.tif`.
+
 
 Data source:
-- https://doi.org/10.5281/zenodo.8239305
+- https://doi.org/10.5281/zenodo.15063683
 - Zhang, X., Zhao, T., Xu, H., Liu, W., Wang, J., Chen, X., and Liu, L.: GLC_FCS30D: the first global 30 m land-cover dynamics monitoring product with a fine classification system for the period from 1985 to 2022 generated using dense-time-series Landsat imagery and the continuous change-detection method, Earth Syst. Sci. Data, 16, 1353–1381, https://doi.org/10.5194/essd-16-1353-2024, 2024.
-- Liangyun Liu, Xiao Zhang, & Tingting Zhao. (2023). GLC_FCS30D: the first global 30-m land-cover dynamic monitoring product with fine classification system from 1985 to 2022 [Data set]. Zenodo. https://doi.org/10.5281/zenodo.8239305
+- Liangyun Liu, Xiao Zhang, & Zhehua Li. (2025). GLC_FCS30D: the first global 30-m land-cover dynamic monitoring product with fine classification system from 1985 to 2022 (Version v2) [Dataset]. Zenodo. https://doi.org/10.5281/zenodo.15063683
 
 ### LAI and FPAR monthly inputs (LAI, FPAR)
 
@@ -60,8 +65,7 @@ Data source:
 
 ### LUH2 v2h (LUH2_v2h)
 
-Land-use state variables used for pasture/rangeland constraints and overlap
-logic.
+Land-use state variables used for the pasture--grass overlap mask.
 
 Included content:
 
@@ -77,15 +81,7 @@ Data source:
 - Hurtt, G. C., Chini, L., Sahajpal, R., Frolking, S., Bodirsky, B. L., Calvin, K., Doelman, J., Fisk, J., Fujimori, S., Goldewijk, K. K., Hasegawa, T., Havlik, P., Heinimann, A., Humpenöder, F., Jungclaus, J., Kaplan, J., Krisztin, T., Lawrence, D., Lawrence, P., Mertz, O., Pongratz, J., Popp, A., Riahi, K., Shevliakova, E., Stehfest, E., Thornton, P., van Vuuren, D., Zhang, X. (2019). Harmonization of Global Land Use Change and Management for the Period 850-2015. Version 20190529. Earth System Grid Federation. https://doi.org/10.22033/ESGF/input4MIPs.10454
  
 ---
-
-## How these inputs are used
-
-- Build CCI and GLC land-cover fractions and masks.
-- Add LUH2-based pasture/rangeland overlap constraints.
-- Georeference and prepare monthly LAI/FPAR products.
-
 ## Reproducibility notes
 
 - data-raw contents are not tracked by git.
-- Reproducibility depends on exact upstream dataset versions.
-- Paths, year windows, and class mappings are defined in config/config.yml.
+- Paths, year windows, and class mappings are defined in `config/config_<RUN_TAG>.yml`.
