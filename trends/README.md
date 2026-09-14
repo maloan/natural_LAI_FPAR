@@ -2,11 +2,11 @@
 
 Standalone scripts for computing OLS trends, Mann-Kendall significance, and relative trends on LAI/FPAR data at 0.25° resolution.
 
-## Quick Start
+## Scripts
 
 **Unmasked trends** (one-time setup):
 ```bash
-./01_build_georef_products.sh
+./01_build_unmasked_0p25.sh
 ```
 
 **Masked trends** (for specific mask combination):
@@ -53,22 +53,26 @@ Pixel-wise Mann-Kendall test (using R package `trend`):
 
 ## Scripts in this folder
 
-### 01_build_georef_products.sh
+### 01_build_unmasked_0p25.sh
 
-Builds unmasked georeferenced trend products: from raw GeoTIFFs through annual metrics, OLS trends, Mann-Kendall p-values, and relative trends.
+Builds the water/ice-only baseline referred to as unmasked in the analysis.F rom non-vegetated-masked GeoTIFFs through annual metrics, OLS trends, Mann-Kendall p-values, and relative trends.
 
-**Usage:**
+**Usage**
 ```bash
-./01_build_georef_products.sh
+VAR=LAI Rscript ../R/07_apply_nonveg_only_0p05.R
+VAR=FPAR Rscript ../R/07_apply_nonveg_only_0p05.R
+Rscript ../R/08_agg_nonveg_0p25.R
+bash 01_build_unmasked_0p25.sh
 ```
 
-**Workflow:**
-1. Convert monthly GeoTIFFs (0.05°) → time-stamped NetCDF
-2. Compute annual metrics: yearmean, yearmax, yearmin, yearamp
-3. OLS trends: slope (per-year) and intercept for each metric
-4. Remap to 0.25°
-5. Mann-Kendall p-values (pixel-wise, unmasked)
-6. Relative trends: (slope / temporal_mean) × 100, only where mean ≥ EPS
+**Workflow**
+1. Apply the static water/ice mask at 0.05°
+2. Aggregate each monthly field to 0.25° using valid cell area as weights
+3. Convert the 0.25° GeoTIFFs to a monthly NetCDF time series
+4. Compute annual metrics at 0.25°: yearmean, yearmax, yearmin, yearamp
+5. Compute OLS slopes and intercepts for each 0.25° metric
+6. Compute Mann-Kendall p-values (pixel-wise, unmasked)
+7. Calculate relative trends: (slope / temporal_mean) × 100, only where mean ≥ EPS
 
 **Outputs** (in `analysis/unmasked/0p25/`):
 - Annual metrics: `*_georef_yearmean_0p25.nc`, etc.
@@ -80,18 +84,18 @@ Builds unmasked georeferenced trend products: from raw GeoTIFFs through annual m
 
 Computes masked trend products at 0.25° for a specific run tag and mask source. Primary workflow for analysis.
 
-**Usage:**
+**Usage**
 ```bash
 ./build_trends_masked_0p25.sh alpha_0.2 FPAR GLC
 ./build_trends_masked_0p25.sh alpha_0.1 LAI CCI
 ```
 
-**Arguments:**
+**Arguments**
 - ALPHA: mask folder name (e.g., alpha_0.1, alpha_0.2)
 - VAR: LAI or FPAR
 - MASKTAG: CCI or GLC (mask source)
 
-**Workflow:**
+**Workflow**
 1. GeoTIFF → monthly NetCDF: convert monthly GeoTIFFs to time-stamped NetCDF
 2. Annual metrics: compute yearmean, yearmax, yearmin, yearamp using CDO
 3. OLS trends: linear regression slope (per-year) and intercept for each metric
@@ -109,23 +113,13 @@ Computes masked trend products at 0.25° for a specific run tag and mask source.
 
 Batch wrapper for generating masked trend products across multiple (ALPHA, VAR, MASKTAG) combinations.
 
-**Usage:**
+**Usage**
 ```bash
 ./02_batch_build_trends_masked.sh
 ```
 
-The script directly runs CCI thresholds 0.05, 0.1, and 0.2 for LAI and FPAR
-with both CCI and GLC masks.
+The script runs CCI thresholds 0.05, 0.1, and 0.2 for LAI and FPAR. It runs the GLC branch once under `alpha_0.1`, because the CCI threshold does not affect the GLC mask. This gives eight trend jobs in total.
 
 ### compute_mk_pval.R
 
-Computes pixel-wise Mann-Kendall p-values from annual stacks (called automatically by the main scripts).
-
-This internal script receives explicit command-line arguments from the two
-workflow scripts above.
-
-## Common dependencies
-
-- `cdo` (Climate Data Operators)
-- `gdal_translate` (GDAL)
-- `Rscript` with packages: terra, here, trend
+Computes pixel-wise Mann-Kendall p-values from annual stacks (called automatically by the main scripts). This internal script receives explicit command-line arguments from the two workflow scripts above.
