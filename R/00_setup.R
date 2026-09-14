@@ -25,38 +25,24 @@ in_dirs <- list(
   lai_nc_dir = exp_(here("data-raw", "LAI", "lai_1982-2024")),
   fpar_nc_dir = exp_(here("data-raw", "FPAR", "fpar_1982-2024")),
   cci_dir = exp_(here("data-raw", "ESACCI", "ESACCI_1992-2022")),
-  luh2_dir = exp_(here("data-raw", "LUH2_v2h")),
-  glc_dir = exp_(here("data-raw", "GLC_FCS30D")),
-  valid_tiles_info = exp_(here(
-    "src", "valid_tiles_info_0p05_full_10deg.rds"
-  )),
-  bilinear_ref = exp_(here("src", "refgrid_0p05.nc"))
+  glc_dir = exp_(here("data-raw", "GLC_FCS30D"))
 )
 
 dirs <- list(
-  ref_dir = here("src"),
-  out_root = here("output", run_tag),
-  eval_dir = here("output", run_tag, "eval"),
   georef_lai_0p05_dir = here("data", "georef", "georef_lai_0p05"),
   georef_fpar_0p05_dir = here("data", "georef", "georef_fpar_0p05"),
   cci_out_dir = here("data", "frac", "cci_frac_0p05"),
-  cci_quick_dir = here("data", "frac", "cci_frac_0p05", "quicklooks"),
   glc_out_dir = here("data", "frac", "glc_frac_0p05"),
-  glc_quick_dir = here("data", "frac", "glc_frac_0p05", "quicklooks"),
   masks_root_dir = here("output", run_tag, "masks"),
   masks_cci_dir = here("output", run_tag, "masks", "mask_cci"),
-  masks_cci_quick_dir = here("output", run_tag, "masks", "mask_cci", "quicklooks"),
   masks_glc_dir = here("output", run_tag, "masks", "mask_glc"),
-  masks_glc_quick_dir = here("output", run_tag, "masks", "mask_glc", "quicklooks"),
-  masks_luh_dir = here("output", run_tag, "masks", "mask_luh"),
-  masks_luh_quick_dir = here("output", run_tag, "masks", "mask_luh", "quicklooks"),
   mask_nonvegetated_dir = here("output", run_tag, "masks", "mask_nonvegetated")
 )
 
 # masked dirs
 for (v in c("LAI", "FPAR")) {
   for (m in c("CCI", "GLC")) {
-    for (r in c("0p05", "0p25", "0p5")) {
+    for (r in c("0p05", "0p25")) {
       key <- sprintf("masked_%s_%s_%s_dir", tolower(v), tolower(m), r)
       dirs[[key]] <- here(
         "output",
@@ -79,8 +65,7 @@ invisible(lapply(
 #  product paths
 resolutions <- list(
   `0p05` = list(nrc = c(3600, 7200), deg = 0.05),
-  `0p25` = list(nrc = c(720, 1440), deg = 0.25),
-  `0p5`  = list(nrc = c(360, 720), deg = 0.5)
+  `0p25` = list(nrc = c(720, 1440), deg = 0.25)
 )
 
 ref <- lapply(names(resolutions), function(res) {
@@ -143,10 +128,6 @@ cfg$grids <- list(
   grid_025 = list(
     ref_raster = ref$`0p25`$nc,
     area_raster = area$`0p25`$nc
-  ),
-  grid_05 = list(
-    ref_raster = ref$`0p5`$nc,
-    area_raster = area$`0p5`$nc
   )
 )
 
@@ -161,7 +142,7 @@ cfg$variables <- list(
     nc_time_names = c("time", "time_counter")
   ),
   fpar = list(
-    nc_var_name_primary = "FPAR",
+    nc_var_name_primary = "fAPAR",
     nc_var_name_fallback = "auto_first_variable",
     units = "1",
     nc_lon_name = "lon",
@@ -170,10 +151,7 @@ cfg$variables <- list(
   )
 )
 
-cfg$resampling <- list(categorical = "near", continuous = "bilinear")
-
 cfg$esa_cci <- list(
-  version = "v2.0.7",
   classes = list(
     nodata = 0,
     cropland = c(10, 11, 12, 20),
@@ -184,9 +162,6 @@ cfg$esa_cci <- list(
     water = 210,
     snow_ice = 220
   ),
-  mask_window_years = c(1992, 2022),
-  clean_majority_threshold = 0.5,
-  clean_operator = "<=",
   weights = list(cls30 = 0.75, cls40 = 0.25),
   used_land = list(
     threshold = alpha_cci,
@@ -200,9 +175,6 @@ cfg$esa_cci <- list(
 )
 
 cfg$glc <- list(
-  product = "GLC_FCS30D",
-  tiles_dir = cfg$paths$glc_dir,
-  nodata_in = 0,
   classes = list(
     cropland = c(10, 11, 12, 20),
     grassland = 130,
@@ -213,20 +185,12 @@ cfg$glc <- list(
     nodata = c(0, 250)
   ),
   years = c(1985, 1990, 1995, 2000:2022),
-  mask_window_years = c(1992, 2022),
-  clean_majority_threshold = 0.5,
-  clean_operator = "<=",
   used_land = list(persistence_years = 3)
 )
 
 cfg$luh2 <- list(
   states_nc = here("data-raw", "LUH2_v2h", "states.nc"),
-  variables = list(
-    cropland_components = c("c3ann", "c4ann", "c3per", "c4per", "c3nfx"),
-    pasture = "pastr",
-    pasture_range = "range",
-    urban = "urban"
-  ),
+  variables = list(pasture = "pastr"),
   pasture_mask = list(
     start_year = 1992,
     end_year = 2015,
@@ -234,21 +198,6 @@ cfg$luh2 <- list(
     pasture_min = 0.1,
     pasture_grass_ratio_min = 0.5
   )
-)
-
-cfg$thresholds <- list(
-  cu_fraction_max_025 = c(0.03, 0.05, 0.10, 0.20),
-  baseline_T = 0.05
-)
-
-cfg$naming <- list(
-  masked005      = "LAI_{pipeline}_{mask_key}_{yyyymm}_0p05_masked.tif",
-  masked025      = "LAI_{pipeline}_{mask_key}_{yyyymm}_0p25_masked.tif",
-  final025       = "LAI_{pipeline}_{mask_key}_{yyyymm}_0p25_luh2_T={T}.tif",
-  T_token_format = "0p%02d",
-  masked005_fpar = "FPAR_{pipeline}_{mask_key}_{yyyymm}_0p05_masked.tif",
-  masked025_fpar = "FPAR_{pipeline}_{mask_key}_{yyyymm}_0p25_masked.tif",
-  final025_fpar  = "FPAR_{pipeline}_{mask_key}_{yyyymm}_0p25_luh2_T={T}.tif"
 )
 
 yaml::write_yaml(cfg, cfg_path)
