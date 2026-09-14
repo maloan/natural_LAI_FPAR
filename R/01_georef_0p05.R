@@ -56,7 +56,7 @@ for (f in files) {
     method      = "bilinear",
     strict_time = TRUE
   )
-  writeRaster(r, out_tif, overwrite = TRUE)
+  writeRaster(r, out_tif, overwrite = TRUE, wopt = wopt)
 }
 
 gc()
