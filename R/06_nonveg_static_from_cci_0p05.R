@@ -1,6 +1,6 @@
 # =============================================================================
-# 06_nonveg_static_from_cci_0p05.R — Build non-vegetated mask for one year
-# (0.05°)
+# 06_nonveg_static_from_cci_0p05.R — Build baseline and sensitivity
+# non-vegetated masks (0.05°)
 # =============================================================================
 
 suppressPackageStartupMessages({
@@ -21,7 +21,7 @@ cci_dir <- cfg$paths$cci_dir
 
 alpha_water <- cfg$esa_cci$nonvegetated$water_threshold
 alpha_ice <- cfg$esa_cci$nonvegetated$ice_threshold
-year <- as.integer(cfg$esa_cci$nonvegetated$year)
+years <- sort(unique(c(1995L, as.integer(cfg$esa_cci$nonvegetated$year), 2022L)))
 
 out_dir <- file.path(cfg$paths$masks_root_dir, "mask_nonvegetated")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
@@ -29,79 +29,85 @@ dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 alpha_w_tok <- gsub("\\.", "p", sprintf("%.2f", alpha_water))
 alpha_i_tok <- gsub("\\.", "p", sprintf("%.2f", alpha_ice))
 
-out_tif <- file.path(
-  out_dir,
-  sprintf(
-    "mask_nonvegetated_CCI_%d_alphaW%s_alphaI%s_0p05.tif",
-    year,
-    alpha_w_tok,
-    alpha_i_tok
-  )
-)
-
-if (file.exists(out_tif)) {
-  message("✓ Non-vegetated mask already exists — skipping: ", out_tif)
-  return(invisible(NULL))
-}
-
 esa_cci <- cfg$esa_cci$classes
 vals_water <- as.integer(unlist(esa_cci$water))
 vals_ice <- as.integer(unlist(esa_cci$snow_ice))
 nodata_vals <- unique(c(as.integer(unlist(esa_cci$nodata)), 255L))
 
-#  input for year
-files <- list.files(cci_dir, pattern = "\\.tif$", full.names = TRUE)
-basenames <- basename(files)
-
-# Extract years from filenames (format: *-P1Y-YYYY-v*)
-yrs <- as.integer(sub(".*-P1Y-([0-9]{4})-.*", "\\1", basenames))
-cand <- files[!is.na(yrs) & yrs == year]
-
-if (length(cand) == 0) {
-  stop("No CCI files found for year ", year, " in ", cci_dir)
-}
-
-# Rank by source (C3S preferred = 2, others = 1)
-cand_rank <- ifelse(grepl("^C3S", basename(cand)), 2L, 1L)
-in_file <- cand[which.max(cand_rank)]
-
-message("→ Processing ", basename(in_file), " (year=", year, ")")
-
-r <- rast(in_file)
-if (is.na(crs(r))) {
-  crs(r) <- crs(ref005)
-}
-
-r <- terra::subst(r, nodata_vals, NA)
-
-# Water and ice fractions at 0.05° (single year)
-pW <- resample(classify(r, cbind(vals_water, 1), others = 0), ref005, method = "average")
-pI <- resample(classify(r, cbind(vals_ice, 1), others = 0), ref005, method = "average")
-
-# Create drop masks
-water_drop <- ifel(pW >= alpha_water, 1L, 0L)
-ice_drop <- ifel(pI >= alpha_ice, 1L, 0L)
-both_drop <- ifel(water_drop & ice_drop, 1L, 0L)
-nonveg_mask_combined <- ifel(water_drop | ice_drop, 1L, 0L)
-
-# Write component rasters
-writeRaster(
-  c(water_drop, ice_drop, both_drop, nonveg_mask_combined),
-  file.path(
+for (year in years) {
+  out_tif <- file.path(
     out_dir,
-    sprintf("nonvegetated_components_%d_0p05.tif", year)
-  ),
-  overwrite = TRUE,
-  wopt = wopt_byte(FALSE, na = 255L)
-)
+    sprintf(
+      "mask_nonvegetated_CCI_%d_alphaW%s_alphaI%s_0p05.tif",
+      year,
+      alpha_w_tok,
+      alpha_i_tok
+    )
+  )
 
-# Write final combined mask
-names(nonveg_mask_combined) <- "nonvegetated_drop"
-writeRaster(
-  nonveg_mask_combined,
-  out_tif,
-  overwrite = TRUE,
-  wopt = wopt_byte(FALSE, na = 255L)
-)
+  if (file.exists(out_tif)) {
+    message("✓ Non-vegetated mask already exists — skipping: ", out_tif)
+    next
+  }
 
-gc()
+  in_file <- if (year <= 2015) {
+    file.path(
+      cci_dir,
+      sprintf(
+        "ESACCI-LC-L4-LCCS-Map-300m-P1Y-%d-v2.0.7cds.nc",
+        year
+      )
+    )
+  } else {
+    file.path(
+      cci_dir,
+      sprintf(
+        "C3S-LC-L4-LCCS-Map-300m-P1Y-%d-v2.1.1.nc",
+        year
+      )
+    )
+  }
+
+  if (!file.exists(in_file)) {
+    stop("Missing expected CCI NetCDF file:\n", in_file)
+  }
+
+  message("→ Processing ", basename(in_file), " (year=", year, ")")
+
+  r <- rast(in_file, subds = "lccs_class")
+  if (is.na(crs(r))) {
+    crs(r) <- crs(ref005)
+  }
+
+  r <- terra::subst(r, nodata_vals, NA)
+
+  # Water and ice fractions at 0.05° for this snapshot year.
+  pW <- resample(classify(r, cbind(vals_water, 1), others = 0), ref005, method = "average")
+  pI <- resample(classify(r, cbind(vals_ice, 1), others = 0), ref005, method = "average")
+
+  water_drop <- ifel(pW >= alpha_water, 1L, 0L)
+  ice_drop <- ifel(pI >= alpha_ice, 1L, 0L)
+  both_drop <- ifel(water_drop & ice_drop, 1L, 0L)
+  nonveg_mask_combined <- ifel(water_drop | ice_drop, 1L, 0L)
+
+  writeRaster(
+    c(water_drop, ice_drop, both_drop, nonveg_mask_combined),
+    file.path(
+      out_dir,
+      sprintf("nonvegetated_components_%d_0p05.tif", year)
+    ),
+    overwrite = TRUE,
+    wopt = wopt_byte(FALSE, na = 255L)
+  )
+
+  names(nonveg_mask_combined) <- "nonvegetated_drop"
+  writeRaster(
+    nonveg_mask_combined,
+    out_tif,
+    overwrite = TRUE,
+    wopt = wopt_byte(FALSE, na = 255L)
+  )
+
+  rm(r, pW, pI, water_drop, ice_drop, both_drop, nonveg_mask_combined)
+  gc(verbose = FALSE)
+}
