@@ -74,9 +74,9 @@ grass_005 <- switch(grass_source,
     mean(stk, na.rm = TRUE)
   },
   GLC = {
-    p <- file.path(cfg$paths$glc_out_dir, "glc_cat_yearstack_0p05.tif")
+    p <- file.path(cfg$paths$glc_out_dir, "glc_grass_yearstack_0p05.tif")
     if (!file.exists(p)) {
-      stop_msg("Missing GLC stack: ", p)
+      stop_msg("Missing GLC grass-fraction stack: ", p)
     }
     s <- rast(p)
     yrs <- as.integer(substr(names(s), 2, 5))
@@ -91,9 +91,7 @@ grass_005 <- switch(grass_source,
         year_span(yrs)
       )
     }
-    grass_vals <- as.integer(unlist(cfg$glc$classes$grassland))
-    is_grass <- classify(s[[keep]], cbind(grass_vals, 1), others = 0)
-    app(is_grass, mean, na.rm = TRUE)
+    mean(s[[keep]], na.rm = TRUE)
   },
   stop_msg("Unknown grass_source: ", grass_source)
 )
