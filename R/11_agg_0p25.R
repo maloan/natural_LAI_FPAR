@@ -120,6 +120,12 @@ for (f in files) {
       legend = TRUE
     )
   }
+
+  rm(r025)
+  if (do_write) {
+    rm(r, num, den)
+  }
+  gc(verbose = FALSE)
 }
 
 gc()
