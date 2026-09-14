@@ -21,7 +21,7 @@ pick_varname <- function(nc, cfg_vars, var) {
   var_u <- toupper(var)
   extras <- switch(var_u,
     LAI  = c("lai", "LAI", "Leaf_Area_Index"),
-    FPAR = c("FPAR", "fPAR", "fpar", "Fpar"),
+    FPAR = c("fAPAR", "FPAR", "fPAR", "fpar", "Fpar"),
     character(0)
   )
 
@@ -389,32 +389,45 @@ nc_month_to_raster <- function(nc_file,
     return(terra::rast(ref))
   }
 
-  ll <- get_lonlat(nc, vcfg)
-  if (is.null(ll$lon) || is.null(ll$lat)) {
-    stop("Could not determine lon/lat coordinates in NetCDF file: ",
-      nc_file,
-      call. = FALSE
-    )
-  }
-
-  if (length(dim(arr)) == 2L) {
-    arr <- transpose_lonlat(arr, length(ll$lon), length(ll$lat))
-    r <- terra::rast(
-      arr,
-      xmin = min(ll$lon),
-      xmax = max(ll$lon),
-      ymin = min(ll$lat),
-      ymax = max(ll$lat),
-      crs = crs_out
-    )
-  } else {
+  if (length(dim(arr)) != 2L) {
     stop("Expected a 2D slice after time extraction for file: ",
       nc_file,
       call. = FALSE
     )
   }
 
-  r <- rotate_if_360(r, lon_vals = ll$lon)
+  ll <- get_lonlat(nc, vcfg)
+  if (is.null(ll$lon) || is.null(ll$lat)) {
+    expected_dim <- c(terra::nrow(ref), terra::ncol(ref))
+    if (all(dim(arr) == rev(expected_dim))) {
+      arr <- t(arr)
+    } else if (!all(dim(arr) == expected_dim)) {
+      stop(
+        "Input dimensions do not match the reference grid: ",
+        paste(dim(arr), collapse = " x "),
+        " versus ",
+        paste(expected_dim, collapse = " x "),
+        " in ",
+        nc_file,
+        call. = FALSE
+      )
+    }
+    r <- terra::rast(arr)
+    terra::ext(r) <- extent_global
+    terra::crs(r) <- crs_out
+  } else {
+    arr <- transpose_lonlat(arr, length(ll$lon), length(ll$lat))
+    r <- terra::rast(arr)
+    terra::ext(r) <- terra::ext(
+      min(ll$lon),
+      max(ll$lon),
+      min(ll$lat),
+      max(ll$lat)
+    )
+    terra::crs(r) <- crs_out
+    r <- rotate_if_360(r, lon_vals = ll$lon)
+  }
+
   if (!terra::compareGeom(r, ref, stopOnError = FALSE)) {
     r <- align_to_template(r, ref, method = method)
   }
