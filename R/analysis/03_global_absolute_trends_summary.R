@@ -21,7 +21,7 @@ utils::globalVariables(
     "area_total",
     "sig_flag",
     "n_pixels",
-    "abstrend_pct_per_year",
+    "abstrend_m2m2yr",
     "abstrend_ci_lower",
     "abstrend_ci_upper",
     "abstrend_ci_width"
@@ -88,7 +88,7 @@ for (var in vars) {
         metric = met,
         scenario = sc$scenario,
         run_tag = sc$run_tag,
-        abstrend_pct_per_year = ci$mean,
+        abstrend_m2m2yr = ci$mean,
         abstrend_ci_lower = ci$lower,
         abstrend_ci_upper = ci$upper,
         abstrend_ci_width = ci$width,
