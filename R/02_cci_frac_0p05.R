@@ -40,44 +40,28 @@ end_year <- cfg$project$years$cci_end
 # Precompute write options and GDAL settings once
 gdal_opts <- gdal_co_f32(FALSE)
 
-# Choose one file per year (extract year and source rank)
-all_files <- list.files(cci_dir, pattern = "\\.tif$", full.names = TRUE)
-if (!length(all_files)) {
-  stop("No CCI GeoTIFFs found in: ", cci_dir)
-}
-
-# Extract years from filenames (first 4-digit year token)
-basenames <- basename(all_files)
-year_str <- ifelse(
-  grepl("(19|20)[0-9]{2}", basenames),
-  sub(".*((19|20)[0-9]{2}).*", "\\1", basenames, perl = TRUE),
-  NA_character_
+plan_year <- start_year:end_year
+plan_name <- ifelse(
+  plan_year <= 2015,
+  sprintf(
+    "ESACCI-LC-L4-LCCS-Map-300m-P1Y-%d-v2.0.7cds.nc",
+    plan_year
+  ),
+  sprintf(
+    "C3S-LC-L4-LCCS-Map-300m-P1Y-%d-v2.1.1.nc",
+    plan_year
+  )
 )
-yrs <- as.integer(year_str)
-ok <- !is.na(yrs) & yrs >= start_year & yrs <= end_year
-all_files <- all_files[ok]
-yrs <- yrs[ok]
-basenames <- basenames[ok]
+plan_path <- file.path(cci_dir, plan_name)
 
-if (!length(all_files)) {
+missing_files <- plan_path[!file.exists(plan_path)]
+if (length(missing_files)) {
   stop(
-    "No CCI GeoTIFFs matched years ",
-    start_year,
-    "-",
-    end_year,
-    " in: ",
-    cci_dir
+    "Missing expected CCI NetCDF files:\n",
+    paste(missing_files, collapse = "\n")
   )
 }
 
-# Rank by source (C3S preferred = 2, others = 1)
-rank <- ifelse(grepl("^C3S", basenames), 2L, 1L)
-
-# For each year pick file with highest rank (C3S preferred); tie-breaker = first
-file_groups <- split(seq_along(all_files), yrs)
-pick_indices <- vapply(file_groups, \(idx) idx[which.max(rank[idx])], integer(1))
-plan_year <- as.integer(names(pick_indices))
-plan_path <- all_files[pick_indices]
 out_tif <- file.path(out_dir, sprintf("ESACCI_frac_%d_0p05.tif", plan_year))
 
 
@@ -96,7 +80,7 @@ for (i in seq_along(plan_year)) {
   t0 <- Sys.time()
   message("→ [", yr, "] start")
 
-  r <- rast(f)
+  r <- rast(f, subds = "lccs_class")
   r <- terra::subst(r, nodata_vals, NA)
 
   m_stack <- rast(lapply(groups, function(cls) {
