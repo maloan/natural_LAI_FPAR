@@ -209,7 +209,7 @@ add_panel_tag <- function(p, tag) {
   }
 }
 
-.add_overlays <- function() {
+.add_overlays <- function(...) {
   # Add graticule and coastlines to the current plot.
 
   .add_graticule()
@@ -1143,18 +1143,18 @@ plot_lc_abs_vs_rel <- function(plot_df) {
 }
 
 
-plot_kg <- function(plot_long, scale_factor) {
+plot_kg <- function(plot_long) {
   # Generate a plot for kg trends using ggplot2, showing trends and confidence
   # intervals for different kg labels. The plot includes error bars for
   # confidence intervals, points for trends, and a vertical reference line at
   # zero. The x-axis is scaled based on the provided scale_factor.
   finite_x <- c(plot_long$trend, plot_long$ci_lower, plot_long$ci_upper)
   finite_x <- finite_x[is.finite(finite_x)]
-  x_min <- 0
-  trend_xmax <- max(finite_x) + 0.3 * max(finite_x)
-  area_label_x <- max(finite_x) + 0.3 * max(finite_x)
-  area_header_x <- area_label_x
-  x_range <- trend_xmax - x_min
+  x_limits <- range(c(0, finite_x))
+  x_padding <- 0.05 * diff(x_limits)
+  if (!is.finite(x_padding) || x_padding == 0) {
+    x_padding <- 0.05
+  }
 
   p <- ggplot() +
     geom_segment(
@@ -1210,10 +1210,17 @@ plot_kg <- function(plot_long, scale_factor) {
       name = "Significance"
     ) +
     scale_x_continuous(
-      breaks = seq(0, trend_xmax, by = 0.001 * scale_factor),
+      breaks = scales::breaks_pretty(n = 6),
       expand = expansion(mult = c(0.02, 0.02))
     ) +
-    coord_cartesian(xlim = c(0, trend_xmax), clip = "off") +
+    guides(
+      fill = guide_legend(override.aes = list(shape = 21)),
+      shape = guide_legend(override.aes = list(fill = "white"))
+    ) +
+    coord_cartesian(
+      xlim = c(x_limits[1] - x_padding, x_limits[2] + x_padding),
+      clip = "off"
+    ) +
     labs(x = unit_label, y = NULL) +
     theme_minimal(base_size = 10) +
     theme(
