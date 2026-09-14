@@ -35,6 +35,7 @@ This aligns the monthly LAI and FPAR NetCDF files to the 0.05 degree grid.
 Scripts:
 
 - [R/02_cci_frac_0p05.R](../R/02_cci_frac_0p05.R)
+- [R/04_glc_native_to_0p05.R](../R/04_glc_native_to_0p05.R)
 - [R/04_glc_stack_0p05.R](../R/04_glc_stack_0p05.R)
 
 These create the land-cover inputs used by the masking scripts.
@@ -60,7 +61,6 @@ Scripts:
 
 - [R/10_apply_mask_0p05.R](../R/10_apply_mask_0p05.R)
 - [R/11_agg_0p25.R](../R/11_agg_0p25.R)
-- [R/11_agg_0p5.R](../R/11_agg_0p5.R)
 
 These produce the analysis-ready 0.25 degree products.
 
@@ -80,27 +80,23 @@ Outputs are grouped by run tag, such as `alpha_0.1` or `alpha_0.2`.
 
 ## Running it
 
-From [R/](../R/):
+Run the processing scripts directly from the repository root in their numbered
+order. After the trend products are complete, run the full analysis with:
 
 ``` bash
-make pipeline
+R/analysis/run_all_analysis.sh
 ```
 
-To include the analysis steps:
+Masked trend products can be built for all paper scenarios with:
 
 ``` bash
-make analysis
-```
-
-To run another CCI threshold scenario:
-
-``` bash
-make pipeline RUN_TAG=alpha_0.2
+trends/02_batch_build_trends_masked.sh
 ```
 
 ## Customization
 
-Most project settings live in [config/config.yml](../config/config.yml). Common changes are run tags, year ranges, AOIs, mask thresholds, and class mappings.
+Each paper scenario uses a generated `config/config_alpha_<threshold>.yml` file.
+Common settings are year ranges, paths, mask thresholds, and class mappings.
 
 If you change those settings, rerun setup and any downstream steps that depend on them.
 
@@ -114,4 +110,4 @@ If you change those settings, rerun setup and any downstream steps that depend o
 - [analysis/README.md](../analysis/README.md)
 - [trends/README.md](../trends/README.md)
 
-Last updated: 2026-07-01
+Last updated: 2026-09-14
