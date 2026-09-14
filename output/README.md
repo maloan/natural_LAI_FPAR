@@ -1,25 +1,27 @@
 # Final Outputs (output)
 
-This folder contains all generated products from the natural vegetation LAI/FPAR workflow.
-Outputs are organized by run tag (for example tau_0.05, tau_0.1, tau_0.2), where each run tag represents a specific masking threshold.
+This folder contains all generated products from the natural vegetation LAI/FPAR workflow. Outputs are organized by run tag (`alpha_0.05`, `alpha_0.1`, and `alpha_0.2`), where each tag represents a CCI masking threshold. Downstream analysis and figures are built from files in this directory.
 
-Downstream analysis and figures are built from files in this directory.
-
-## Top-Level Layout
+## Folder layout
 
 ```text
 output/
-├── tau_0.05/
-├── tau_0.1/
-└── tau_0.2/
+├── alpha_0.05/
+├── alpha_0.1/
+└── alpha_0.2/
 ```
 
-Run-tag folders are the canonical output namespaces used by downstream analyses.
-Unmasked baseline georeferenced products are stored under `analysis/unmasked/`.
+Run-tag folders are the canonical output namespaces used by downstream analyses. Unmasked baseline georeferenced products are stored under `analysis/unmasked/`. The GLC branch is stored only under `alpha_0.1` but its mask is independent of the CCI threshold.
 
-## What Is Inside Each tau_<run_tag>
+## Files created for later research:
 
-Each run-tag directory contains the core processing outputs:
+`output/chapter2/` contains:
+
+- `fpar_unmasked_0p5_monthly_1982-2024.nc`: unmasked monthly fAPAR, aggregated from 0.05 to 0.5 degree using grid-cell area weights.
+- `mask_CCI_alpha0p10_pasture_any_0p5.nc`: unified binary exclusion mask using only CCI alpha 0.1 and pasture (1=drop, 0=keep).
+- `mask_CCI_alpha0p10_pasture_excluded_fraction_0p5.tif`: fraction of each 0.5-degree cell excluded by the two masks.
+
+## Run-tag folder content
 
 ### masked_0p05
 
@@ -43,7 +45,6 @@ Binary masks used in the workflow (1 = drop, 0 = keep):
 
 - mask_cci: CCI fractional used-land masks.
 - mask_glc: GLC majority used-land masks.
-- mask_luh: LUH pasture/rangeland masks.
 - mask_luh_overlap: Pasture-grass overlap masks.
 - mask_nonvegetated: Static water and ice masks.
 
