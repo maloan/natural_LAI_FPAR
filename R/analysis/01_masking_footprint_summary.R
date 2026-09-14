@@ -44,7 +44,7 @@ load_scenario_masks <- function(run_tag, lu_kind = c("CCI", "GLC")) {
       run_tag,
       "masks",
       "mask_glc",
-      "mask_used_ge3_1992-2022_0p05.tif"
+      "mask_used_ge3_1985-2022_0p05.tif"
     )
   }
 

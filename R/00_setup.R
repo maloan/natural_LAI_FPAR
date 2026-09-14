@@ -110,7 +110,7 @@ cfg <- list(
       lai_end = 2024,
       cci_start = 1992,
       cci_end = 2022,
-      glc_start = 1992,
+      glc_start = 1985,
       glc_end = 2022,
       luh_start = 1992,
       luh_end = 2015

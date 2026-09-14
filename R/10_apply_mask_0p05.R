@@ -149,7 +149,11 @@ if (inherits(vals_ok, "try-error") || !isTRUE(vals_ok)) {
 }
 
 mask_combined_path <- file.path(out_dir, "combined_mask_0p05.tif")
-if (!file.exists(mask_combined_path)) {
+mask_sources <- c(mask_path, nonveg_path, luh_path)
+mask_needs_update <- !file.exists(mask_combined_path) ||
+  any(file.mtime(mask_sources) > file.mtime(mask_combined_path))
+
+if (mask_needs_update) {
   writeRaster(
     drop_mask,
     mask_combined_path,
@@ -177,7 +181,9 @@ for (f in files) {
   ym <- extract_ym_from_filename(f)
   out <- file.path(out_dir, sprintf("%s_%s_0p05_masked.tif", var, ym))
 
-  do_write <- !file.exists(out)
+  do_write <- !file.exists(out) ||
+    file.mtime(f) > file.mtime(out) ||
+    file.mtime(mask_combined_path) > file.mtime(out)
 
   if (do_write) {
     r <- rast(f)

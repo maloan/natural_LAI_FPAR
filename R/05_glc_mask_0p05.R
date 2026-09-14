@@ -28,10 +28,9 @@ cropland_vals <- as.integer(unlist(classes$cropland, use.names = FALSE))
 urban_vals <- as.integer(unlist(classes$urban, use.names = FALSE))
 nodata_vals <- as.integer(unlist(classes$nodata, use.names = FALSE))
 
-# analysis window (match CCI window)
-yrs <- cfg$project$years$cci_start:cfg$project$years$cci_end
-year_1 <- min(yrs)
-year_2 <- max(yrs)
+# Use every available GLC observation year.
+year_1 <- as.integer(cfg$project$years$glc_start)
+year_2 <- as.integer(cfg$project$years$glc_end)
 
 stack_path <- file.path(glc_out_dir, "glc_cat_yearstack_0p05.tif")
 if (!file.exists(stack_path)) {
@@ -50,7 +49,7 @@ if (length(nodata_vals)) {
 
 # Extract years from layer names (format: "Y1990")
 layer_years <- as.integer(substr(names(s), 2, 5))
-keep_idx <- which(layer_years %in% yrs)
+keep_idx <- which(layer_years >= year_1 & layer_years <= year_2)
 s <- s[[keep_idx]]
 stopifnot(nlyr(s) > 0)
 
@@ -61,14 +60,12 @@ message(sprintf(
   nlyr(s)
 ))
 
-ncores <- max(1L, parallel::detectCores(logical = TRUE) - 1L)
-
 cnt_cropland <- app(s, function(v, vals) {
   sum(v %in% vals, na.rm = TRUE)
-}, vals = cropland_vals, cores = ncores)
+}, vals = cropland_vals)
 cnt_urban <- app(s, function(v, vals) {
   sum(v %in% vals, na.rm = TRUE)
-}, vals = urban_vals, cores = ncores)
+}, vals = urban_vals)
 
 names(cnt_cropland) <- "cnt_cropland"
 names(cnt_urban) <- "cnt_urban"
@@ -80,7 +77,10 @@ out_used <- file.path(
   masks_dir,
   sprintf("mask_used_ge%d_%d-%d_0p05.tif", n_years, year_1, year_2)
 )
-out_counts <- file.path(masks_dir, "glc_counts_crop_urban_0p05.tif")
+out_counts <- file.path(
+  masks_dir,
+  sprintf("glc_counts_crop_urban_%d-%d_0p05.tif", year_1, year_2)
+)
 
 if (!file.exists(out_used)) {
   writeRaster(

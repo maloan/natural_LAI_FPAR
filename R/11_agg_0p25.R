@@ -72,7 +72,7 @@ for (f in files) {
   ym <- extract_ym_from_filename(f)
   out <- file.path(out_dir, sprintf("%s_masked_%s_0p25.tif", var, ym))
 
-  do_write <- !file.exists(out)
+  do_write <- !file.exists(out) || file.mtime(f) > file.mtime(out)
   do_ql <- (substr(ym, 5, 6) %in% c("01", "07")) &&
     (!file.exists(file.path(
       qdir, sprintf("quicklook_%s_0p25_%s.png", ql_title, ym)

@@ -57,7 +57,7 @@ R/
 ### Mask construction
 
 - 03_cci_mask_0p05.R: Creates CCI-based used-land masks.
-- 05_glc_mask_0p05.R: Creates GLC-based persistence masks.
+- 05_glc_mask_0p05.R: Creates GLC-based persistence masks from all 26 available maps (1985, 1990, 1995, and annually from 2000 to 2022).
 - 06_nonveg_static_from_cci_0p05.R: Builds the 2007 static non-vegetated mask and the 1995/2022 snapshot-sensitivity masks.
 - 09_luh_pasture_overlap_0p25.R: Adds LUH2 pasture-overlap diagnostics.
 
@@ -88,4 +88,11 @@ After the masked trend products are complete, run all analysis scripts in their 
 
 ```bash
 R/analysis/run_all_analysis.sh
+```
+
+After changing a GLC input or mask setting, rebuild the complete GLC branch and
+all dependent analysis with:
+
+```bash
+R/run_glc_workflow.sh
 ```
