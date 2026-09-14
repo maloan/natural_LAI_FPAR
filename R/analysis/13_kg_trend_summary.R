@@ -529,27 +529,29 @@ plot_tab <- plot_tab |>
 plot_long <- plot_long |>
   mutate(kg_label = factor(kg_label, levels = kg_levels))
 
-p <- plot_kg(plot_long, scale_factor)
+p <- plot_kg(plot_long)
 
 out_png <- file.path(
   outdir_fig,
   sprintf(
-    "kg_group_trend_summary_%s_%s_%s_%s_main.png",
+    "kg_group_trend_summary_%s_%s_%s_%s_%s_main.png",
     var,
     metric,
     mask,
-    alpha
+    alpha,
+    suffix
   )
 )
 
 out_pdf <- file.path(
   outdir_fig,
   sprintf(
-    "kg_group_trend_summary_%s_%s_%s_%s_main.pdf",
+    "kg_group_trend_summary_%s_%s_%s_%s_%s_main.pdf",
     var,
     metric,
     mask,
-    alpha
+    alpha,
+    suffix
   )
 )
 
