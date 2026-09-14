@@ -15,7 +15,9 @@
 data-raw/ESACCI/ESACCI_*/
 data-raw/FPAR/fpar_1982-2024/
 data-raw/LAI/lai_1982-2024/
-data-raw/GLC_FCS30D/
+data-raw/GLC_FCS30D/archives/
+data-raw/GLC_FCS30D/*.tif
+data-raw/GLC_FCS30D/*.vrt
 data-raw/LUH2_v2h/
 
 # --------------------------------------------------------------------------------
