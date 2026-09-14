@@ -1,18 +1,9 @@
 
 # R Processing and Analysis Pipeline for Natural LAI / FPAR
 
-This folder contains the main R scripts for building and analyzing the
-natural-vegetation LAI/FPAR products.
-
-In short, this is where the pipeline is executed: setup, preprocessing,
-masking, aggregation, and analysis.
-
-The workflow is built to be reproducible and grid-consistent, with land-use
-exclusion handled explicitly.
+This folder contains the main R scripts for building and analyzing the natural-vegetation LAI/FPAR products.
 
 ## Workflow summary
-
-The pipeline follows six broad steps:
 
 1. Setup and reference-grid creation.
 2. Georeferencing of raw LAI/FPAR inputs.
@@ -21,8 +12,7 @@ The pipeline follows six broad steps:
 5. Mask application and spatial aggregation.
 6. Trend and diagnostic analysis.
 
-All rasters are aligned to shared global grids (0.05 degree native,
-0.25 degree analysis).
+All rasters are aligned to shared global grids (0.05 degree native, 0.25 degree analysis).
 
 ## Folder structure
 
@@ -32,55 +22,55 @@ R/
 ├── 01_georef_0p05.R
 ├── 02_cci_frac_0p05.R
 ├── 03_cci_mask_0p05.R
+├── 04_glc_native_to_0p05.R
 ├── 04_glc_stack_0p05.R
 ├── 05_glc_mask_0p05.R
 ├── 06_nonveg_static_from_cci_0p05.R
 ├── 07_apply_nonveg_only_0p05.R
-├── 08_luh_use_masks.R
+├── 08_agg_nonveg_0p25.R
 ├── 09_luh_pasture_overlap_0p25.R
 ├── 10_apply_mask_0p05.R
 ├── 11_agg_0p25.R
-├── 11_agg_0p5.R
-├── 12_make_lc025_fractions.R
-├── Makefile
+├── 12_make_lc025_fractions.py
+├── 12_chapter2_inputs_0p5.R
 ├── analysis/
 └── helpers/
 ```
 
-## What the main scripts do
+## Scripts
 
 ### Setup
 
-- 00_setup.R: Builds reference grids and area layers, sets paths, and writes
-  the exact `config/config_<RUN_TAG>.yml` file for the selected scenario.
+- 00_setup.R: Builds reference grids and area layers, sets paths, and writes the exact `config/config_<RUN_TAG>.yml` file for the selected scenario.
 
 ### Georeferencing
 
-- 01_georef_0p05.R: Converts LAI/FPAR NetCDF inputs into aligned 0.05 degree
-  global rasters.
+- 01_georef_0p05.R: Converts LAI/FPAR NetCDF inputs into aligned 0.05 degree global rasters.
 
 ### Land-cover preprocessing
 
 - 02_cci_frac_0p05.R: Builds fractional cover layers from ESA-CCI/C3S.
-- 04_glc_stack_0p05.R: Harmonizes and stacks GLC_FCS30D maps on the project
-  grid.
-- 12_make_lc025_fractions.R: Generates annual 0.25° land-cover fraction products
-  from ESACCI classes (1992–2022), used by downstream land-cover trend analysis. Auto-triggered by analysis scripts if needed.
+- 04_glc_native_to_0p05.R: Aggregates the native GLC_FCS30D v2 tiles to categorical mode and fractional grass cover on the exact 0.05° grid. 
+- 04_glc_stack_0p05.R: Harmonizes and stacks GLC_FCS30D maps on the project grid.
+- 12_make_lc025_fractions.py: Generates annual 0.25° land-cover fractions from ESACCI classes (1992–2022). 
 
 ### Mask construction
 
 - 03_cci_mask_0p05.R: Creates CCI-based used-land masks.
 - 05_glc_mask_0p05.R: Creates GLC-based persistence masks.
-- 06_nonveg_static_from_cci_0p05.R: Builds static non-vegetated masks.
+- 06_nonveg_static_from_cci_0p05.R: Builds the 2007 static non-vegetated mask and the 1995/2022 snapshot-sensitivity masks.
 - 09_luh_pasture_overlap_0p25.R: Adds LUH2 pasture-overlap diagnostics.
 
 ### Masking and aggregation
 
 - 07_apply_nonveg_only_0p05.R: Applies non-vegetated exclusions.
-- 08_luh_use_masks.R: Processes LUH2 layers used by masking.
+- 08_agg_nonveg_0p25.R: Area-weights the water/ice-only monthly baseline to 0.25 degree before annual diagnostics and trends are calculated.
 - 10_apply_mask_0p05.R: Applies selected masks to monthly LAI/FPAR.
-- 11_agg_0p5.R: Aggregates to 0.5 degree.
 - 11_agg_0p25.R: Aggregates to 0.25 degree for analysis.
+
+### Chapter 2 inputs
+
+- 12_chapter2_inputs_0p5.R: Area-weights unmasked monthly fAPAR to 0.5 degree and builds a 0.5-degree mask combining the CCI alpha 0.1 and pasture masks. The binary mask uses 1=drop and excludes a coarse cell if any contributing 0.05-degree cell is excluded. A fractional exclusion layer is also retained.
 
 Mask convention is consistent across scripts:
 
@@ -90,24 +80,12 @@ Mask convention is consistent across scripts:
 
 ## Helpers
 
-The helper scripts in helpers/ contain operations that are reused across scripts,
-such as raster I/O, area-weighted aggregation, bootstrap intervals, and plotting.
+The helper scripts in helpers/ contain operations that are reused across scripts, such as raster I/O, area-weighted aggregation, bootstrap intervals, and plotting.
 
-## Makefile Usage
+## Complete analysis
 
-Run from this folder:
-
-```bash
-make analysis
-```
-
-This runs the full data pipeline and then executes
-`analysis/00_area_validdomain_after_nonvegetated.R`.
-Run additional scripts in `R/analysis/` as needed for specific figures/tables.
-
-Common targets:
+After the masked trend products are complete, run all analysis scripts in their required order with:
 
 ```bash
-make pipeline
-make trends
+R/analysis/run_all_analysis.sh
 ```
