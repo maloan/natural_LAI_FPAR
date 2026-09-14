@@ -2,9 +2,7 @@
 # ==============================================================================
 # 02_batch_build_trends_masked.sh
 # Batch wrapper for build_trends_masked_0p25.sh
-# Generates masked trend products for multiple (ALPHA, VAR, MASKTAG) combinations
-#
-# Runs all configured combinations directly.
+# Runs the three CCI thresholds and the single GLC branch used in the paper.
 # ==============================================================================
 
 set -euo pipefail
@@ -16,40 +14,38 @@ BUILD_SCRIPT="$SCRIPT_DIR/build_trends_masked_0p25.sh"
   exit 1
 }
 
-ALPHAS_ARR=(0.05 0.1 0.2)
 VARS_ARR=(LAI FPAR)
-MASKS_ARR=(CCI GLC)
+RUNS=(
+  "alpha_0.05 CCI"
+  "alpha_0.1 CCI"
+  "alpha_0.2 CCI"
+  "alpha_0.1 GLC"
+)
 
 total_jobs=0
 failed_jobs=0
 FAILED_LIST=()
 
-for ALPHA in "${ALPHAS_ARR[@]}"; do
-  [[ "$ALPHA" =~ ^[0-9]*\.?[0-9]+$ ]] || {
-    echo "WARNING: Invalid ALPHA value: $ALPHA"
-    continue
-  }
-  RUN_TAG="alpha_${ALPHA}"
+for run in "${RUNS[@]}"; do
+  read -r RUN_TAG MASK <<< "$run"
   for VAR in "${VARS_ARR[@]}"; do
-    for MASK in "${MASKS_ARR[@]}"; do
-      total_jobs=$((total_jobs + 1))
-      IN_DIR="$ROOT/output/${RUN_TAG}/masked_0p25/${VAR}/masked_${VAR}_${MASK}"
-      if [[ ! -d "$IN_DIR" ]]; then
-        echo "WARNING: Missing input directory: $IN_DIR"
-        failed_jobs=$((failed_jobs + 1))
-        FAILED_LIST+=("$RUN_TAG/$VAR/$MASK")
-        continue
-      fi
-      echo ">>> $RUN_TAG / $VAR / $MASK"
-      if bash "$BUILD_SCRIPT" "$RUN_TAG" "$VAR" "$MASK"; then
-        echo ">>> SUCCESS"
-      else
-        echo ">>> FAILED"
-        failed_jobs=$((failed_jobs + 1))
-        FAILED_LIST+=("$RUN_TAG/$VAR/$MASK")
-      fi
-      echo ""
-    done
+    total_jobs=$((total_jobs + 1))
+    IN_DIR="$ROOT/output/${RUN_TAG}/masked_0p25/${VAR}/masked_${VAR}_${MASK}"
+    if [[ ! -d "$IN_DIR" ]]; then
+      echo "WARNING: Missing input directory: $IN_DIR"
+      failed_jobs=$((failed_jobs + 1))
+      FAILED_LIST+=("$RUN_TAG/$VAR/$MASK")
+      continue
+    fi
+    echo ">>> $RUN_TAG / $VAR / $MASK"
+    if bash "$BUILD_SCRIPT" "$RUN_TAG" "$VAR" "$MASK"; then
+      echo ">>> SUCCESS"
+    else
+      echo ">>> FAILED"
+      failed_jobs=$((failed_jobs + 1))
+      FAILED_LIST+=("$RUN_TAG/$VAR/$MASK")
+    fi
+    echo ""
   done
 done
 
