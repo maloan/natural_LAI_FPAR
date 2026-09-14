@@ -27,8 +27,16 @@ in_dir <- cfg$paths[[sprintf("georef_%s_0p05_dir", var_lower)]]
 # non-vegetated mask
 nonveg_mask_path <- file.path(
   cfg$paths$mask_nonvegetated_dir,
-  "mask_nonvegetated_CCI_2007_alphaW0p05_alphaI0p05_0p05.tif"
+  sprintf(
+    "mask_nonvegetated_CCI_%d_alphaW%s_alphaI%s_0p05.tif",
+    as.integer(cfg$esa_cci$nonvegetated$year),
+    tok(cfg$esa_cci$nonvegetated$water_threshold),
+    tok(cfg$esa_cci$nonvegetated$ice_threshold)
+  )
 )
+if (!file.exists(nonveg_mask_path)) {
+  stop("Missing expected non-vegetated mask:\n", nonveg_mask_path)
+}
 nonveg_mask <- rast(nonveg_mask_path)
 
 # Output directory
@@ -38,11 +46,22 @@ dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 wopt <- wopt_f32(FALSE)
 
 # Inputs
-files <- sort(list.files(
-  in_dir,
-  pattern = paste0("^", var, "_\\d{6}_0p05\\.tif$"),
-  full.names = TRUE
-))
+months <- format(
+  seq(
+    as.Date(sprintf("%d-01-01", cfg$project$years$lai_start)),
+    as.Date(sprintf("%d-12-01", cfg$project$years$lai_end)),
+    by = "month"
+  ),
+  "%Y%m"
+)
+files <- file.path(in_dir, sprintf("%s_%s_0p05.tif", var, months))
+missing_files <- files[!file.exists(files)]
+if (length(missing_files)) {
+  stop(
+    "Missing expected monthly files:\n",
+    paste(missing_files, collapse = "\n")
+  )
+}
 
 
 # Loop
