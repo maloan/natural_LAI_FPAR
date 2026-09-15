@@ -31,7 +31,7 @@ R/
 ├── 09_luh_pasture_overlap_0p25.R
 ├── 10_apply_mask_0p05.R
 ├── 11_agg_0p25.R
-├── 12_make_lc025_fractions.py
+├── 12_make_lc025_fractions.R
 ├── 12_chapter2_inputs_0p5.R
 ├── analysis/
 └── helpers/
@@ -50,9 +50,10 @@ R/
 ### Land-cover preprocessing
 
 - 02_cci_frac_0p05.R: Builds fractional cover layers from ESA-CCI/C3S.
-- 04_glc_native_to_0p05.R: Aggregates the native GLC_FCS30D v2 tiles to categorical mode and fractional grass cover on the exact 0.05° grid. 
+- 04_glc_native_to_0p05.R: Reclassifies native GLC_FCS30D v2 tiles with `gdal_calc.py`, then calculates categorical mode and fractional grass cover
+  on the exact 0.05° grid.
 - 04_glc_stack_0p05.R: Harmonizes and stacks GLC_FCS30D maps on the project grid.
-- 12_make_lc025_fractions.py: Generates annual 0.25° land-cover fractions from ESACCI classes (1992–2022). 
+- 12_make_lc025_fractions.R: Generates annual WGS84 area-weighted 0.25° land-cover fractions and majority classes from ESACCI classes (1992–2022).
 
 ### Mask construction
 
