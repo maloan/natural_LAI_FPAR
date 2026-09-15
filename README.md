@@ -55,8 +55,7 @@ Core settings are generated in `config/config_<RUN_TAG>.yml` (paths, years, clas
 
 - R 4.1 or newer.
 - R packages used in scripts (for example terra, sf, ncdf4, tidyverse).
-- Python 3 with numpy, netCDF4, rasterio, and pyproj for the single-pass
-  land-cover fraction aggregation.
+- R packages `Rcpp`, `sf`, and `lwgeom` for the annual 0.25° land-cover-fraction aggregation.
 - System libraries: GDAL, PROJ, NetCDF.
 
 Ubuntu example:
@@ -74,7 +73,7 @@ GLC_FCS30D v2 is downloaded from Zenodo and processed locally. The workflow crea
 - categorical modal-class maps for the GLC land-use mask.
 - fractional grass-cover maps for the LUH2 pasture consistency check.
 
-The download and validation scripts are stored in `data-raw/GLC_FCS30D/`.
+Download and local-processing instructions are stored in `data-raw/GLC_FCS30D/README.md`.
 
 ## More documentation
 
