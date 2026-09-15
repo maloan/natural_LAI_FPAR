@@ -46,8 +46,7 @@ run_r R/analysis/11_zonal_diagnostics_combined_figure.R
 
 # Land-cover summaries require both absolute and relative variants.
 echo
-echo "==> python3 R/12_make_lc025_fractions.py"
-python3 R/12_make_lc025_fractions.py
+run_r R/12_make_lc025_fractions.R
 run_r R/analysis/12_a_landcover_trend_summary.R use_relative=false
 run_r R/analysis/12_a_landcover_trend_summary.R use_relative=true
 run_r R/analysis/12_b_landcover_abs_vs_rel_trend.R

@@ -19,13 +19,11 @@ test_only <- "--test" %in% commandArgs(trailingOnly = TRUE)
 years_5year <- c(1985, 1990, 1995)
 years_annual <- 2000:2022
 
-for (command in c("gdal_translate", "gdalwarp", "gdalbuildvrt", "unzip")) {
+for (command in c("gdal_calc.py", "gdal_translate", "gdalwarp", "gdalbuildvrt", "unzip")) {
   if (!nzchar(Sys.which(command))) {
     stop("Missing required command: ", command)
   }
 }
-python <- "/usr/bin/python3"
-vrt_script <- here("data-raw", "GLC_FCS30D", "build_reclass_vrt.py")
 
 dir.create(tile_out_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(global_out_dir, recursive = TRUE, showWarnings = FALSE)
@@ -109,16 +107,25 @@ aggregate_tile <- function(file, years, period, test_subset = FALSE) {
     ncols_target <- 20
   }
 
-  class_vrt <- file.path(work_dir, "class.vrt")
-  grass_vrt <- file.path(work_dir, "grass.vrt")
-  run_command(
-    python,
-    c(shQuote(vrt_script), shQuote(source_file), shQuote(class_vrt), "class")
-  )
-  run_command(
-    python,
-    c(shQuote(vrt_script), shQuote(source_file), shQuote(grass_vrt), "grass")
-  )
+  class_file <- file.path(work_dir, "class.tif")
+  grass_file <- file.path(work_dir, "grass.tif")
+
+  calculate_raster <- function(expression, output) {
+    run_command(
+      "gdal_calc.py",
+      c(
+        "--quiet", "--overwrite", "--hideNoData", "--allBands=A",
+        "--type=Byte", "--NoDataValue=255", "--format=GTiff",
+        "--co=COMPRESS=DEFLATE", "--co=TILED=YES", "--co=BIGTIFF=IF_SAFER",
+        "-A", shQuote(source_file),
+        shQuote(paste0("--calc=", expression)),
+        "--outfile", shQuote(output)
+      )
+    )
+  }
+
+  calculate_raster("where((A==0)|(A==250),255,A)", class_file)
+  calculate_raster("where((A==0)|(A==250),255,A==130)", grass_file)
 
   warp_args <- function(method, source, output, output_type, nodata) {
     c(
@@ -136,13 +143,11 @@ aggregate_tile <- function(file, years, period, test_subset = FALSE) {
   }
   run_command(
     "gdalwarp",
-    warp_args("mode", class_vrt, mode_out, "Byte", "255"),
-    env = "GDAL_VRT_ENABLE_PYTHON=YES"
+    warp_args("mode", class_file, mode_out, "Byte", "255")
   )
   run_command(
     "gdalwarp",
-    warp_args("average", grass_vrt, grass_out, "Float32", "-9999"),
-    env = "GDAL_VRT_ENABLE_PYTHON=YES"
+    warp_args("average", grass_file, grass_out, "Float32", "-9999")
   )
 
   rm(source_info)
