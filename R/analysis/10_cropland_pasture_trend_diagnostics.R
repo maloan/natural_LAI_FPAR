@@ -69,19 +69,6 @@ f_p_tr <- here(
   "0p25",
   sprintf("%s_georef_%s_trend_mk_pval_0p25.nc", var, metric)
 )
-f_abs_tr_cci_nat <- here(
-  "output",
-  run_tag,
-  "eval",
-  sprintf("trend_%s_%s", var, "CCI"),
-  sprintf("%s_%s_trend_slope_peryear_0p25.nc", var, metric)
-)
-f_ts_abs <- here(
-  "analysis",
-  "unmasked",
-  "0p25",
-  sprintf("%s_georef_%s_0p25.nc", var, metric)
-)
 f_mask_cci_005 <- here(
   "output",
   run_tag,
@@ -108,8 +95,6 @@ required_files <- c(
   f_abs_tr,
   f_rel_tr,
   f_p_tr,
-  f_abs_tr_cci_nat,
-  f_ts_abs,
   f_mask_cci_005,
   f_mask_luh_005
 )
@@ -123,9 +108,6 @@ area025 <- rast(f_area025)[[1]]
 abs_tr <- rast(f_abs_tr)[[1]]
 rel_tr <- rast(f_rel_tr)[[1]]
 p_tr <- rast(f_p_tr)[[1]]
-abs_tr_cci_nat <- rast(f_abs_tr_cci_nat)[[1]]
-ts_abs <- rast(f_ts_abs)
-years <- 1982:(1982 + nlyr(ts_abs) - 1)
 mask_cci_005 <- rast(f_mask_cci_005)[[1]]
 mask_luh_005 <- rast(f_mask_luh_005)[[1]]
 mask_frac_to_area025 <- function(mask005, area005) {
@@ -171,50 +153,19 @@ mk_nonsig_df <- function(p,
   df
 }
 
-ts_cols <- c(
-  "Cropland-excluded (CCI)" = "black",
-  "Pasture-overlap (LUH2)" = "black"
-)
-
-
-ts_lm_label <- function(df) {
-  d <- df |>
-    dplyr::filter(is.finite(.data$year), is.finite(.data$value))
-
-  if (nrow(d) < 3) {
-    return("Insufficient data")
-  }
-
-  fit <- lm(value ~ year, data = d)
-  slope <- unname(coef(fit)[["year"]])
-  pval <- summary(fit)$coefficients["year", "Pr(>|t|)"]
-
-  if (abs(slope) < 0.001) {
-    slope_str <- sprintf("%.2e", slope)
-  } else {
-    slope_str <- sprintf("%.4f", slope)
-  }
-
-  if (pval < 0.001) {
-    p_str <- "p < 0.001"
-  } else if (pval < 0.01) {
-    p_str <- sprintf("p = %.3f", pval)
-  } else {
-    p_str <- sprintf("p = %.2f", pval)
-  }
-
-  sprintf("Slope: %s %s yr⁻¹\n%s", slope_str, "m2 m-2", p_str)
-}
-
 # compute masks on 0.25 deg
 w_cci <- mask_frac_to_area025(mask_cci_005, area005)
 w_luh <- mask_frac_to_area025(mask_luh_005, area005)
 
-drop_cci_025 <- is.na(abs_tr_cci_nat) & !is.na(abs_tr)
-w_cci_map <- ifel(drop_cci_025, area025, NA)
+# Retain 0.25-degree cells fully excluded by each mask component separately.
+# A small tolerance accommodates floating-point differences in summed cell area.
+full_cci_025 <- is.finite(w_cci) & is.finite(area025) &
+  area025 > 0 & (w_cci / area025) >= 0.999
+full_luh_025 <- is.finite(w_luh) & is.finite(area025) &
+  area025 > 0 & (w_luh / area025) >= 0.999
 
-drop_luh_025 <- (is.finite(w_luh) & w_luh > 0) & drop_cci_025
-w_luh_map <- ifel(drop_luh_025, area025, NA)
+w_cci_map <- ifel(full_cci_025, area025, NA)
+w_luh_map <- ifel(full_luh_025, area025, NA)
 
 s_cci_abs <- weighted_stats(abs_tr, w_cci_map)
 s_cci_rel <- weighted_stats(rel_tr, w_cci_map)
@@ -222,7 +173,7 @@ s_luh_abs <- weighted_stats(abs_tr, w_luh_map)
 s_luh_rel <- weighted_stats(rel_tr, w_luh_map)
 
 summary_tbl <- tibble(
-  region = c("Cropland-excluded (CCI)", "Pasture-overlap (LUH2)"),
+  region = c("Land-use-excluded (CCI)", "Pasture-overlap (LUH2)"),
   area_km2 = c(s_cci_abs$area, s_luh_abs$area),
   abs_trend_mean = c(s_cci_abs$mean, s_luh_abs$mean),
   abs_trend_sd = c(s_cci_abs$sd, s_luh_abs$sd),
@@ -230,23 +181,6 @@ summary_tbl <- tibble(
   rel_trend_sd_pct = c(s_cci_rel$sd, s_luh_rel$sd)
 )
 write_csv(round_numeric(summary_tbl, 5), outcsv)
-
-ts_df <- bind_rows(
-  tibble(
-    year = years,
-    value = wmean_series(ts_abs, w_cci_map),
-    region = "Cropland-excluded (CCI)"
-  ),
-  tibble(
-    year = years,
-    value = wmean_series(ts_abs, w_luh_map),
-    region = "Pasture-overlap (LUH2)"
-  )
-)
-
-ts_ylim <- range(ts_df$value, na.rm = TRUE)
-ts_pad <- 0.05 * diff(ts_ylim)
-ts_ylim <- ts_ylim + c(-ts_pad, ts_pad)
 
 map_cci_abs <- mk_map_df(abs_tr, w_cci_map, area025, min_excl_frac = 0)
 map_cci_rel <- mk_map_df(rel_tr, w_cci_map, area025, min_excl_frac = 0)
@@ -270,7 +204,7 @@ sym_vec_lim <- function(x, q = 0.95) {
 }
 lims_abs <- sym_vec_lim(c(map_cci_abs$value, map_luh_abs$value), q = limit_q)
 lims_rel <- sym_vec_lim(c(map_cci_rel$value, map_luh_rel$value), q = limit_q)
-fill_abs <- expression("Slope (" * m^2 ~ m^{
+fill_abs <- expression("Absolute trend (" * m^2 ~ m^{
   -2
 } ~ yr^
   {
