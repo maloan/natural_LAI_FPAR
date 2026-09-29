@@ -117,9 +117,10 @@ for (met in metrics) {
       label = paste("CCI", alpha),
       first_layer = TRUE
     )
+    area_cci <- load_scenario_area("CCI", alpha, template = area)
     rows[[length(rows) + 1]] <- zonal_wmean_latbands_ci(
       r_cci,
-      area,
+      area_cci,
       block_id,
       band_deg = 1L,
       scale_factor = 1,
@@ -137,9 +138,10 @@ for (met in metrics) {
     sprintf("GLC absolute-trend raster (%s, %s)", met, alpha_glc)
   )
   r_glc <- load_checked_raster(f_glc, area, label = "GLC", first_layer = TRUE)
+  area_glc <- load_scenario_area("GLC", alpha_glc, template = area)
   rows[[length(rows) + 1]] <- zonal_wmean_latbands_ci(
     r_glc,
-    area,
+    area_glc,
     block_id,
     band_deg = 1L,
     scale_factor = 1,
