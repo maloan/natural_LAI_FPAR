@@ -53,12 +53,12 @@ if (use_relative) {
   trend_suffix <- "trend_relative_percent_peryear"
   suffix <- "rel"
   scale_factor <- 1
-  unit_label <- expression("LAI Trend (% yr"^-1 * ")")
+  unit_label <- expression("LAI trend (% yr"^-1 * ")")
 } else {
   trend_suffix <- "trend_slope_peryear"
   suffix <- "abs"
   scale_factor <- 1
-  unit_label <- expression("LAI Trend (m"^2 * " m"^-2 * " yr"^-1 * ")")
+  unit_label <- expression("LAI trend (m"^2 * " m"^-2 * " yr"^-1 * ")")
 }
 
 f_unm <- here::here(
@@ -179,26 +179,16 @@ r_msk <- terra::rast(f_msk)[[1]]
 
 r_unm <- align_to_template(r_unm, ref025, method = "bilinear")
 r_msk <- align_to_template(r_msk, ref025, method = "bilinear")
+area_msk <- load_scenario_area(mask, alpha, template = area)
 
 stopifnot(
   terra::compareGeom(ref025, r_unm, stopOnError = TRUE),
   terra::compareGeom(ref025, r_msk, stopOnError = TRUE),
-  terra::compareGeom(ref025, area, stopOnError = TRUE)
+  terra::compareGeom(ref025, area, stopOnError = TRUE),
+  terra::compareGeom(ref025, area_msk, stopOnError = TRUE)
 )
 
-ref_cells <- which(is.finite(area_vals) & area_vals > 0)
-block_id_sub <- block_id[ref_cells]
-message(
-  sprintf(
-    "ref025 ncell: %d, area ncell: %d, block_id_sub length: %d",
-    terra::ncell(ref025),
-    terra::ncell(area),
-    length(block_id_sub)
-  )
-)
-terra::compareGeom(ref025, area, stopOnError = TRUE)
-terra::compareGeom(ref025, r_unm, stopOnError = TRUE)
-terra::compareGeom(ref025, r_msk, stopOnError = TRUE)
+block_id_sub <- block_id[valid_domain_cells]
 
 kg_cache <- file.path(dir_kg_grid, sprintf("kg_code_grid_%s.rds", kg_res))
 if (file.exists(kg_cache)) {
@@ -211,9 +201,7 @@ if (file.exists(kg_cache)) {
     )
   }
 } else {
-  area_vals <- terra::values(area, dataframe = FALSE)
-  valid_cells <- which(is.finite(area_vals) & area_vals > 0)
-  xy <- terra::xyFromCell(ref025, valid_cells)
+  xy <- terra::xyFromCell(ref025, valid_domain_cells)
 
   pts <- data.frame(
     Site = seq_len(nrow(xy)),
@@ -223,7 +211,7 @@ if (file.exists(kg_cache)) {
 
   kg_code_valid <- lookup_cz_chunked(pts, chunk_size = chunk_size, res = kg_res)
   kg_code <- rep(NA_character_, terra::ncell(ref025))
-  kg_code[valid_cells] <- kg_code_valid
+  kg_code[valid_domain_cells] <- kg_code_valid
 
   saveRDS(kg_code, kg_cache)
 }
@@ -243,17 +231,17 @@ kg3_id <- make_kg_raster(ref025, kg_code, codes3, "kg3_id")
 kg2_id <- make_kg_raster(ref025, kg_code2, codes2, "kg2_id")
 #  masks and base weights
 w_unm <- terra::ifel(!is.na(r_unm), area, NA_real_)
-w_msk <- terra::ifel(!is.na(r_msk), area, NA_real_)
+# Use the actual 0.05-degree area retained within each 0.25-degree cell.
+w_msk <- terra::ifel(!is.na(r_msk), area_msk, NA_real_)
+# The excluded-domain trend is defined only for fully excluded coarse cells.
+# Excluded fine-cell trends within partially retained cells are unavailable.
 w_out <- terra::ifel(!is.na(r_unm) & is.na(r_msk), area, NA_real_)
 
 num_unm <- r_unm * w_unm
 num_msk <- r_msk * w_msk
 num_out <- r_unm * w_out
 
-# VALUE EXTRACTION — SINGLE PASS WITH DIAGNOSTICS
-
-# Extract ALL values once
-vals_area <- terra::values(area, dataframe = FALSE)
+# Extract values once for both zone resolutions.
 vals_r_unm <- terra::values(r_unm, dataframe = FALSE)
 vals_r_msk <- terra::values(r_msk, dataframe = FALSE)
 vals_w_unm <- terra::values(w_unm, dataframe = FALSE)
@@ -261,13 +249,8 @@ vals_w_msk <- terra::values(w_msk, dataframe = FALSE)
 vals_kg3 <- terra::values(kg3_id, dataframe = FALSE)
 vals_kg2 <- terra::values(kg2_id, dataframe = FALSE)
 
-# Apply scaling factor
-vals_r_unm_scaled <- vals_r_unm * scale_factor
-vals_r_msk_scaled <- vals_r_msk * scale_factor
-
-# Assign final bootstrap input vectors
-r_unm_vals <- vals_r_unm_scaled[valid_domain_cells]
-r_msk_vals <- vals_r_msk_scaled[valid_domain_cells]
+r_unm_vals <- vals_r_unm[valid_domain_cells] * scale_factor
+r_msk_vals <- vals_r_msk[valid_domain_cells] * scale_factor
 w_unm_vals <- vals_w_unm[valid_domain_cells]
 w_msk_vals <- vals_w_msk[valid_domain_cells]
 kg3_vals <- vals_kg3[valid_domain_cells]
@@ -338,7 +321,7 @@ summarise_zone <- function(zone_raster,
     "num_out",
     "area_unm_km2",
     "area_msk_km2",
-    "area_out_km2"
+    "area_fully_excluded_km2"
   )
   stopifnot(zone_name %in% names(out))
   stopifnot(all(c("num_unm", "area_unm_km2") %in% names(out)))
@@ -358,11 +341,15 @@ summarise_zone <- function(zone_raster,
     out,
     mean_unmasked = scale_factor * safe_division(num_unm, area_unm_km2, positive_denominator = TRUE),
     mean_masked = scale_factor * safe_division(num_msk, area_msk_km2, positive_denominator = TRUE),
-    mean_masked_out = scale_factor * safe_division(num_out, area_out_km2, positive_denominator = TRUE),
+    mean_masked_out = scale_factor * safe_division(
+      num_out,
+      area_fully_excluded_km2,
+      positive_denominator = TRUE
+    ),
     diff_masked_minus_unmasked = mean_masked - mean_unmasked,
     area_unm_mkm2 = area_unm_km2 / 1e6,
     area_msk_mkm2 = area_msk_km2 / 1e6,
-    area_out_mkm2 = area_out_km2 / 1e6,
+    area_out_mkm2 = pmax(area_unm_km2 - area_msk_km2, 0) / 1e6,
     frac_retained = safe_division(area_msk_km2, area_unm_km2, positive_denominator = TRUE),
     area_removed_pct = 100 * (1 - frac_retained),
     trend_delta_pct = 100 * safe_division(
@@ -529,7 +516,7 @@ plot_tab <- plot_tab |>
 plot_long <- plot_long |>
   mutate(kg_label = factor(kg_label, levels = kg_levels))
 
-p <- plot_kg(plot_long)
+p <- plot_kg(plot_tab, plot_long, unit_label)
 
 out_png <- file.path(
   outdir_fig,
