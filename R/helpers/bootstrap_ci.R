@@ -85,6 +85,108 @@ bootstrap_ci_global <- function(x,
     n_eff = n_blocks
   )
 }
+
+# -------------------------------------------------------------------------
+# Paired spatial block bootstrap for a difference between weighted means
+# -------------------------------------------------------------------------
+bootstrap_ci_difference <- function(x_retained,
+                                    w_retained,
+                                    x_excluded,
+                                    w_excluded,
+                                    block_id,
+                                    n_boot = 1000L,
+                                    conf = 0.95) {
+  input_lengths <- lengths(list(
+    x_retained,
+    w_retained,
+    x_excluded,
+    w_excluded,
+    block_id
+  ))
+  if (length(unique(input_lengths)) != 1L) {
+    stop("All bootstrap inputs must have equal length.")
+  }
+
+  valid_retained <- is.finite(x_retained) &
+    is.finite(w_retained) & w_retained > 0 & !is.na(block_id)
+  valid_excluded <- is.finite(x_excluded) &
+    is.finite(w_excluded) & w_excluded > 0 & !is.na(block_id)
+  dat <- data.frame(
+    block = block_id,
+    retained_num = ifelse(valid_retained, x_retained * w_retained, 0),
+    retained_den = ifelse(valid_retained, w_retained, 0),
+    excluded_num = ifelse(valid_excluded, x_excluded * w_excluded, 0),
+    excluded_den = ifelse(valid_excluded, w_excluded, 0)
+  )
+  dat <- dat[
+    !is.na(dat$block) & (dat$retained_den > 0 | dat$excluded_den > 0),
+  ]
+
+  if (!nrow(dat)) {
+    return(list(
+      estimate = NA_real_,
+      lower = NA_real_,
+      upper = NA_real_,
+      excludes_zero = FALSE,
+      n_blocks = 0L
+    ))
+  }
+
+  block_sums <- stats::aggregate(
+    cbind(retained_num, retained_den, excluded_num, excluded_den) ~ block,
+    data = dat,
+    FUN = sum
+  )
+  n_blocks <- nrow(block_sums)
+  weighted_mean <- function(numerator, denominator) {
+    denominator_sum <- sum(denominator)
+    if (denominator_sum <= 0) {
+      return(NA_real_)
+    }
+    sum(numerator) / denominator_sum
+  }
+  weighted_difference <- function(index) {
+    weighted_mean(
+      block_sums$retained_num[index],
+      block_sums$retained_den[index]
+    ) - weighted_mean(
+      block_sums$excluded_num[index],
+      block_sums$excluded_den[index]
+    )
+  }
+  estimate <- weighted_difference(seq_len(n_blocks))
+
+  if (n_blocks < 2L) {
+    return(list(
+      estimate = estimate,
+      lower = NA_real_,
+      upper = NA_real_,
+      excludes_zero = FALSE,
+      n_blocks = n_blocks
+    ))
+  }
+
+  set.seed(26)
+  boot_difference <- replicate(
+    n_boot,
+    weighted_difference(sample.int(n_blocks, n_blocks, replace = TRUE))
+  )
+  alpha <- (1 - conf) / 2
+  ci <- stats::quantile(
+    boot_difference,
+    probs = c(alpha, 1 - alpha),
+    names = FALSE,
+    na.rm = TRUE
+  )
+
+  list(
+    estimate = estimate,
+    lower = ci[1],
+    upper = ci[2],
+    excludes_zero = ci[1] > 0 || ci[2] < 0,
+    n_blocks = n_blocks
+  )
+}
 # -------------------------------------------------------------------------
 # Spatial block bootstrap by class
 # -------------------------------------------------------------------------
