@@ -125,7 +125,7 @@ df_grey_rel_out <- to_df(grey_out_rel, "g") |> dplyr::filter(g == 1)
 
 # panel titles
 col_titles <- c("Unmasked", "Masked")
-fill_abs <- expression("Slope (m"^2 * " m"^{
+fill_abs <- expression("Trend (m"^2 * " m"^{
   -2
 } * " yr"^{
   -1
@@ -204,7 +204,7 @@ if (isTRUE(include_masked_out)) {
   p_rel_grid <- p21 + p22 + plot_layout(ncol = 2, guides = "collect")
 }
 
-row_abs <- row_label("Absolute slope") + p_abs_grid +
+row_abs <- row_label("Absolute trend") + p_abs_grid +
   plot_layout(widths = c(0.06, 1), ncol = 2) &
   theme(legend.position = "bottom")
 
