@@ -192,7 +192,7 @@ plot_df <- plot_df |>
     )
   )
 
-p <- plot_lc_abs_vs_rel(plot_df)
+p <- plot_lc_abs_vs_rel(plot_df, label_df, mask, alpha)
 
 out_png <- file.path(
   outdir_fig,
