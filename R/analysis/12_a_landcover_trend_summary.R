@@ -18,7 +18,7 @@ source(here::here("R", "helpers", "bootstrap_ci.R"))
 source(here::here("R", "helpers", "plotting.R"))
 source(here::here("R", "helpers", "io.R"))
 terraOptions(
-  progress = 1,
+  progress = 0,
   memfrac = 0.6,
   todisk = TRUE
 )
@@ -57,7 +57,7 @@ if (is.na(cfg$lc_year_start) ||
 lc_years <- cfg$lc_year_start:cfg$lc_year_end
 
 # paths
-lc_frac_dir <- here("analysis", "tmp", "lc025_fraction_yearly")
+lc_area_dir <- here("analysis", "tmp", "lc025_class_area_weights")
 outdir_fig <- here("analysis", "results", "figures", "summaries")
 outdir_tbl <- here("analysis", "results", "tables", "land_cover")
 
@@ -145,37 +145,47 @@ nonveg_lc_ids <- c(
   220L # Permanent snow and ice
 )
 
-#  read and average fractional land cover
-lc_files <- file.path(lc_frac_dir, sprintf("lc025_fraction_%d.tif", lc_years))
-missing_lc <- lc_files[!file.exists(lc_files)]
-if (length(missing_lc)) {
-  stop("Missing yearly fractional LC files")
-}
-
-message("Reading fractional land-cover files...")
-frac_stack <- rast(lc_files)
-frac_stack <- align_to_template(frac_stack, ref025, method = "bilinear")
-frac_stack <- mask(frac_stack, area)
-class_names <- unique(names(frac_stack))
-frac_mean_file <- file.path(outdir_fig, sprintf(
-  "lc025_fraction_mean_%d-%d.tif",
-  min(lc_years),
-  max(lc_years)
-))
-frac_mean_layers <- lapply(class_names, function(nm) {
-  idx <- which(names(frac_stack) == nm)
-
-  app(frac_stack[[idx]], mean, na.rm = TRUE)
-})
-frac_mean <- rast(frac_mean_layers)
-names(frac_mean) <- class_names
-writeRaster(
-  frac_mean,
-  filename = frac_mean_file,
-  overwrite = TRUE,
-  gdal = c("COMPRESS=LZW", "TILED=YES", "BIGTIFF=IF_SAFER"),
-  datatype = "FLT4S"
+# Read class-specific areas aggregated from 0.05 degrees. These weights retain
+# the spatial association between land-cover classes and the fine-resolution
+# mask; multiplying a coarse class fraction by a coarse retained-area fraction
+# would assume that each class is uniformly distributed within the cell.
+scenario_token <- paste0(tolower(mask), "_", gsub("\\.", "p", alpha))
+class_area_unm_file <- file.path(
+  lc_area_dir,
+  sprintf(
+    "lc025_class_area_unmasked_mean_%d-%d.tif",
+    min(lc_years),
+    max(lc_years)
+  )
 )
+class_area_msk_file <- file.path(
+  lc_area_dir,
+  sprintf(
+    "lc025_class_area_retained_%s_mean_%d-%d.tif",
+    scenario_token,
+    min(lc_years),
+    max(lc_years)
+  )
+)
+missing_lc_area <- c(class_area_unm_file, class_area_msk_file)[
+  !file.exists(c(class_area_unm_file, class_area_msk_file))
+]
+if (length(missing_lc_area)) {
+  stop(
+    "Missing class-area weights. Run ",
+    "R/analysis/12_0_landcover_class_area_weights.R first:\n",
+    paste(missing_lc_area, collapse = "\n")
+  )
+}
+class_area_unm <- rast(class_area_unm_file)
+class_area_msk <- rast(class_area_msk_file)
+stopifnot(
+  compareGeom(class_area_unm, ref025, stopOnError = TRUE),
+  compareGeom(class_area_msk, ref025, stopOnError = TRUE)
+)
+if (!identical(names(class_area_unm), names(class_area_msk))) {
+  stop("Unmasked and retained class-area layers do not match", call. = FALSE)
+}
 
 # read trends
 tf <- trend_files(use_relative)
@@ -194,63 +204,58 @@ if (use_relative) {
   unit_label <- sprintf("%s yr-1", var)
 }
 
-#  masks and base weights
-w_unm_base <- ifel(!is.na(r_unm), area, NA_real_)
-w_msk_base <- ifel(!is.na(r_msk), area, NA_real_)
-w_out_base <- ifel(!is.na(r_unm) & is.na(r_msk), area, NA_real_)
-
-#  fraction-weighted class summaries
-summarise_fraction_class <- function(frac, lc_id) {
-  w_unm_cls <- frac * w_unm_base
-  w_msk_cls <- frac * w_msk_base
-  w_out_cls <- frac * w_out_base
+# Class-area rasters already contain the correct unmasked or retained area.
+# Excluded-domain summaries remain restricted to fully excluded 0.25-degree
+# cells because excluded fine-cell trends within partially retained cells are
+# unavailable in the coarse trend rasters.
+summarise_fraction_class <- function(area_unm_cls, area_msk_cls, lc_id) {
+  w_unm_cls <- ifel(is.finite(r_unm), area_unm_cls, NA_real_)
+  w_msk_cls <- ifel(is.finite(r_msk), area_msk_cls, NA_real_)
+  w_out_cls <- ifel(
+    is.finite(r_unm) & !is.finite(r_msk),
+    area_unm_cls,
+    NA_real_
+  )
 
   den_unm <- global(w_unm_cls, "sum", na.rm = TRUE)[1, 1]
   den_msk <- global(w_msk_cls, "sum", na.rm = TRUE)[1, 1]
-  den_out <- global(w_out_cls, "sum", na.rm = TRUE)[1, 1]
+  den_out_full_cells <- global(w_out_cls, "sum", na.rm = TRUE)[1, 1]
+  den_excluded <- max(den_unm - den_msk, 0)
 
   num_unm <- global(r_unm * w_unm_cls, "sum", na.rm = TRUE)[1, 1]
   num_msk <- global(r_msk * w_msk_cls, "sum", na.rm = TRUE)[1, 1]
-  num_out <- global(r_unm * w_out_cls, "sum", na.rm = TRUE)[1, 1]
+  num_out_full_cells <- global(r_unm * w_out_cls, "sum", na.rm = TRUE)[1, 1]
 
   tibble::tibble(
     lc_id = lc_id,
     mean_unmasked = scale_factor * safe_division(num_unm, den_unm),
     mean_masked = scale_factor * safe_division(num_msk, den_msk),
-    mean_masked_out = scale_factor * safe_division(num_out, den_out),
+    mean_masked_out = scale_factor * safe_division(
+      num_out_full_cells,
+      den_out_full_cells
+    ),
     area_unm_mkm2 = den_unm / 1e6,
     area_msk_mkm2 = den_msk / 1e6,
-    area_out_mkm2 = den_out / 1e6,
+    area_out_mkm2 = den_excluded / 1e6,
+    area_fully_excluded_cells_mkm2 = den_out_full_cells / 1e6,
     frac_retained = safe_division(den_msk, den_unm)
   )
 }
 
-lc_ids <- as.integer(sub("^lc_", "", names(frac_mean)))
-lc_tab <- purrr::map2_dfr(seq_len(nlyr(frac_mean)), lc_ids, function(i, id) {
-  summarise_fraction_class(frac_mean[[i]], id)
+lc_ids <- as.integer(sub("^lc_", "", names(class_area_unm)))
+lc_tab <- purrr::map2_dfr(seq_len(nlyr(class_area_unm)), lc_ids, function(i, id) {
+  summarise_fraction_class(class_area_unm[[i]], class_area_msk[[i]], id)
 }) |>
   mutate(across(starts_with("mean_"), ~ ifelse(is.finite(.x), .x, NA_real_))) |>
   left_join(lc_legend, by = "lc_id") |>
   mutate(lc_name = coalesce(lc_name, paste0("Class ", lc_id))) |>
   arrange(desc(abs(mean_masked)))
 
-# Prepare vectors for bootstrap
-ref_cells <- which(is.finite(area_vals) & area_vals > 0)
-block_id_sub <- block_id[ref_cells]
-
-# Prepare vectors for bootstrap
-r_unm_full <- terra::values(r_unm, dataframe = FALSE)
-r_msk_full <- terra::values(r_msk, dataframe = FALSE)
-w_unm_full <- terra::values(w_unm_base, dataframe = FALSE)
-w_msk_full <- terra::values(w_msk_base, dataframe = FALSE)
-w_out_full <- terra::values(w_out_base, dataframe = FALSE)
-
-# Subset all base vectors to canonical domain cells ONCE
-r_unm_vals <- r_unm_full[valid_domain_cells] * scale_factor
-r_msk_vals <- r_msk_full[valid_domain_cells] * scale_factor
-w_unm_base_vals <- w_unm_full[valid_domain_cells]
-w_msk_base_vals <- w_msk_full[valid_domain_cells]
-w_out_base_vals <- w_out_full[valid_domain_cells]
+# Subset shared bootstrap inputs once.
+r_unm_vals <- terra::values(r_unm, dataframe = FALSE)[valid_domain_cells] *
+  scale_factor
+r_msk_vals <- terra::values(r_msk, dataframe = FALSE)[valid_domain_cells] *
+  scale_factor
 block_id_sub <- block_id[valid_domain_cells]
 
 pb <- txtProgressBar(
@@ -259,15 +264,21 @@ pb <- txtProgressBar(
   style = 3
 )
 
-ci_list <- purrr::map2_dfr(seq_len(nlyr(frac_mean)), lc_ids, function(i, id) {
+ci_list <- purrr::map2_dfr(seq_len(nlyr(class_area_unm)), lc_ids, function(i, id) {
   setTxtProgressBar(pb, i)
 
-  frac_vals_all <- terra::values(frac_mean[[i]], dataframe = FALSE)
-  frac_vals <- frac_vals_all[valid_domain_cells]
+  class_area_unm_all <- terra::values(class_area_unm[[i]], dataframe = FALSE)
+  class_area_msk_all <- terra::values(class_area_msk[[i]], dataframe = FALSE)
+  class_area_unm_vals <- class_area_unm_all[valid_domain_cells]
+  class_area_msk_vals <- class_area_msk_all[valid_domain_cells]
 
-  w_unm_cls <- frac_vals * w_unm_base_vals
-  w_msk_cls <- frac_vals * w_msk_base_vals
-  w_out_cls <- frac_vals * w_out_base_vals
+  w_unm_cls <- ifelse(is.finite(r_unm_vals), class_area_unm_vals, NA_real_)
+  w_msk_cls <- ifelse(is.finite(r_msk_vals), class_area_msk_vals, NA_real_)
+  w_out_cls <- ifelse(
+    is.finite(r_unm_vals) & !is.finite(r_msk_vals),
+    class_area_unm_vals,
+    NA_real_
+  )
 
   ok_unm <- is.finite(r_unm_vals) &
     is.finite(w_unm_cls) & w_unm_cls > 0 & !is.na(block_id_sub)
@@ -280,6 +291,28 @@ ci_list <- purrr::map2_dfr(seq_len(nlyr(frac_mean)), lc_ids, function(i, id) {
     is.finite(w_out_cls) & w_out_cls > 0 & !is.na(block_id_sub)
   ci_out <- bootstrap_ci_global(r_unm_vals[ok_out], w_out_cls[ok_out], block_id_sub[ok_out], n_boot, conf)
 
+  difference_ci <- bootstrap_ci_difference(
+    x_retained = r_msk_vals,
+    w_retained = w_msk_cls,
+    x_excluded = r_unm_vals,
+    w_excluded = w_out_cls,
+    block_id = block_id_sub,
+    n_boot = n_boot,
+    conf = conf
+  )
+
+  # Domain-only contrast: use the unmasked trend field in both groups and use
+  # the mask only to classify 0.25-degree cells as retained or excluded.
+  domain_difference_ci <- bootstrap_ci_difference(
+    x_retained = r_unm_vals,
+    w_retained = w_msk_cls,
+    x_excluded = r_unm_vals,
+    w_excluded = w_out_cls,
+    block_id = block_id_sub,
+    n_boot = n_boot,
+    conf = conf
+  )
+
   tibble::tibble(
     lc_id = id,
     ci_unm_lower = ci_unm$lower,
@@ -289,7 +322,17 @@ ci_list <- purrr::map2_dfr(seq_len(nlyr(frac_mean)), lc_ids, function(i, id) {
     ci_out_lower = ci_out$lower,
     ci_out_upper = ci_out$upper,
     n_unm = as.integer(ci_unm$n_eff),
-    n_msk = as.integer(ci_msk$n_eff)
+    n_msk = as.integer(ci_msk$n_eff),
+    retained_minus_excluded = difference_ci$estimate,
+    difference_ci_lower = difference_ci$lower,
+    difference_ci_upper = difference_ci$upper,
+    difference_excludes_zero = difference_ci$excludes_zero,
+    n_difference_blocks = as.integer(difference_ci$n_blocks),
+    domain_retained_minus_excluded = domain_difference_ci$estimate,
+    domain_difference_ci_lower = domain_difference_ci$lower,
+    domain_difference_ci_upper = domain_difference_ci$upper,
+    domain_difference_excludes_zero = domain_difference_ci$excludes_zero,
+    n_domain_difference_blocks = as.integer(domain_difference_ci$n_blocks)
   )
 })
 close(pb)
@@ -322,6 +365,16 @@ paper_tab <- lc_tab |>
     trend_masked_out = mean_masked_out,
     trend_masked_out_ci_lower = ci_out_lower,
     trend_masked_out_ci_upper = ci_out_upper,
+    retained_minus_excluded,
+    difference_ci_lower,
+    difference_ci_upper,
+    difference_excludes_zero,
+    n_difference_blocks,
+    domain_retained_minus_excluded,
+    domain_difference_ci_lower,
+    domain_difference_ci_upper,
+    domain_difference_excludes_zero,
+    n_domain_difference_blocks,
     trend_delta = mean_masked - mean_unmasked,
     trend_removed = ifelse(
       (1 - frac_retained) > 0.01,
@@ -339,11 +392,12 @@ paper_tab <- lc_tab |>
 out_csv_paper <- file.path(
   outdir_tbl,
   sprintf(
-    "table_lc_fraction_trend_summary_%s_%s_%s_%s_main.csv",
+    "table_lc_fraction_trend_summary_%s_%s_%s_%s_%s_main.csv",
     var,
     metric,
     mask,
-    alpha
+    alpha,
+    suffix
   )
 )
 write_csv(round_numeric(paper_tab, 5), out_csv_paper)
@@ -388,7 +442,7 @@ plot_long <- plot_tab |>
     ),
     shape_type = ifelse(sig, 16, 1)
   )
-p <- plot_lc_trend(plot_tab, plot_long, scale_factor)
+p <- plot_lc_trend(plot_tab, plot_long, scale_factor, unit_label)
 # Save
 out_png <- file.path(
   outdir_fig,
