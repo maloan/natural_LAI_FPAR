@@ -660,11 +660,10 @@ write_quicklook_raster <- function(r,
 # Plots for analysis scripts
 # ------------------------------------------------------------------------------
 
-plot_timeseries <- function(df, trend_df, annotation_df, theme_pub) {
+plot_timeseries <- function(df, trend_df, theme_pub) {
   # Generate a time series plot using ggplot2, showing the original data (df),
-  # trend lines (trend_df), and annotations (annotation_df). The plot is faceted
-  # by metric and includes custom colors, line types, and labels. The theme_pub
-  # function is used for consistent styling.
+  # and trend lines (trend_df). The plot is faceted by metric and uses colour
+  # to distinguish masking scenarios.
   cols <- c(
     "Unmasked" = "black",
     "CCI alpha=0.05" = "#1b9e77",
@@ -676,25 +675,15 @@ plot_timeseries <- function(df, trend_df, annotation_df, theme_pub) {
   p <- ggplot() +
     geom_line(
       data = df,
-      aes(year, value, colour = scenario, linetype = scenario),
-      alpha = 0.4,
-      linewidth = 0.4
+      aes(year, value, colour = scenario),
+      alpha = 0.62,
+      linewidth = 0.5
     ) +
     geom_line(
       data = trend_df,
-      aes(year, fit, colour = scenario, linetype = scenario),
-      linewidth = 0.7,
+      aes(year, fit, colour = scenario),
+      linewidth = 1.0,
       alpha = 1.0
-    ) +
-    geom_text(
-      data = annotation_df,
-      aes(x = x, y = y, label = label),
-      inherit.aes = FALSE,
-      hjust = 1,
-      vjust = 0,
-      size = 2.5,
-      colour = "grey20",
-      lineheight = 0.95
     ) +
     facet_wrap(
       ~metric,
@@ -703,32 +692,26 @@ plot_timeseries <- function(df, trend_df, annotation_df, theme_pub) {
       scales = "free_y",
       labeller = labeller(metric = metric_labs)
     ) +
-    scale_colour_manual(values = cols, name = "Mask Scenario") +
-    scale_linetype_manual(
-      values = c(
-        "Unmasked" = "solid",
-        "CCI alpha=0.05" = "dashed",
-        "CCI alpha=0.1" = "dashed",
-        "CCI alpha=0.2" = "dashed",
-        "GLC" = "dotdash"
-      ),
-      name = "Mask Scenario"
-    ) +
+    scale_colour_manual(values = cols, name = "Mask scenario") +
     guides(colour = guide_legend(
-      nrow = 1,
+      nrow = 2,
+      byrow = TRUE,
       override.aes = list(
-        linetype = c("solid", "dashed", "dashed", "dashed", "dotdash"),
-        alpha = 1
+        alpha = 1,
+        linewidth = 0.9
       )
     )) +
     labs(x = "Year", y = expression("Global mean LAI (" * m^2 ~ m^-2 * ")")) +
-    theme_pub(base_size = 11) +
+    theme_pub(base_size = 12) +
     theme(
       legend.position = "bottom",
       legend.box = "horizontal",
       legend.spacing.x = unit(0.2, "lines"),
       legend.key.width = unit(1.5, "lines"),
       strip.text = element_text(face = "bold", size = 12),
+      axis.title = element_text(size = 11.5),
+      axis.text = element_text(size = 10.5),
+      legend.text = element_text(size = 10.5),
       panel.grid.minor = element_blank(),
       panel.grid.major = element_line(color = "grey90", linewidth = 0.2),
       plot.title = element_text(
@@ -862,8 +845,8 @@ plot_map <- function(df,
   # Generate a map plot using ggplot2, displaying data from a data frame (df)
   # with longitude and latitude coordinates. The plot includes tiles colored by
   # the specified zcol variable, optional greyed-out areas (df_grey),
-  # coastlines, and country borders. The color scale is set using the scico
-  # package, and the plot is styled with a map theme.
+  # coastlines, and country borders. The scientific `bam` palette uses
+  # magenta for negative trends and green for positive trends.
   ggplot(df) +
     geom_tile(aes(
       x = .data$lon,
@@ -900,8 +883,8 @@ plot_map <- function(df,
     scale_x_continuous(breaks = seq(-180, 180, by = 60), labels = lon_labels) +
     scale_y_continuous(breaks = c(-60, -30, 0, 30, 60), labels = lat_labels) +
     scale_fill_scico(
-      palette = "vik",
-      direction = -1,
+      palette = "bam",
+      direction = 1,
       limits = lims,
       midpoint = 0,
       oob = scales::squish,
