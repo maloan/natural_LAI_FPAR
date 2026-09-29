@@ -10,6 +10,7 @@ suppressPackageStartupMessages({
   library(readr)
   library(ggplot2)
   library(here)
+  library(patchwork)
   library(purrr)
   library(tibble)
 })
@@ -17,6 +18,7 @@ suppressPackageStartupMessages({
 source(here("R", "helpers", "weighted_means.R"))
 source(here("R", "helpers", "plotting.R"))
 source(here("R", "helpers", "io.R"))
+source(here("R", "helpers", "cli_args.R"))
 
 # Configuration
 var <- "LAI"
@@ -26,6 +28,7 @@ year_end <- 2024L
 n_years <- year_end - year0 + 1L
 alphas <- c("alpha_0.05", "alpha_0.1", "alpha_0.2")
 glc_alpha <- "alpha_0.1"
+scenario_spec <- create_scenario_spec(alphas, glc_alpha)
 outdir_fig <- here("analysis", "results", "figures", "timeseries")
 outdir_tbl <- here("analysis", "results", "tables", "timeseries")
 dir.create(outdir_fig, recursive = TRUE, showWarnings = FALSE)
@@ -132,32 +135,37 @@ predict_trend_line <- function(d, y_col = "value", x_col = "year") {
   tibble::tibble(!!x_col := d[[x_col]], fit = stats::predict(m, newdata = d))
 }
 
-# Load data
+# Load each scenario's area weights once, then reuse them for both metrics.
+scenario_areas <- setNames(
+  lapply(seq_len(nrow(scenario_spec)), function(i) {
+    sc <- scenario_spec[i, ]
+    load_scenario_area(sc$source, sc$run_tag, template = area)
+  }),
+  scenario_spec$scenario
+)
+
 rows <- list()
 for (metric in metrics) {
-  # Unmasked
-  r_unmasked <- load_checked_raster(analysis_raster_path(var, metric, "unmasked", kind = "metric"),
-    area,
-    n_layers = n_years
-  )
-  rows[[length(rows) + 1]] <- make_series(r_unmasked, area, year0) |> mutate(metric = metric, scenario = "Unmasked")
-  # CCI
-  for (alpha in alphas) {
-    r_cci <- load_checked_raster(
-      analysis_raster_path(var, metric, "CCI", run_tag = alpha, kind = "metric"),
+  for (i in seq_len(nrow(scenario_spec))) {
+    sc <- scenario_spec[i, ]
+    metric_raster <- load_checked_raster(
+      analysis_raster_path(
+        var,
+        metric,
+        sc$source,
+        run_tag = sc$run_tag,
+        kind = "metric"
+      ),
       area,
       n_layers = n_years
     )
-    rows[[length(rows) + 1]] <- make_series(r_cci, area, year0) |>
-      mutate(metric = metric, scenario = paste0("CCI alpha=", sub("^alpha_", "", alpha)))
+    rows[[length(rows) + 1]] <- make_series(
+      metric_raster,
+      scenario_areas[[sc$scenario]],
+      year0
+    ) |>
+      mutate(metric = metric, scenario = sc$scenario)
   }
-  # GLC
-  r_glc <- load_checked_raster(
-    analysis_raster_path(var, metric, "GLC", run_tag = glc_alpha, kind = "metric"),
-    area,
-    n_layers = n_years
-  )
-  rows[[length(rows) + 1]] <- make_series(r_glc, area, year0) |> mutate(metric = metric, scenario = "GLC")
 }
 
 df <- bind_rows(rows)
@@ -167,9 +175,7 @@ df <- df |> mutate(
     levels = c("yearmean", "yearmax"),
     labels = c("Annual mean", "Annual maximum")
   ),
-  scenario = factor(scenario, levels = c(
-    "Unmasked", paste0("CCI alpha=", sub("^alpha_", "", alphas)), "GLC"
-  ))
+  scenario = factor(scenario, levels = scenario_order(scenario_spec))
 )
 # OLS trend statistics
 trend_stats <- df |>
@@ -182,43 +188,10 @@ trend_df <- df |>
   mutate(trend_pred = map(data, predict_trend_line)) |>
   select(-data) |>
   unnest(trend_pred)
-plot_range_df <- df |>
-  group_by(metric) |>
-  summarise(
-    y_max = max(value, na.rm = TRUE),
-    y_min = min(value, na.rm = TRUE),
-    .groups = "drop"
-  )
-
-# Trend annotations
-annotation_df <- trend_stats |>
-  left_join(plot_range_df, by = "metric") |>
-  filter(scenario %in% c("Unmasked", "CCI alpha=0.1", "GLC")) |>
-  group_by(metric) |>
-  arrange(match(scenario, c("Unmasked", "CCI alpha=0.1", "GLC")), .by_group = TRUE) |>
-  summarise(
-    x = 2024.1,
-    y = first(y_min) + 0.03 * (first(y_max) - first(y_min)),
-    label = {
-      lines <- paste0(
-        scenario,
-        ": slope = ",
-        sprintf("%.4f", slope),
-        " ± ",
-        sprintf("%.4f", (ci_upper - ci_lower) / (2 * stats::qt(0.975, df = n - 2)))
-      )
-      lines[length(lines)] <- paste0(
-        lines[length(lines)],
-        "\n(p = ",
-        format.pval(p_value[length(p_value)], digits = 4, eps = 1e-5),
-        ")"
-      )
-      paste(lines, collapse = "\n")
-    },
-    .groups = "drop"
-  ) |>
-  ungroup()
-p <- plot_timeseries(df, trend_df, annotation_df, theme_pub)
+p_timeseries <- plot_timeseries(df, trend_df, theme_pub)
+p_slopes <- plot_trend_slope_sensitivity(trend_stats, theme_pub)
+p <- p_timeseries / p_slopes +
+  plot_layout(heights = c(1.35, 1))
 # Output
 write_csv(
   round_numeric(df, 5),
@@ -238,13 +211,13 @@ write_csv(
 ggsave(
   filename = file.path(outdir_fig, "global_timeseries_absolute_trends.png"),
   plot = p,
-  width = 11,
-  height = 5.8,
+  width = 7.2,
+  height = 6.8,
   dpi = 350
 )
 ggsave(
   filename = file.path(outdir_fig, "global_timeseries_absolute_trends.pdf"),
   plot = p,
-  width = 11,
-  height = 5.8
+  width = 7.2,
+  height = 6.8
 )
