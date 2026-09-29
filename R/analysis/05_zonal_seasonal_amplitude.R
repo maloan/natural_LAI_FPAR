@@ -54,7 +54,11 @@ for (alpha in alphas_cci) {
     label = alpha
   )
   rows[[length(rows) + 1]] <-
-    zonal_wmean_latbands(time_mean(r_cci), area, band_deg = band_deg) |>
+    zonal_wmean_latbands(
+      time_mean(r_cci),
+      load_scenario_area("CCI", alpha, template = area),
+      band_deg = band_deg
+    ) |>
     as_tibble() |>
     rename(mean_yearamp = value) |>
     mutate(scenario = sprintf("CCI %s", gsub("alpha_", "alpha=", alpha)))
@@ -65,7 +69,11 @@ r_glc <- load_checked_raster(
   label = "GLC"
 )
 rows[[length(rows) + 1]] <-
-  zonal_wmean_latbands(time_mean(r_glc), area, band_deg = band_deg) |>
+  zonal_wmean_latbands(
+    time_mean(r_glc),
+    load_scenario_area("GLC", alpha_glc, template = area),
+    band_deg = band_deg
+  ) |>
   as_tibble() |>
   rename(mean_yearamp = value) |>
   mutate(scenario = "GLC")
@@ -74,7 +82,7 @@ zonal_tbl <- bind_rows(rows) |>
 # plot
 z_abs <- zonal_tbl |>
   filter(is.finite(mean_yearamp))
-p <- plot_seasonal_amplitude(z_abs)
+p <- plot_seasonal_amplitude(z_abs, var)
 out_png <- file.path(outdir_fig,
                      sprintf("zonal_yearamp_timeMean_%s_all_masks_alpha_0.1.png", var))
 out_pdf <- file.path(outdir_fig,
