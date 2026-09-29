@@ -125,6 +125,88 @@ trend_path_factory <- function(var,
   }
 }
 
+masked_lai_dir <- function(source,
+                           run_tag,
+                           grid_tag = "0p05") {
+  source_upper <- toupper(source)
+  if (!source_upper %in% c("CCI", "GLC")) {
+    stop("Unsupported masked LAI source: ", source)
+  }
+  if (is.null(run_tag) || is.na(run_tag) || !nzchar(run_tag)) {
+    stop("run_tag required for ", source, " masked LAI output")
+  }
+  here::here(
+    "output",
+    run_tag,
+    paste0("masked_", grid_tag),
+    "LAI",
+    paste0("masked_LAI_", source_upper)
+  )
+}
+
+combined_mask_path <- function(source,
+                               run_tag,
+                               grid_tag = "0p05") {
+  file.path(
+    masked_lai_dir(source, run_tag, grid_tag),
+    paste0("combined_mask_", grid_tag, ".tif")
+  )
+}
+
+scenario_area_path <- function(source,
+                               run_tag = NULL,
+                               grid_tag = "0p25") {
+  # Return the spatial-weight raster for an analysis scenario. The unmasked
+  # reference uses the post-nonvegetated valid-domain area. Masked scenarios
+  # use the area of 0.05-degree cells retained within each coarse grid cell.
+  source_lower <- tolower(source)
+  if (source_lower == "unmasked") {
+    return(here::here("src", sprintf("area_%s_validdomain_km2.nc", grid_tag)))
+  }
+
+  if (!source_lower %in% c("cci", "glc")) {
+    stop("Unsupported area-weight source: ", source)
+  }
+  if (is.null(run_tag) || is.na(run_tag) || !nzchar(run_tag)) {
+    stop("run_tag required for ", source, " retained-area weights")
+  }
+
+  alpha_token <- gsub(
+    ".",
+    "p",
+    sub("^alpha_", "", run_tag),
+    fixed = TRUE
+  )
+  here::here(
+    "src",
+    sprintf(
+      "area_%s_retained_%s_alpha_%s_km2.nc",
+      grid_tag,
+      source_lower,
+      alpha_token
+    )
+  )
+}
+
+load_scenario_area <- function(source,
+                               run_tag = NULL,
+                               template = NULL) {
+  # Load and validate the scenario-specific area weights.
+  path <- scenario_area_path(source, run_tag)
+  if (!file.exists(path)) {
+    stop(
+      "Missing scenario-specific area raster: ",
+      path,
+      ". Run R/analysis/00_area_validdomain_after_nonvegetated.R first."
+    )
+  }
+  area <- terra::rast(path)[[1]]
+  if (!is.null(template)) {
+    terra::compareGeom(area, template, stopOnError = TRUE)
+  }
+  area
+}
+
 analysis_raster_path <- function(var,
                                  met,
                                  source,
