@@ -660,17 +660,21 @@ write_quicklook_raster <- function(r,
 # Plots for analysis scripts
 # ------------------------------------------------------------------------------
 
-plot_timeseries <- function(df, trend_df, theme_pub) {
-  # Generate a time series plot using ggplot2, showing the original data (df),
-  # and trend lines (trend_df). The plot is faceted by metric and uses colour
-  # to distinguish masking scenarios.
-  cols <- c(
+mask_scenario_colours <- function() {
+  c(
     "Unmasked" = "black",
     "CCI alpha=0.05" = "#1b9e77",
     "CCI alpha=0.1" = "#d95f02",
     "CCI alpha=0.2" = "#7570b3",
     "GLC" = "#386cb0"
   )
+}
+
+plot_timeseries <- function(df, trend_df, theme_pub) {
+  # Generate a time series plot using ggplot2, showing the original data (df),
+  # and trend lines (trend_df). The plot is faceted by metric and uses colour
+  # to distinguish masking scenarios.
+  cols <- mask_scenario_colours()
   metric_labs <- c("Annual mean" = "(a) Annual mean", "Annual maximum" = "(b) Annual maximum")
   p <- ggplot() +
     geom_line(
@@ -728,8 +732,140 @@ plot_timeseries <- function(df, trend_df, theme_pub) {
   p
 }
 
+plot_trend_slope_sensitivity <- function(trend_stats, theme_pub) {
+  add_plot_columns <- function(data, label_prefix = "") {
+    data |>
+      dplyr::mutate(
+        scenario = as.character(.data$scenario),
+        slope_plot = 1000 * .data$slope,
+        ci_lower_plot = 1000 * .data$ci_lower,
+        ci_upper_plot = 1000 * .data$ci_upper,
+        slope_label = paste0(label_prefix, sprintf("%.2f", .data$slope_plot))
+      )
+  }
 
-plot_seasonal_amplitude <- function(z_abs) {
+  cci <- trend_stats |>
+    dplyr::filter(grepl("^CCI alpha=", .data$scenario)) |>
+    dplyr::mutate(alpha = as.numeric(sub("CCI alpha=", "", .data$scenario))) |>
+    add_plot_columns() |>
+    dplyr::mutate(label_y = .data$ci_upper_plot + 0.16)
+  glc <- trend_stats |>
+    dplyr::filter(.data$scenario == "GLC") |>
+    dplyr::mutate(alpha = 0.27) |>
+    add_plot_columns() |>
+    dplyr::mutate(label_y = .data$ci_upper_plot + 0.16)
+  unmasked <- trend_stats |>
+    dplyr::filter(.data$scenario == "Unmasked") |>
+    dplyr::mutate(alpha = 0.14) |>
+    add_plot_columns("Unmasked: ") |>
+    dplyr::mutate(label_y = .data$slope_plot + 0.47)
+  displayed <- dplyr::bind_rows(cci, glc)
+
+  metric_labels <- c(
+    "Annual mean" = "(c) Annual-mean trend slope",
+    "Annual maximum" = "(d) Annual-maximum trend slope"
+  )
+
+  ggplot() +
+    geom_rect(
+      data = unmasked,
+      aes(
+        xmin = -Inf,
+        xmax = Inf,
+        ymin = .data$ci_lower_plot,
+        ymax = .data$ci_upper_plot
+      ),
+      fill = "grey75",
+      alpha = 0.18,
+      inherit.aes = FALSE
+    ) +
+    geom_hline(
+      data = unmasked,
+      aes(yintercept = .data$slope_plot),
+      colour = "grey55",
+      linewidth = 0.65,
+      inherit.aes = FALSE
+    ) +
+    geom_vline(xintercept = 0.235, colour = "grey75", linewidth = 0.35) +
+    geom_line(
+      data = cci,
+      aes(.data$alpha, .data$slope_plot, group = 1),
+      colour = "grey35",
+      linewidth = 0.7
+    ) +
+    geom_errorbar(
+      data = displayed,
+      aes(
+        x = .data$alpha,
+        ymin = .data$ci_lower_plot,
+        ymax = .data$ci_upper_plot,
+        colour = .data$scenario
+      ),
+      width = 0.006,
+      linewidth = 0.65
+    ) +
+    geom_point(
+      data = displayed,
+      aes(.data$alpha, .data$slope_plot, colour = .data$scenario),
+      size = 2.8
+    ) +
+    geom_text(
+      data = displayed,
+      aes(
+        x = .data$alpha,
+        y = .data$label_y,
+        label = .data$slope_label,
+        colour = .data$scenario
+      ),
+      vjust = 0,
+      size = 3.5,
+      show.legend = FALSE
+    ) +
+    geom_text(
+      data = unmasked,
+      aes(
+        x = .data$alpha,
+        y = .data$label_y,
+        label = .data$slope_label
+      ),
+      colour = "grey35",
+      size = 3.5,
+      fontface = "bold",
+      inherit.aes = FALSE
+    ) +
+    facet_wrap(
+      ~metric,
+      nrow = 1,
+      labeller = labeller(metric = metric_labels)
+    ) +
+    scale_x_continuous(
+      breaks = c(0.05, 0.10, 0.20, 0.27),
+      labels = c("0.05", "0.10", "0.20", "GLC"),
+      expand = expansion(mult = c(0.06, 0.14))
+    ) +
+    scale_y_continuous(
+      limits = c(1.8, 5.5),
+      breaks = c(2, 3, 4, 5),
+      expand = expansion(mult = c(0, 0))
+    ) +
+    scale_colour_manual(values = mask_scenario_colours()) +
+    labs(
+      x = "CCI threshold / GLC",
+      y = expression("Trend slope (" ~ "×" ~ 10^-3 ~ m^2 ~ m^-2 ~ yr^-1 * ")")
+    ) +
+    theme_pub(base_size = 12) +
+    theme(
+      legend.position = "none",
+      strip.text = element_text(face = "bold", size = 12),
+      axis.title = element_text(size = 11.5),
+      axis.text = element_text(size = 10.5),
+      panel.grid.minor = element_blank(),
+      panel.grid.major = element_line(color = "grey90", linewidth = 0.2)
+    )
+}
+
+
+plot_seasonal_amplitude <- function(z_abs, var) {
   # Generate a zonal plot of mean absolute seasonal amplitude (z_abs) using
   # ggplot2, with latitude on the x-axis and mean amplitude on the y-axis. The
   # plot includes lines for different scenarios, custom colors, and labels. The
@@ -970,7 +1106,10 @@ plot_zonal_diagnostics <- function(df, ycol, ttl, ylab, y_limits = NULL) {
   p
 }
 
-plot_lc_trend <- function(plot_tab, plot_long, scale_factor) {
+plot_lc_trend <- function(plot_tab,
+                          plot_long,
+                          scale_factor,
+                          unit_label) {
   # Generate a land cover trend plot using ggplot2, showing trends and
   # confidence intervals for different land cover types. The plot includes
   # segments connecting unmasked and masked means, error bars for confidence
@@ -980,9 +1119,6 @@ plot_lc_trend <- function(plot_tab, plot_long, scale_factor) {
   finite_x <- finite_x[is.finite(finite_x)]
   x_min <- 0
   trend_xmax <- max(finite_x) + 0.3 * max(finite_x)
-  area_label_x <- max(finite_x) + 0.3 * max(finite_x)
-  area_header_x <- area_label_x
-  x_range <- trend_xmax - x_min
   p <- ggplot() +
     geom_segment(
       data = plot_tab,
@@ -1054,7 +1190,7 @@ plot_lc_trend <- function(plot_tab, plot_long, scale_factor) {
   p
 }
 
-plot_lc_abs_vs_rel <- function(plot_df) {
+plot_lc_abs_vs_rel <- function(plot_df, label_df, mask, alpha) {
   # Generate a scatter plot comparing absolute and relative LAI trends by land
   # cover type using ggplot2. The plot includes points sized by area, colored by
   # vegetation type, and labeled with land cover names. Horizontal and vertical
@@ -1126,7 +1262,7 @@ plot_lc_abs_vs_rel <- function(plot_df) {
 }
 
 
-plot_kg <- function(plot_long) {
+plot_kg <- function(plot_tab, plot_long, unit_label) {
   # Generate a plot for kg trends using ggplot2, showing trends and confidence
   # intervals for different kg labels. The plot includes error bars for
   # confidence intervals, points for trends, and a vertical reference line at
