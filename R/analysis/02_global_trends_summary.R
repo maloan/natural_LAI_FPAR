@@ -33,16 +33,7 @@ if (nrow(area) != 720L || ncol(area) != 1440L) {
 }
 block_id <- make_block_id(area, block_size_deg = 5)
 
-scenario_weights <- setNames(
-  lapply(seq_len(nrow(scenario_spec)), function(i) {
-    sc <- scenario_spec[i, ]
-    values(
-      load_scenario_area(sc$source, sc$run_tag, template = area),
-      dataframe = FALSE
-    )
-  }),
-  scenario_spec$scenario
-)
+baseline_land_weights <- values(load_summary_area(template = area), dataframe = FALSE)
 
 summarise_trend_kind <- function(is_relative) {
   results <- list()
@@ -61,7 +52,7 @@ summarise_trend_kind <- function(is_relative) {
           sc$scenario,
           template = area
         )
-        weights <- scenario_weights[[sc$scenario]]
+        weights <- baseline_land_weights
         if (length(trend_values) != length(weights)) {
           stop("Geometry mismatch for ", sc$scenario)
         }
@@ -121,6 +112,10 @@ summarise_trend_kind <- function(is_relative) {
 
 write_trend_tables <- function(tab, is_relative) {
   kind <- if (is_relative) "relative" else "absolute"
+  write_csv(
+    tab,
+    file.path(outdir, sprintf("global_mean_%s_trends_long_full_precision.csv", kind))
+  )
   main <- tab |>
     filter(.data$variable == "LAI", .data$metric == "yearmean") |>
     round_numeric(5)
