@@ -135,14 +135,9 @@ predict_trend_line <- function(d, y_col = "value", x_col = "year") {
   tibble::tibble(!!x_col := d[[x_col]], fit = stats::predict(m, newdata = d))
 }
 
-# Load each scenario's area weights once, then reuse them for both metrics.
-scenario_areas <- setNames(
-  lapply(seq_len(nrow(scenario_spec)), function(i) {
-    sc <- scenario_spec[i, ]
-    load_scenario_area(sc$source, sc$run_tag, template = area)
-  }),
-  scenario_spec$scenario
-)
+# Every valid coarse-cell estimate carries the same fixed post-nonvegetated
+# area weight, independently of the land-use masking scenario.
+summary_area <- load_summary_area(template = area)
 
 rows <- list()
 for (metric in metrics) {
@@ -161,7 +156,7 @@ for (metric in metrics) {
     )
     rows[[length(rows) + 1]] <- make_series(
       metric_raster,
-      scenario_areas[[sc$scenario]],
+      summary_area,
       year0
     ) |>
       mutate(metric = metric, scenario = sc$scenario)
