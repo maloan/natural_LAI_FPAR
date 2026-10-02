@@ -6,7 +6,6 @@ suppressPackageStartupMessages({
   library(terra)
   library(dplyr)
   library(here)
-  library(kgc)
   library(ggplot2)
   library(ggrepel)
   library(tidyr)
@@ -17,6 +16,7 @@ source(here::here("R", "helpers", "cli_args.R"))
 source(here::here("R", "helpers", "bootstrap_ci.R"))
 source(here::here("R", "helpers", "plotting.R"))
 source(here::here("R", "helpers", "io.R"))
+source(here::here("R", "helpers", "kg_classification.R"))
 
 default_cfg <- list(
   alpha = "alpha_0.1",
@@ -24,29 +24,29 @@ default_cfg <- list(
   var = "LAI",
   metric = "yearmean",
   use_relative = FALSE,
-  kg_res = "coarse",
-  chunk_size = 500L,
   n_boot = 1000L,
   conf = 0.95
 )
 
-cfg <- parse_cli_args(default_cfg)
-
+run_kg_summary <- function(cfg) {
 alpha <- as.character(cfg$alpha)
 mask <- as.character(cfg$mask)
 var <- as.character(cfg$var)
 metric <- as.character(cfg$metric)
 use_relative <- isTRUE(cfg$use_relative)
-kg_res <- as.character(cfg$kg_res)
-chunk_size <- as.integer(cfg$chunk_size)
 n_boot <- as.integer(cfg$n_boot)
 conf <- as.numeric(cfg$conf)
+stopifnot(n_boot >= 2L, conf > 0, conf < 1)
+message("Climate summary: nominal 100-arc-second classification, relative=", use_relative)
+terraOptions(progress = 0)
 
 ref025 <- terra::rast(here::here("src", "ref_0p25.nc"))
-area <- rast(here::here("src", "area_0p25_validdomain_km2.nc"))[[1]]
+area_land <- rast(here::here("src", "area_0p25_validdomain_km2.nc"))[[1]]
+area <- load_summary_area(template = area_land)
 
+land_vals <- terra::values(area_land, dataframe = FALSE)
 area_vals <- terra::values(area, dataframe = FALSE)
-valid_domain_cells <- which(is.finite(area_vals) & area_vals > 0)
+valid_domain_cells <- which(is.finite(land_vals) & land_vals > 0)
 block_id <- make_block_id(area, block_size_deg = 5)
 
 if (use_relative) {
@@ -58,7 +58,7 @@ if (use_relative) {
   trend_suffix <- "trend_slope_peryear"
   suffix <- "abs"
   scale_factor <- 1
-  unit_label <- expression("LAI trend (m"^2 * " m"^-2 * " yr"^-1 * ")")
+  unit_label <- expression("LAI trend (" ~ "×" ~ 10^-3 ~ m^2 ~ m^-2 ~ yr^-1 * ")")
 }
 
 f_unm <- here::here(
@@ -76,8 +76,8 @@ f_msk <- here::here(
   sprintf("%s_%s_%s_0p25.nc", var, metric, trend_suffix)
 )
 
-outdir_fig <- here::here("analysis", "results", "figures", "summaries")
-outdir_tbl <- here::here("analysis", "results", "tables", "koppen_geiger")
+outdir_fig <- kg_output_dir("figures")
+outdir_tbl <- kg_output_dir("tables")
 dir_kg_grid <- here::here("analysis", "results", "tmp", "kg_grid")
 
 dir.create(outdir_fig, recursive = TRUE, showWarnings = FALSE)
@@ -90,21 +90,6 @@ if (!file.exists(f_unm)) {
 
 if (!file.exists(f_msk)) {
   stop("Missing masked trend file: ", f_msk, call. = FALSE)
-}
-
-lookup_cz_chunked <- function(pts,
-                              chunk_size = 50000L,
-                              res = "coarse") {
-  n <- nrow(pts)
-  out <- character(n)
-  starts <- seq.int(1L, n, by = chunk_size)
-
-  for (k in seq_along(starts)) {
-    i1 <- starts[k]
-    i2 <- min(n, i1 + chunk_size - 1L)
-    out[i1:i2] <- as.character(kgc::LookupCZ(pts[i1:i2, ], res = res, rc = TRUE))
-  }
-  out
 }
 
 kg_code2_name <- local({
@@ -179,7 +164,7 @@ r_msk <- terra::rast(f_msk)[[1]]
 
 r_unm <- align_to_template(r_unm, ref025, method = "bilinear")
 r_msk <- align_to_template(r_msk, ref025, method = "bilinear")
-area_msk <- load_scenario_area(mask, alpha, template = area)
+area_msk <- load_summary_area(template = area)
 
 stopifnot(
   terra::compareGeom(ref025, r_unm, stopOnError = TRUE),
@@ -190,31 +175,25 @@ stopifnot(
 
 block_id_sub <- block_id[valid_domain_cells]
 
-kg_cache <- file.path(dir_kg_grid, sprintf("kg_code_grid_%s.rds", kg_res))
-if (file.exists(kg_cache)) {
-  kg_code <- readRDS(kg_cache)
+classification <- kg_grid(
+  ref025,
+  valid_domain_cells,
+  resolution = "fine",
+  cache_dir = dir_kg_grid
+)
+kg_code <- classification$code
 
-  if (length(kg_code) != terra::ncell(ref025)) {
-    stop(
-      "Cached KG grid has wrong length. Delete cache and rerun: ",
-      kg_cache
-    )
-  }
-} else {
-  xy <- terra::xyFromCell(ref025, valid_domain_cells)
-
-  pts <- data.frame(
-    Site = seq_len(nrow(xy)),
-    Longitude = xy[, 1],
-    Latitude = xy[, 2]
-  )
-
-  kg_code_valid <- lookup_cz_chunked(pts, chunk_size = chunk_size, res = kg_res)
-  kg_code <- rep(NA_character_, terra::ncell(ref025))
-  kg_code[valid_domain_cells] <- kg_code_valid
-
-  saveRDS(kg_code, kg_cache)
-}
+coverage <- dplyr::bind_rows(lapply(c("unmasked", "masked"), function(role) {
+  x <- if (role == "unmasked") values(r_unm, mat = FALSE) else values(r_msk, mat = FALSE)
+  w <- if (role == "unmasked") area_vals else values(area_msk, mat = FALSE)
+  valid <- is.finite(x) & is.finite(w) & w > 0
+  classified <- valid & !is.na(kg_code)
+  tibble(role = role, valid_cells = sum(valid), classified_cells = sum(classified),
+         valid_area_km2 = sum(w[valid]), classified_area_km2 = sum(w[classified]),
+         unclassified_area_pct = 100 * sum(w[valid & !classified]) / sum(w[valid]),
+         classified_mean = weighted.mean(x[classified], w[classified]))
+}))
+write_csv(coverage, file.path(outdir_tbl, paste0("kg_coverage_", var, "_", metric, "_", suffix, ".csv")))
 
 codes3 <- sort(unique(kg_code))
 codes3 <- codes3[!is.na(codes3) & codes3 != ""]
@@ -229,9 +208,8 @@ codes2 <- codes2[!is.na(codes2) & codes2 != ""]
 
 kg3_id <- make_kg_raster(ref025, kg_code, codes3, "kg3_id")
 kg2_id <- make_kg_raster(ref025, kg_code2, codes2, "kg2_id")
-#  masks and base weights
+# Valid coarse-cell estimates represent the fixed post-nonvegetated support.
 w_unm <- terra::ifel(!is.na(r_unm), area, NA_real_)
-# Use the actual 0.05-degree area retained within each 0.25-degree cell.
 w_msk <- terra::ifel(!is.na(r_msk), area_msk, NA_real_)
 # The excluded-domain trend is defined only for fully excluded coarse cells.
 # Excluded fine-cell trends within partially retained cells are unavailable.
@@ -439,8 +417,14 @@ out_kg2 <- file.path(
   sprintf("kg2_summary_%s_%s_%s_%s.csv", var, metric, mask, suffix)
 )
 
-write_csv(round_numeric(kg_full, 5), out_full)
-write_csv(round_numeric(kg2_summary, 5), out_kg2)
+add_provenance <- function(x) mutate(x,
+  kg_nominal_degrees = classification$nominal_degrees, kg_grid_signature = classification$signature,
+  kgc_version = as.character(packageVersion("kgc")), bootstrap_replicates = n_boot,
+  bootstrap_confidence = conf, bootstrap_block_degrees = 5)
+kg_full <- add_provenance(kg_full)
+kg2_summary <- add_provenance(kg2_summary)
+write_csv(kg_full, out_full)
+write_csv(kg2_summary, out_kg2)
 
 valid_kg2 <- c(
   "Af",
@@ -448,6 +432,7 @@ valid_kg2 <- c(
   "As",
   "Aw",
   "BS",
+  "BW",
   "Cf",
   "Cs",
   "Cw",
@@ -516,6 +501,13 @@ plot_tab <- plot_tab |>
 plot_long <- plot_long |>
   mutate(kg_label = factor(kg_label, levels = kg_levels))
 
+if (!use_relative) {
+  plot_tab <- plot_tab |>
+    mutate(across(c(mean_unmasked, mean_masked, ci_unm_lower, ci_unm_upper,
+                    ci_msk_lower, ci_msk_upper), ~ 1000 * .x))
+  plot_long <- plot_long |>
+    mutate(across(c(trend, ci_lower, ci_upper), ~ 1000 * .x))
+}
 p <- plot_kg(plot_tab, plot_long, unit_label)
 
 out_png <- file.path(
@@ -549,3 +541,8 @@ ggsave(out_png,
   dpi = 320
 )
 ggsave(out_pdf, p, width = 8.2, height = 5.4)
+invisible(list(subzone = kg_full, group = kg2_summary, coverage = coverage))
+}
+
+cfg <- parse_cli_args(default_cfg)
+run_kg_summary(cfg)
