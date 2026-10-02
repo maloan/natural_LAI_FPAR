@@ -76,6 +76,8 @@ if (length(missing_files) > 0) {
 
 abs_unm <- rast(f_abs_unm)[[1]]
 abs_msk <- rast(f_abs_msk)[[1]]
+abs_unm <- 1000 * abs_unm
+abs_msk <- 1000 * abs_msk
 rel_unm <- rast(f_rel_unm)[[1]]
 rel_msk <- rast(f_rel_msk)[[1]]
 p_unm <- rast(f_p_unm)[[1]]
@@ -122,7 +124,7 @@ df_grey_rel_out <- to_df(grey_out_rel, "g") |> dplyr::filter(g == 1)
 
 # panel titles
 col_titles <- c("Unmasked", "Masked")
-fill_abs <- expression("Trend (m"^2 * " m"^{
+fill_abs <- expression("Trend (" ~ "×" ~ 10^-3 ~ "m"^2 * " m"^{
   -2
 } * " yr"^{
   -1
