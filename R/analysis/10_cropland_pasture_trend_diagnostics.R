@@ -51,6 +51,7 @@ outpdf <- file.path(
 
 f_area005 <- here("src", "area_0p05_validdomain_km2.nc")
 f_area025 <- here("src", "area_0p25_validdomain_km2.nc")
+f_area025_full <- here("src", "area_0p25_validdomain_km2.nc")
 f_abs_tr <- here(
   "analysis",
   "unmasked",
@@ -92,6 +93,7 @@ f_mask_luh_005 <- here(
 required_files <- c(
   f_area005,
   f_area025,
+  f_area025_full,
   f_abs_tr,
   f_rel_tr,
   f_p_tr,
@@ -105,6 +107,7 @@ if (length(missing_files) > 0) {
 
 area005 <- rast(f_area005)[[1]]
 area025 <- rast(f_area025)[[1]]
+area025_full <- rast(f_area025_full)[[1]]
 abs_tr <- rast(f_abs_tr)[[1]]
 rel_tr <- rast(f_rel_tr)[[1]]
 p_tr <- rast(f_p_tr)[[1]]
@@ -164,8 +167,8 @@ full_cci_025 <- is.finite(w_cci) & is.finite(area025) &
 full_luh_025 <- is.finite(w_luh) & is.finite(area025) &
   area025 > 0 & (w_luh / area025) >= 0.999
 
-w_cci_map <- ifel(full_cci_025, area025, NA)
-w_luh_map <- ifel(full_luh_025, area025, NA)
+w_cci_map <- ifel(full_cci_025, area025_full, NA)
+w_luh_map <- ifel(full_luh_025, area025_full, NA)
 
 s_cci_abs <- weighted_stats(abs_tr, w_cci_map)
 s_cci_rel <- weighted_stats(rel_tr, w_cci_map)
@@ -186,6 +189,8 @@ map_cci_abs <- mk_map_df(abs_tr, w_cci_map, area025, min_excl_frac = 0)
 map_cci_rel <- mk_map_df(rel_tr, w_cci_map, area025, min_excl_frac = 0)
 map_luh_abs <- mk_map_df(abs_tr, w_luh_map, area025, min_excl_frac = 0)
 map_luh_rel <- mk_map_df(rel_tr, w_luh_map, area025, min_excl_frac = 0)
+map_cci_abs$value <- 1000 * map_cci_abs$value
+map_luh_abs$value <- 1000 * map_luh_abs$value
 map_cci_nonsig <- mk_nonsig_df(p_tr,
   w_cci_map,
   area025,
@@ -204,7 +209,7 @@ sym_vec_lim <- function(x, q = 0.95) {
 }
 lims_abs <- sym_vec_lim(c(map_cci_abs$value, map_luh_abs$value), q = limit_q)
 lims_rel <- sym_vec_lim(c(map_cci_rel$value, map_luh_rel$value), q = limit_q)
-fill_abs <- expression("Absolute trend (" * m^2 ~ m^{
+fill_abs <- expression("Absolute trend (" ~ "×" ~ 10^-3 ~ m^2 ~ m^{
   -2
 } ~ yr^
   {
