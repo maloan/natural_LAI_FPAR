@@ -117,7 +117,7 @@ for (met in metrics) {
       label = paste("CCI", alpha),
       first_layer = TRUE
     )
-    area_cci <- load_scenario_area("CCI", alpha, template = area)
+    area_cci <- load_summary_area(template = area)
     rows[[length(rows) + 1]] <- zonal_wmean_latbands_ci(
       r_cci,
       area_cci,
@@ -138,7 +138,7 @@ for (met in metrics) {
     sprintf("GLC absolute-trend raster (%s, %s)", met, alpha_glc)
   )
   r_glc <- load_checked_raster(f_glc, area, label = "GLC", first_layer = TRUE)
-  area_glc <- load_scenario_area("GLC", alpha_glc, template = area)
+  area_glc <- load_summary_area(template = area)
   rows[[length(rows) + 1]] <- zonal_wmean_latbands_ci(
     r_glc,
     area_glc,
@@ -166,6 +166,10 @@ df <- bind_rows(rows) |>
   )
 
 # write table
+write_csv(df, file.path(
+  outdir_tbl,
+  sprintf("zonal_absolute_trends_all_masks_%s_full_precision.csv", alpha_glc)
+))
 write_csv(round_numeric(df, 5), file.path(
   outdir_tbl,
   sprintf("zonal_absolute_trends_all_masks_%s.csv", alpha_glc)
