@@ -10,6 +10,86 @@ pal_green <- function(n = 64) {
   # Return a green color palette for plotting, using HCL colors.
   hcl.colors(n, "Greens", rev = TRUE)
 }
+plot_class_trend_panel <- function(data, title, x_label, tag, scale_factor = 1,
+                                   scenario_labels = c("Masked", "Unmasked")) {
+  panel_data <- data |>
+    dplyr::mutate(
+      dplyr::across(
+        c(masked, unmasked, masked_lower, masked_upper, unmasked_lower, unmasked_upper),
+        ~ .x * scale_factor
+      )
+    ) |>
+    dplyr::arrange(masked) |>
+    dplyr::mutate(retained_label = factor(retained_label, levels = retained_label))
+
+  plot_data <- panel_data |>
+    dplyr::select(
+      retained_label,
+      masked,
+      unmasked,
+      masked_lower,
+      masked_upper,
+      unmasked_lower,
+      unmasked_upper
+    ) |>
+    tidyr::pivot_longer(
+      cols = c(masked, unmasked),
+      names_to = "scenario",
+      values_to = "trend"
+    ) |>
+    dplyr::mutate(
+      lower = dplyr::if_else(scenario == "masked", masked_lower, unmasked_lower),
+      upper = dplyr::if_else(scenario == "masked", masked_upper, unmasked_upper),
+      scenario = factor(
+        scenario,
+        levels = c("masked", "unmasked"),
+        labels = scenario_labels
+      )
+    )
+
+  position <- position_dodge(width = 0.72)
+
+  ggplot(plot_data, aes(x = trend, y = retained_label, fill = scenario)) +
+    geom_col(width = 0.62, position = position, colour = NA) +
+    geom_errorbar(
+      aes(xmin = lower, xmax = upper),
+      width = 0.20,
+      position = position,
+      orientation = "y",
+      linewidth = 0.35,
+      colour = "grey20"
+    ) +
+    geom_vline(xintercept = 0, linewidth = 0.35, colour = "grey35") +
+    scale_fill_manual(
+      values = stats::setNames(c("#4472A8", "#c7c7c7"), scenario_labels),
+      breaks = scenario_labels,
+      name = NULL
+    ) +
+    scale_x_continuous(
+      breaks = scales::breaks_pretty(n = 5),
+      expand = expansion(mult = c(0.01, 0.05))
+    ) +
+    labs(
+      title = title,
+      x = x_label,
+      y = NULL,
+      tag = tag
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+      panel.grid.major.y = element_blank(),
+      panel.grid.minor = element_blank(),
+      axis.text.y = element_text(size = 11, colour = "grey15"),
+      axis.text.x = element_text(size = 11, colour = "grey20"),
+      axis.title.x = element_text(size = 11),
+      plot.title = element_text(face = "bold", size = 12),
+      plot.tag = element_text(face = "bold", size = 11.5),
+      legend.text = element_text(size = 10.5),
+      legend.position = "bottom",
+      legend.justification = "left",
+      plot.margin = margin(6, 8, 6, 6)
+    )
+}
 pal_mask <- c("#f0f0f0", "#d73027") # 0 keep, 1 drop
 col_na <- "#bdbdbd"
 lat_labels <- function(x) {
