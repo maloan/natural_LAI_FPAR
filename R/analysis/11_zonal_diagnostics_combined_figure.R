@@ -49,7 +49,10 @@ df_amp <- read_csv(f_amp, show_col_types = FALSE)
 
 scenario_levels <- c("Unmasked", "CCI alpha=0.05", "CCI alpha=0.1", "CCI alpha=0.2", "GLC")
 df_abs <- df_abs |>
-  mutate(scenario = factor(.data$scenario, levels = scenario_levels))
+  mutate(
+    scenario = factor(.data$scenario, levels = scenario_levels),
+    across(c(abstrend_m2m2yr, ci_lower, ci_upper), ~ 1000 * .x)
+  )
 df_amp <- df_amp |>
   mutate(scenario = factor(.data$scenario, levels = scenario_levels))
 
@@ -69,7 +72,7 @@ p1 <- plot_zonal_diagnostics(
   df_abs_mean,
   "abstrend_m2m2yr",
   "Annual Mean Absolute Trend",
-  expression("Absolute trend (m"^2 * " m"^-2 * " yr"^
+  expression("Absolute trend (" ~ "×" ~ 10^-3 ~ "m"^2 * " m"^-2 * " yr"^
     {
       -1
     } * ")"),
@@ -80,7 +83,7 @@ p2 <- plot_zonal_diagnostics(
   df_abs_max,
   "abstrend_m2m2yr",
   "Annual Maximum Absolute Trend",
-  expression("Absolute trend (m"^2 * " m"^-2 * " yr"^
+  expression("Absolute trend (" ~ "×" ~ 10^-3 ~ "m"^2 * " m"^-2 * " yr"^
     {
       -1
     } * ")"),
