@@ -32,6 +32,7 @@ run_r R/analysis/01_masking_footprint_summary.R
 
 # Global and zonal trend summaries.
 run_r R/analysis/02_global_trends_summary.R
+run_r R/analysis/03_matched_period_annual_mean_trends.R
 run_r R/analysis/04_global_absolute_trends_timeseries.R
 run_r R/analysis/05_zonal_seasonal_amplitude.R
 run_r R/analysis/06_zonal_absolute_trends_all_masks.R
@@ -43,13 +44,16 @@ run_r R/analysis/09_lai_yearmax_trend_maps.R
 run_r R/analysis/10_cropland_pasture_trend_diagnostics.R
 run_r R/analysis/11_zonal_diagnostics_combined_figure.R
 
-# Land-cover summaries require exact class-area weights and both trend variants.
+# Land-cover summaries use a dominant 0.25-degree class and the fixed
+# post-nonvegetated support area.
 echo
-run_r R/analysis/12_0_landcover_class_area_weights.R
+run_r R/12_make_lc025_fractions.R
+run_r R/analysis/12_0_landcover_dominant_class.R
 run_r R/analysis/12_a_landcover_trend_summary.R use_relative=false
 run_r R/analysis/12_a_landcover_trend_summary.R use_relative=true
 
-# Produce both absolute and relative climate-zone summaries.
+# Produce absolute and relative climate-zone summaries from the nominal
+# 100-arc-second Köppen-Geiger classification.
 run_r R/analysis/13_kg_trend_summary.R use_relative=false
 run_r R/analysis/13_kg_trend_summary.R use_relative=true
 run_r R/analysis/14_climate_landcover_trend_figure.R
