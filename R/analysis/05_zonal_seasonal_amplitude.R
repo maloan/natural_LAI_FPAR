@@ -56,7 +56,7 @@ for (alpha in alphas_cci) {
   rows[[length(rows) + 1]] <-
     zonal_wmean_latbands(
       time_mean(r_cci),
-      load_scenario_area("CCI", alpha, template = area),
+      load_summary_area(template = area),
       band_deg = band_deg
     ) |>
     as_tibble() |>
@@ -71,7 +71,7 @@ r_glc <- load_checked_raster(
 rows[[length(rows) + 1]] <-
   zonal_wmean_latbands(
     time_mean(r_glc),
-    load_scenario_area("GLC", alpha_glc, template = area),
+    load_summary_area(template = area),
     band_deg = band_deg
   ) |>
   as_tibble() |>
@@ -90,6 +90,7 @@ out_pdf <- file.path(outdir_fig,
 # write output
 out_csv <- file.path(outdir_tbl,
                      sprintf("zonal_yearamp_timeMean_%s_all_masks_alpha_0.1.csv", var))
+write_csv(zonal_tbl, sub("\\.csv$", "_full_precision.csv", out_csv))
 write_csv(round_numeric(zonal_tbl, 5), out_csv)
 ggsave(out_png,
        p,
