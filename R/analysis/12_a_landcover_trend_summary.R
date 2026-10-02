@@ -1,5 +1,5 @@
 # ==============================================================================
-# 12_a_landcover_trend_summary.R — Fractional land-cover class trend summaries
+# 12_a_landcover_trend_summary.R — Dominant land-cover class trend summaries
 # ==============================================================================
 
 suppressPackageStartupMessages({
@@ -57,7 +57,7 @@ if (is.na(cfg$lc_year_start) ||
 lc_years <- cfg$lc_year_start:cfg$lc_year_end
 
 # paths
-lc_area_dir <- here("analysis", "tmp", "lc025_class_area_weights")
+lc_class_dir <- here("analysis", "tmp", "lc025_dominant_class")
 outdir_fig <- here("analysis", "results", "figures", "summaries")
 outdir_tbl <- here("analysis", "results", "tables", "land_cover")
 
@@ -65,9 +65,11 @@ dir.create(outdir_fig, recursive = TRUE, showWarnings = FALSE)
 dir.create(outdir_tbl, recursive = TRUE, showWarnings = FALSE)
 
 ref025 <- terra::rast(here::here("src", "ref_0p25.nc"))
-area <- rast(here::here("src", "area_0p25_validdomain_km2.nc"))[[1]]
+area_land <- rast(here::here("src", "area_0p25_validdomain_km2.nc"))[[1]]
+area <- load_summary_area(template = area_land)
 area_vals <- terra::values(area, dataframe = FALSE)
-valid_domain_cells <- which(is.finite(area_vals) & area_vals > 0)
+land_vals <- terra::values(area_land, dataframe = FALSE)
+valid_domain_cells <- which(is.finite(land_vals) & land_vals > 0)
 block_id <- make_block_id(area, block_size_deg = 5)
 
 trend_files <- function(use_relative) {
@@ -145,47 +147,23 @@ nonveg_lc_ids <- c(
   220L # Permanent snow and ice
 )
 
-# Read class-specific areas aggregated from 0.05 degrees. These weights retain
-# the spatial association between land-cover classes and the fine-resolution
-# mask; multiplying a coarse class fraction by a coarse retained-area fraction
-# would assume that each class is uniformly distributed within the cell.
-scenario_token <- paste0(tolower(mask), "_", gsub("\\.", "p", alpha))
-class_area_unm_file <- file.path(
-  lc_area_dir,
-  sprintf(
-    "lc025_class_area_unmasked_mean_%d-%d.tif",
-    min(lc_years),
-    max(lc_years)
-  )
+# Read the fixed dominant class. Land-cover fractions are used only for class
+# assignment and are not statistical weights.
+dominant_lc_file <- file.path(
+  lc_class_dir,
+  sprintf("lc025_dominant_mean_%d-%d.tif", min(lc_years), max(lc_years))
 )
-class_area_msk_file <- file.path(
-  lc_area_dir,
-  sprintf(
-    "lc025_class_area_retained_%s_mean_%d-%d.tif",
-    scenario_token,
-    min(lc_years),
-    max(lc_years)
-  )
-)
-missing_lc_area <- c(class_area_unm_file, class_area_msk_file)[
-  !file.exists(c(class_area_unm_file, class_area_msk_file))
-]
-if (length(missing_lc_area)) {
+if (!file.exists(dominant_lc_file)) {
   stop(
-    "Missing class-area weights. Run ",
-    "R/analysis/12_0_landcover_class_area_weights.R first:\n",
-    paste(missing_lc_area, collapse = "\n")
+    "Missing dominant land-cover classification. Run ",
+    "R/analysis/12_0_landcover_dominant_class.R first:\n",
+    dominant_lc_file
   )
 }
-class_area_unm <- rast(class_area_unm_file)
-class_area_msk <- rast(class_area_msk_file)
-stopifnot(
-  compareGeom(class_area_unm, ref025, stopOnError = TRUE),
-  compareGeom(class_area_msk, ref025, stopOnError = TRUE)
-)
-if (!identical(names(class_area_unm), names(class_area_msk))) {
-  stop("Unmasked and retained class-area layers do not match", call. = FALSE)
-}
+dominant_lc <- rast(dominant_lc_file)[[1]]
+stopifnot(compareGeom(dominant_lc, ref025, stopOnError = TRUE))
+dominant_lc_values <- as.integer(terra::values(dominant_lc, dataframe = FALSE))
+lc_ids <- sort(unique(dominant_lc_values[is.finite(dominant_lc_values)]))
 
 # read trends
 tf <- trend_files(use_relative)
@@ -193,38 +171,37 @@ r_unm <- rast(tf$unm)[[1]]
 r_msk <- rast(tf$msk)[[1]]
 r_unm <- align_to_template(r_unm, ref025, method = "bilinear")
 r_msk <- align_to_template(r_msk, ref025, method = "bilinear")
+r_unm_all <- terra::values(r_unm, dataframe = FALSE)
+r_msk_all <- terra::values(r_msk, dataframe = FALSE)
 
 if (use_relative) {
   scale_factor <- 1
+  plot_scale_factor <- 1
   suffix <- "rel"
   unit_label <- "% yr-1"
 } else {
   scale_factor <- 1
+  plot_scale_factor <- 1000
   suffix <- "abs"
-  unit_label <- sprintf("%s yr-1", var)
+  unit_label <- expression("LAI trend (" ~ "×" ~ 10^-3 ~ m^2 ~ m^-2 ~ yr^-1 * ")")
 }
 
-# Class-area rasters already contain the correct unmasked or retained area.
-# Excluded-domain summaries remain restricted to fully excluded 0.25-degree
-# cells because excluded fine-cell trends within partially retained cells are
-# unavailable in the coarse trend rasters.
-summarise_fraction_class <- function(area_unm_cls, area_msk_cls, lc_id) {
-  w_unm_cls <- ifel(is.finite(r_unm), area_unm_cls, NA_real_)
-  w_msk_cls <- ifel(is.finite(r_msk), area_msk_cls, NA_real_)
-  w_out_cls <- ifel(
-    is.finite(r_unm) & !is.finite(r_msk),
-    area_unm_cls,
-    NA_real_
-  )
+# Each valid class member receives its fixed post-nonvegetated support area.
+# Excluded-domain summaries remain restricted to cells without a masked trend.
+summarise_dominant_class <- function(lc_id) {
+  member <- dominant_lc_values == lc_id
+  w_unm_cls <- ifelse(member & is.finite(r_unm_all), area_vals, NA_real_)
+  w_msk_cls <- ifelse(member & is.finite(r_msk_all), area_vals, NA_real_)
+  w_out_cls <- ifelse(member & is.finite(r_unm_all) & !is.finite(r_msk_all), area_vals, NA_real_)
 
-  den_unm <- global(w_unm_cls, "sum", na.rm = TRUE)[1, 1]
-  den_msk <- global(w_msk_cls, "sum", na.rm = TRUE)[1, 1]
-  den_out_full_cells <- global(w_out_cls, "sum", na.rm = TRUE)[1, 1]
+  den_unm <- sum(w_unm_cls, na.rm = TRUE)
+  den_msk <- sum(w_msk_cls, na.rm = TRUE)
+  den_out_full_cells <- sum(w_out_cls, na.rm = TRUE)
   den_excluded <- max(den_unm - den_msk, 0)
 
-  num_unm <- global(r_unm * w_unm_cls, "sum", na.rm = TRUE)[1, 1]
-  num_msk <- global(r_msk * w_msk_cls, "sum", na.rm = TRUE)[1, 1]
-  num_out_full_cells <- global(r_unm * w_out_cls, "sum", na.rm = TRUE)[1, 1]
+  num_unm <- sum(r_unm_all * w_unm_cls, na.rm = TRUE)
+  num_msk <- sum(r_msk_all * w_msk_cls, na.rm = TRUE)
+  num_out_full_cells <- sum(r_unm_all * w_out_cls, na.rm = TRUE)
 
   tibble::tibble(
     lc_id = lc_id,
@@ -242,9 +219,8 @@ summarise_fraction_class <- function(area_unm_cls, area_msk_cls, lc_id) {
   )
 }
 
-lc_ids <- as.integer(sub("^lc_", "", names(class_area_unm)))
-lc_tab <- purrr::map2_dfr(seq_len(nlyr(class_area_unm)), lc_ids, function(i, id) {
-  summarise_fraction_class(class_area_unm[[i]], class_area_msk[[i]], id)
+lc_tab <- purrr::map_dfr(lc_ids, function(id) {
+  summarise_dominant_class(id)
 }) |>
   mutate(across(starts_with("mean_"), ~ ifelse(is.finite(.x), .x, NA_real_))) |>
   left_join(lc_legend, by = "lc_id") |>
@@ -252,9 +228,9 @@ lc_tab <- purrr::map2_dfr(seq_len(nlyr(class_area_unm)), lc_ids, function(i, id)
   arrange(desc(abs(mean_masked)))
 
 # Subset shared bootstrap inputs once.
-r_unm_vals <- terra::values(r_unm, dataframe = FALSE)[valid_domain_cells] *
+r_unm_vals <- r_unm_all[valid_domain_cells] *
   scale_factor
-r_msk_vals <- terra::values(r_msk, dataframe = FALSE)[valid_domain_cells] *
+r_msk_vals <- r_msk_all[valid_domain_cells] *
   scale_factor
 block_id_sub <- block_id[valid_domain_cells]
 
@@ -264,19 +240,16 @@ pb <- txtProgressBar(
   style = 3
 )
 
-ci_list <- purrr::map2_dfr(seq_len(nlyr(class_area_unm)), lc_ids, function(i, id) {
+ci_list <- purrr::map2_dfr(seq_along(lc_ids), lc_ids, function(i, id) {
   setTxtProgressBar(pb, i)
+  member_vals <- dominant_lc_values[valid_domain_cells] == id
+  area_sub <- area_vals[valid_domain_cells]
 
-  class_area_unm_all <- terra::values(class_area_unm[[i]], dataframe = FALSE)
-  class_area_msk_all <- terra::values(class_area_msk[[i]], dataframe = FALSE)
-  class_area_unm_vals <- class_area_unm_all[valid_domain_cells]
-  class_area_msk_vals <- class_area_msk_all[valid_domain_cells]
-
-  w_unm_cls <- ifelse(is.finite(r_unm_vals), class_area_unm_vals, NA_real_)
-  w_msk_cls <- ifelse(is.finite(r_msk_vals), class_area_msk_vals, NA_real_)
+  w_unm_cls <- ifelse(member_vals & is.finite(r_unm_vals), area_sub, NA_real_)
+  w_msk_cls <- ifelse(member_vals & is.finite(r_msk_vals), area_sub, NA_real_)
   w_out_cls <- ifelse(
-    is.finite(r_unm_vals) & !is.finite(r_msk_vals),
-    class_area_unm_vals,
+    member_vals & is.finite(r_unm_vals) & !is.finite(r_msk_vals),
+    area_sub,
     NA_real_
   )
 
@@ -345,6 +318,7 @@ out_csv_full <- file.path(
   sprintf("lc_fraction_class_%s_%s_%s_%s.csv", var, metric, mask, suffix)
 )
 
+write_csv(lc_tab, sub("\\.csv$", "_full_precision.csv", out_csv_full))
 write_csv(round_numeric(lc_tab, 5), out_csv_full)
 # paper table
 
@@ -400,6 +374,7 @@ out_csv_paper <- file.path(
     suffix
   )
 )
+write_csv(paper_tab, sub("\\.csv$", "_full_precision.csv", out_csv_paper))
 write_csv(round_numeric(paper_tab, 5), out_csv_paper)
 #  plot
 plot_tab <- lc_tab |>
@@ -442,7 +417,14 @@ plot_long <- plot_tab |>
     ),
     shape_type = ifelse(sig, 16, 1)
   )
-p <- plot_lc_trend(plot_tab, plot_long, scale_factor, unit_label)
+if (!use_relative) {
+  plot_tab <- plot_tab |>
+    mutate(across(c(mean_unmasked, mean_masked, ci_unm_lower, ci_unm_upper,
+                    ci_msk_lower, ci_msk_upper), ~ 1000 * .x))
+  plot_long <- plot_long |>
+    mutate(across(c(trend, ci_lower, ci_upper), ~ 1000 * .x))
+}
+p <- plot_lc_trend(plot_tab, plot_long, plot_scale_factor, unit_label)
 # Save
 out_png <- file.path(
   outdir_fig,
