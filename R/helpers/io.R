@@ -153,53 +153,12 @@ combined_mask_path <- function(source,
   )
 }
 
-scenario_area_path <- function(source,
-                               run_tag = NULL,
-                               grid_tag = "0p25") {
-  # Return the spatial-weight raster for an analysis scenario. The unmasked
-  # reference uses the post-nonvegetated valid-domain area. Masked scenarios
-  # use the area of 0.05-degree cells retained within each coarse grid cell.
-  source_lower <- tolower(source)
-  if (source_lower == "unmasked") {
-    return(here::here("src", sprintf("area_%s_validdomain_km2.nc", grid_tag)))
-  }
-
-  if (!source_lower %in% c("cci", "glc")) {
-    stop("Unsupported area-weight source: ", source)
-  }
-  if (is.null(run_tag) || is.na(run_tag) || !nzchar(run_tag)) {
-    stop("run_tag required for ", source, " retained-area weights")
-  }
-
-  alpha_token <- gsub(
-    ".",
-    "p",
-    sub("^alpha_", "", run_tag),
-    fixed = TRUE
-  )
-  here::here(
-    "src",
-    sprintf(
-      "area_%s_retained_%s_alpha_%s_km2.nc",
-      grid_tag,
-      source_lower,
-      alpha_token
-    )
-  )
-}
-
-load_scenario_area <- function(source,
-                               run_tag = NULL,
-                               template = NULL) {
-  # Load and validate the scenario-specific area weights.
-  path <- scenario_area_path(source, run_tag)
-  if (!file.exists(path)) {
-    stop(
-      "Missing scenario-specific area raster: ",
-      path,
-      ". Run R/analysis/00_area_validdomain_after_nonvegetated.R first."
-    )
-  }
+load_summary_area <- function(template = NULL) {
+  # A valid 0.25-degree estimate represents the fixed baseline land support
+  # remaining after the common water/ice mask. Land-use masks do not reduce
+  # this weight; missing estimates are excluded by each summary.
+  path <- here::here("src", "area_0p25_validdomain_km2.nc")
+  if (!file.exists(path)) stop("Missing post-nonvegetated area raster: ", path)
   area <- terra::rast(path)[[1]]
   if (!is.null(template)) {
     terra::compareGeom(area, template, stopOnError = TRUE)
