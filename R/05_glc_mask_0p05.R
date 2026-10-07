@@ -82,21 +82,17 @@ out_counts <- file.path(
   sprintf("glc_counts_crop_urban_%d-%d_0p05.tif", year_1, year_2)
 )
 
-if (!file.exists(out_used)) {
-  writeRaster(
-    used_byte,
-    out_used,
-    overwrite = TRUE,
-    wopt = wopt_byte(FALSE, na = 255L)
-  )
-}
-if (!file.exists(out_counts)) {
-  writeRaster(
-    c(cnt_cropland, cnt_urban),
-    out_counts,
-    overwrite = TRUE,
-    wopt = wopt_int(FALSE)
-  )
-}
+writeRaster(
+  used_byte,
+  out_used,
+  overwrite = TRUE,
+  wopt = wopt_byte(FALSE, na = 255L)
+)
+writeRaster(
+  c(cnt_cropland, cnt_urban),
+  out_counts,
+  overwrite = TRUE,
+  wopt = wopt_int(FALSE)
+)
 
 gc()
