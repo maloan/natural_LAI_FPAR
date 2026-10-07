@@ -15,7 +15,6 @@ terraOptions(progress = 1, memfrac = 0.6)
 
 input_dir <- here("data-raw", "ESACCI", "ESACCI_1992-2022")
 fraction_dir <- here("analysis", "tmp", "lc025_fraction_yearly")
-majority_dir <- here("analysis", "tmp", "lc025_majority_yearly")
 years <- 1992:2022
 
 parent_classes <- c(
@@ -45,6 +44,19 @@ input_file <- function(year) {
     sprintf("C3S-LC-L4-LCCS-Map-300m-P1Y-%d-v2.1.1.nc", year)
   }
   file.path(input_dir, filename)
+}
+
+missing_inputs <- vapply(years, function(year) !file.exists(input_file(year)), logical(1))
+if (any(missing_inputs)) {
+  stop("Missing expected ESA-CCI files for years: ", paste(years[missing_inputs], collapse = ", "))
+}
+years_to_process <- years[vapply(years, function(year) {
+  fraction_file <- file.path(fraction_dir, sprintf("lc025_fraction_%d.tif", year))
+  !file.exists(fraction_file) || file.mtime(fraction_file) < file.mtime(input_file(year))
+}, logical(1))]
+if (!length(years_to_process)) {
+  message("All annual land-cover fractions are current.")
+  quit(save = "no", status = 0L)
 }
 
 lookup <- integer(256)
@@ -172,18 +184,6 @@ write_outputs <- function(year, fractions) {
   values(fraction_raster) <- fraction_values
   names(fraction_raster) <- paste0("lc_", parent_classes)
 
-  valid <- rowSums(is.finite(fraction_values)) > 0L
-  majority_input <- fraction_values
-  majority_input[!is.finite(majority_input)] <- -Inf
-  majority_values <- rep(NA_integer_, nrow(majority_input))
-  majority_values[valid] <- parent_classes[
-    max.col(majority_input[valid, , drop = FALSE], ties.method = "first")
-  ]
-
-  majority_raster <- fraction_raster[[1]]
-  values(majority_raster) <- majority_values
-  names(majority_raster) <- "lc_id"
-
   writeRaster(
     fraction_raster,
     file.path(fraction_dir, sprintf("lc025_fraction_%d.tif", year)),
@@ -192,27 +192,11 @@ write_outputs <- function(year, fractions) {
     NAflag = -9999,
     gdal = c("COMPRESS=DEFLATE", "PREDICTOR=3", "TILED=YES", "BIGTIFF=IF_SAFER")
   )
-  writeRaster(
-    majority_raster,
-    file.path(majority_dir, sprintf("lc025_majority_%d.tif", year)),
-    overwrite = TRUE,
-    datatype = "INT2S",
-    NAflag = -9999,
-    gdal = c("COMPRESS=DEFLATE", "PREDICTOR=2", "TILED=YES", "BIGTIFF=IF_SAFER")
-  )
 }
 
 dir.create(fraction_dir, recursive = TRUE, showWarnings = FALSE)
-dir.create(majority_dir, recursive = TRUE, showWarnings = FALSE)
 
-for (year in years) {
-  fraction_file <- file.path(fraction_dir, sprintf("lc025_fraction_%d.tif", year))
-  majority_file <- file.path(majority_dir, sprintf("lc025_majority_%d.tif", year))
-  if (file.exists(fraction_file) && file.exists(majority_file)) {
-    message("Outputs exist, skipping ", year)
-    next
-  }
-
+for (year in years_to_process) {
   message("Processing ", year, ": ", basename(input_file(year)))
   fractions <- aggregate_year(year)
   write_outputs(year, fractions)
