@@ -45,11 +45,6 @@ for (year in years) {
     )
   )
 
-  if (file.exists(out_tif)) {
-    message("✓ Non-vegetated mask already exists — skipping: ", out_tif)
-    next
-  }
-
   in_file <- if (year <= 2015) {
     file.path(
       cci_dir,
@@ -72,6 +67,14 @@ for (year in years) {
     stop("Missing expected CCI NetCDF file:\n", in_file)
   }
 
+  components_file <- file.path(out_dir, sprintf("nonvegetated_components_%d_0p05.tif", year))
+  dependencies <- c(in_file, here("R", "06_nonveg_static_from_cci_0p05.R"))
+  if (file.exists(out_tif) && file.exists(components_file) &&
+      min(file.mtime(c(out_tif, components_file))) >= max(file.mtime(dependencies))) {
+    message("✓ Non-vegetated mask is current — skipping: ", out_tif)
+    next
+  }
+
   message("→ Processing ", basename(in_file), " (year=", year, ")")
 
   r <- rast(in_file, subds = "lccs_class")
@@ -92,10 +95,7 @@ for (year in years) {
 
   writeRaster(
     c(water_drop, ice_drop, both_drop, nonveg_mask_combined),
-    file.path(
-      out_dir,
-      sprintf("nonvegetated_components_%d_0p05.tif", year)
-    ),
+    components_file,
     overwrite = TRUE,
     wopt = wopt_byte(FALSE, na = 255L)
   )
