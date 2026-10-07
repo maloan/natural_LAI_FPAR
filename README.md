@@ -73,7 +73,3 @@ GLC_FCS30D v2 is downloaded from Zenodo and processed locally. The workflow deri
 - Fractional grass-cover maps used for the LUH2 pasture-overlap calculation.
 
 Download and local-processing instructions are provided in `data-raw/GLC_FCS30D/README.md`.
-
-## More documentation
-
-See `vignettes/vignette.md` and the README files in the individual subdirectories for additional documentation.
