@@ -14,7 +14,6 @@ terraOptions(progress = 1, memfrac = 0.25)
 archive_dir <- here("data-raw", "GLC_FCS30D", "archives")
 tile_out_dir <- here("data", "frac", "glc_native_tiles_0p05")
 global_out_dir <- here("data-raw", "GLC_FCS30D")
-test_only <- "--test" %in% commandArgs(trailingOnly = TRUE)
 
 years_5year <- c(1985, 1990, 1995)
 years_annual <- 2000:2022
@@ -61,9 +60,9 @@ run_command <- function(command, args, env = character()) {
   }
 }
 
-aggregate_tile <- function(file, years, period, test_subset = FALSE) {
+aggregate_tile <- function(file, years, period) {
   id <- tile_id(file)
-  prefix <- if (test_subset) "glc_test" else "glc"
+  prefix <-"glc"
   mode_out <- file.path(tile_out_dir, sprintf("%s_mode_%s_%s_0p05.tif", prefix, period, id))
   grass_out <- file.path(tile_out_dir, sprintf("%s_grass_%s_%s_0p05.tif", prefix, period, id))
 
@@ -85,27 +84,6 @@ aggregate_tile <- function(file, years, period, test_subset = FALSE) {
   work_dir <- tempfile("glc-tile-")
   dir.create(work_dir)
   on.exit(unlink(work_dir, recursive = TRUE), add = TRUE)
-
-  if (test_subset) {
-    target_extent <- ext(
-      xmin(target_extent), xmin(target_extent) + 1,
-      ymax(target_extent) - 1, ymax(target_extent)
-    )
-    source_file <- file.path(work_dir, "source_subset.tif")
-    run_command(
-      "gdal_translate",
-      c(
-        "-q", "-of", "GTiff", "-b", "1",
-        "-projwin",
-        xmin(target_extent), ymax(target_extent),
-        xmax(target_extent), ymin(target_extent),
-        shQuote(file), shQuote(source_file)
-      )
-    )
-    years <- years[1]
-    nrows_target <- 20
-    ncols_target <- 20
-  }
 
   class_file <- file.path(work_dir, "class.tif")
   grass_file <- file.path(work_dir, "grass.tif")
@@ -150,6 +128,15 @@ aggregate_tile <- function(file, years, period, test_subset = FALSE) {
     warp_args("average", grass_file, grass_out, "Float32", "-9999")
   )
 
+  # GDAL's average resampling can marginally exceed one at a tile edge.
+  # Keep the intermediate fractional layer within its physical range.
+  grass_fraction <- clamp(rast(grass_out), lower = 0, upper = 1)
+  clamped_file <- file.path(work_dir, "grass_clamped.tif")
+  writeRaster(grass_fraction, clamped_file, wopt = wopt_f32(FALSE))
+  if (!file.copy(clamped_file, grass_out, overwrite = TRUE)) {
+    stop("Could not replace grass-fraction tile: ", grass_out)
+  }
+
   rm(source_info)
   gc(verbose = FALSE)
 }
@@ -167,7 +154,7 @@ extract_archive <- function(archive, output_dir, member_pattern = NULL) {
   }
 }
 
-process_archive <- function(archive, member_pattern = NULL, test_subset = FALSE) {
+process_archive <- function(archive, member_pattern = NULL) {
   extract_dir <- tempfile("glc-fcs30d-v2-")
   dir.create(extract_dir)
   on.exit(unlink(extract_dir, recursive = TRUE), add = TRUE)
@@ -183,10 +170,10 @@ process_archive <- function(archive, member_pattern = NULL, test_subset = FALSE)
   }
 
   process_files <- function(files, years, period) {
-    workers <- if (test_subset) 1L else 3L
+    workers <- 1L
     results <- parallel::mclapply(
       files,
-      function(file) aggregate_tile(file, years, period, test_subset),
+      function(file) aggregate_tile(file, years, period),
       mc.cores = workers,
       mc.preschedule = FALSE
     )
@@ -322,17 +309,10 @@ archives <- sort(list.files(
   full.names = TRUE
 ))
 
-if (test_only) {
-  archive <- file.path(archive_dir, "GLC_FCS30D_19852022maps_E0-E5.zip")
-  if (!file.exists(archive)) {
-    stop("Representative test archive is missing: ", archive)
-  }
-  process_archive(archive, "*E0N10*.tif", test_subset = TRUE)
-  message("Representative one-year, 1-degree E0N10 aggregation test complete.")
-} else {
-  if (length(archives) != 36) {
+
+if (length(archives) != 36) {
     stop("Expected 36 GLC_FCS30D v2 archives in ", archive_dir, "; found ", length(archives))
-  }
+}
 
   tile_counts <- vapply(
     c("mode_5year", "grass_5year", "mode_annual", "grass_annual"),
