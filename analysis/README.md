@@ -1,28 +1,24 @@
 # Analysis
 
-This folder contains the post-processing results and diagnostics built from the masked and unmasked LAI/FPAR products. Most analyses are based on the 0.25 degree outputs.
+This folder contains post-processing results and diagnostics derived from the masked and unmasked LAI and FPAR products. Most analyses use the 0.25° products.
 
-The analysis layer covers:
+## Contents
 
-- Global and regional trend estimates.
-- Masked vs unmasked comparisons.
-- LAI and FPAR consistency checks.
-- Pixel-level significance testing.
-- Global and zonal time-series summaries.
+The analysis includes:
 
-## Main subfolders
+- global and regional trend summaries
+- masked and unmasked comparisons
+- LAI and FPAR diagnostics
+- grid-cell significance results
+- global and zonal time-series summaries
 
-### Baseline data
+## Structure
 
-- unmasked/: Unmasked 0.25° LAI/FPAR products used as reference baselines.
-- tmp/: Temporary and intermediate analysis artifacts.
+- `unmasked/` contains the 0.25° baseline LAI and FPAR products used as the unmasked reference.
+- `tmp/` contains temporary analysis files.
+- `results/figures/` contains summary and diagnostic figures.
+- `results/tables/` contains tabular outputs used for diagnostics and manuscript results.
 
-### Results
+Analysis products are derived from the processed outputs under `output/`.
 
-- results/figures/: Summary and diagnostic figures.
-- results/tables/: CSV outputs used for diagnostics and manuscript assets.
-
-## Notes
-
-- These results are derived from output/<run_tag>/masked_0p25 products.
-- This folder stores results and diagnostics only. Processing scripts are in R/analysis.
+The corresponding analysis scripts are stored in `R/analysis/`.

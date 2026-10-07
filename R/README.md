@@ -1,99 +1,68 @@
+# R Processing and Analysis Pipeline for Managed-Land-Masked LAI / FPAR
 
-# R Processing and Analysis Pipeline for Natural LAI / FPAR
+This folder contains the main R scripts for building and analyzing LAI and FPAR products after excluding mapped managed areas.
 
-This folder contains the main R scripts for building and analyzing the natural-vegetation LAI/FPAR products.
+## Workflow
 
-## Workflow summary
+1. Create reference grids and configuration.
+2. Georeference LAI and FPAR inputs.
+3. Preprocess CCI and GLC land cover.
+4. Construct land-use, non-vegetated, and pasture masks.
+5. Apply masks and aggregate to the analysis grid.
+6. Compute trends, summaries, and diagnostics.
 
-1. Setup and reference-grid creation.
-2. Georeferencing of raw LAI/FPAR inputs.
-3. Land-cover preprocessing (CCI and GLC).
-4. Mask construction (used land plus non-vegetated filters).
-5. Mask application and spatial aggregation.
-6. Trend and diagnostic analysis.
+All rasters are aligned to common global grids at 0.05° for processing and 0.25° for analysis.
 
-All rasters are aligned to shared global grids (0.05 degree native, 0.25 degree analysis).
+## Main scripts
 
-## Folder structure
+### Setup and georeferencing
 
-```text
-R/
-├── 00_setup.R
-├── 01_georef_0p05.R
-├── 02_cci_frac_0p05.R
-├── 03_cci_mask_0p05.R
-├── 04_glc_native_to_0p05.R
-├── 04_glc_stack_0p05.R
-├── 05_glc_mask_0p05.R
-├── 06_nonveg_static_from_cci_0p05.R
-├── 07_apply_nonveg_only_0p05.R
-├── 08_agg_nonveg_0p25.R
-├── 09_luh_pasture_overlap_0p25.R
-├── 10_apply_mask_0p05.R
-├── 11_agg_0p25.R
-├── 12_make_lc025_fractions.R
-├── 12_chapter2_inputs_0p5.R
-├── analysis/
-└── helpers/
-```
-
-## Scripts
-
-### Setup
-
-- 00_setup.R: Builds reference grids and area layers, sets paths, and writes the exact `config/config_<RUN_TAG>.yml` file for the selected scenario.
-
-### Georeferencing
-
-- 01_georef_0p05.R: Converts LAI/FPAR NetCDF inputs into aligned 0.05 degree global rasters.
+- `00_setup.R` creates reference grids, area layers, and run configuration.
+- `01_georef_0p05.R` converts LAI and FPAR inputs to the common 0.05° grid.
 
 ### Land-cover preprocessing
 
-- 02_cci_frac_0p05.R: Builds fractional cover layers from ESA-CCI/C3S.
-- 04_glc_native_to_0p05.R: Reclassifies native GLC_FCS30D v2 tiles with `gdal_calc.py`, then calculates categorical mode and fractional grass cover
-  on the exact 0.05° grid.
-- 04_glc_stack_0p05.R: Harmonizes and stacks GLC_FCS30D maps on the project grid.
-- 12_make_lc025_fractions.R: Generates annual WGS84 area-weighted 0.25° land-cover fractions and majority classes from ESACCI classes (1992–2022).
+- `02_cci_frac_0p05.R` creates fractional CCI land-cover layers.
+- `04_glc_native_to_0p05.R` aggregates native GLC_FCS30D data to the 0.05° grid.
+- `04_glc_stack_0p05.R` harmonizes and stacks GLC maps.
+- `12_make_lc025_fractions.R` creates annual 0.25° CCI land-cover fractions.
 
 ### Mask construction
 
-- 03_cci_mask_0p05.R: Creates CCI-based used-land masks.
-- 05_glc_mask_0p05.R: Creates GLC-based persistence masks from all 26 available maps (1985, 1990, 1995, and annually from 2000 to 2022).
-- 06_nonveg_static_from_cci_0p05.R: Builds the 2007 static non-vegetated mask and the 1995/2022 snapshot-sensitivity masks.
-- 09_luh_pasture_overlap_0p25.R: Adds LUH2 pasture-overlap diagnostics.
+- `03_cci_mask_0p05.R` creates CCI-based managed-land masks.
+- `05_glc_mask_0p05.R` creates GLC-based persistence masks.
+- `06_nonveg_static_from_cci_0p05.R` creates the static non-vegetated mask and snapshot-year sensitivity masks.
+- `09_luh_pasture_overlap_0p25.R` creates LUH2 pasture-overlap masks.
 
 ### Masking and aggregation
 
-- 07_apply_nonveg_only_0p05.R: Applies non-vegetated exclusions.
-- 08_agg_nonveg_0p25.R: Area-weights the water/ice-only monthly baseline to 0.25 degree before annual diagnostics and trends are calculated.
-- 10_apply_mask_0p05.R: Applies selected masks to monthly LAI/FPAR.
-- 11_agg_0p25.R: Aggregates to 0.25 degree for analysis.
+- `07_apply_nonveg_only_0p05.R` applies the common water and permanent snow or ice exclusions.
+- `08_agg_nonveg_0p25.R` aggregates the unmasked baseline to 0.25°.
+- `10_apply_mask_0p05.R` applies the combined masks to monthly LAI and FPAR.
+- `11_agg_0p25.R` aggregates masked products to 0.25°.
 
 ### Chapter 2 inputs
 
-- 12_chapter2_inputs_0p5.R: Area-weights unmasked monthly fAPAR to 0.5 degree and builds a 0.5-degree mask combining the CCI alpha 0.1 and pasture masks. The binary mask uses 1=drop and excludes a coarse cell if any contributing 0.05-degree cell is excluded. A fractional exclusion layer is also retained.
+- `12_chapter2_inputs_0p5.R` creates the 0.5° FPAR and mask inputs used for Chapter 2.
 
-Mask convention is consistent across scripts:
+## Mask convention
 
-- 1 = drop
-- 0 = keep
-- NA = undefined
+```text id="5w09dd"
+1  = exclude
+0  = retain
+NA = undefined
+```
 
-## Helpers
+## Analysis
 
-The helper scripts in helpers/ contain operations that are reused across scripts, such as raster I/O, area-weighted aggregation, bootstrap intervals, and plotting.
+Analysis scripts are stored under `R/analysis/`. After the masked trend products have been generated, run:
 
-## Complete analysis
-
-After the masked trend products are complete, run all analysis scripts in their required order with:
-
-```bash
+```bash id="tjtw2e"
 R/analysis/run_all_analysis.sh
 ```
 
-After changing a GLC input or mask setting, rebuild the complete GLC branch and
-all dependent analysis with:
+The analysis workflow uses the completed masked and unmasked trend products and produces the statistical summaries, tables, diagnostics, and figures.
 
-```bash
-R/run_glc_workflow.sh
-```
+## Helpers
+
+Shared functions for raster I/O, area weighting, bootstrap confidence intervals, climate classification, and plotting are stored under `R/helpers/`.

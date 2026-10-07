@@ -1,9 +1,10 @@
-# Intermediate Processed Data (data)
+# Intermediate Processed Data
 
-This folder stores the cleaned, harmonized intermediate products used by the LAI/FPAR workflow.
-Everything here is generated from data-raw and should not be edited by hand.
+This folder contains generated intermediate products used by the LAI and FPAR processing pipeline.
 
-## Directory Layout
+Files in this directory are derived from `data-raw/` and should not be edited manually.
+
+## Layout
 
 ```text
 data/
@@ -15,42 +16,22 @@ data/
     └── georef_fpar_0p05/
 ```
 
-## What Each Folder Contains
+## Fractional land-cover products
 
-### Fractional Land-Cover Products (frac)
+`frac/` contains 0.05° fractional land-cover layers derived from categorical land-cover data.
 
-Fractional cover layers at 0.05 degrees derived from categorical land-cover maps.
+- `cci_frac_0p05/` contains CCI-based fractions used for mask construction.
+- `glc_frac_0p05/` contains GLC-based fractional products used for masking and diagnostics.
 
-- cci_frac_0p05/: Cropland, urban, grass, and fused fractions from ESA-CCI/C3S.
-- glc_frac_0p05/: Equivalent fractional products from GLC_FCS30D.
+## Georeferenced LAI and FPAR
 
-These layers are used to build land-cover masks, compare CCI- and GLC-based masking behavior, and support diagnostics.
+`georef/` contains monthly LAI and FPAR fields aligned to the common 0.05° project grid.
 
-### Georeferenced LAI and FPAR (georef)
+- `georef_lai_0p05/`
+- `georef_fpar_0p05/`
 
-Monthly LAI and FPAR fields at 0.05 degrees, aligned to the project reference grid.
-
-- georef_lai_0p05/: LAI rasters after reprojection, alignment, and extent correction.
-- georef_fpar_0p05/: FPAR rasters processed the same way.
-
-Processing includes:
-
-- Reprojection to EPSG:4326.
-- Strict alignment to the 0.05 degree reference grid.
-- Consistent global extent.
-- Continuous monthly time indexing.
-
-These are direct inputs to masking and then to aggregation at coarser resolution.
+These products are the direct inputs to masking and subsequent spatial aggregation.
 
 ## Conventions
 
-- CRS, resolution, and extent must match the reference grids defined in config/config.yml.
-- Files in data are treated as immutable outputs. If something changes upstream, regenerate them with the relevant scripts.
-
-## Role in the workflow
-
-The data folder is the boundary between preprocessing and analysis:
-
-- Upstream preprocessing scripts write files here.
-- Downstream masking and trend scripts read from here.
-- Final analysis outputs belong in output and analysis, not in data.
+All files use the project reference grids and are treated as generated outputs. If upstream inputs or preprocessing change, regenerate the affected products using the corresponding pipeline scripts.

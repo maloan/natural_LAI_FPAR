@@ -1,30 +1,42 @@
-# Configuration (config)
+# Configuration
 
-This folder holds the main settings for the natural vegetation LAI/FPAR workflow. Almost every script reads this configuration through cfg_read(). Each scenario has its own generated configuration file. Scripts require the exact file matching `RUN_TAG`.
+This folder contains generated configuration files for the LAI and FPAR managed-land masking workflow.
 
-## Folder content
+Each processing scenario has its own configuration file and scripts load the file matching the active `RUN_TAG`.
 
-- config_alpha_0.05.yml, config_alpha_0.1.yml, config_alpha_0.2.yml
--> Generated configurations for the three CCI masking thresholds.
+## Configuration files
 
-All config files share the same schema and include:
-project metadata (run tag, CRS, time span), input/output paths, reference and area grids, land-cover class mappings (ESA-CCI, GLC-FCS30D, LUH2), and output naming templates.
+- `config_alpha_0.05.yml`
+- `config_alpha_0.1.yml`
+- `config_alpha_0.2.yml`
 
-## To edit
+These files correspond to the three CCI masking thresholds used in the analysis.
 
-Most updates are small and focused:
+All configuration files share the same structure and define:
 
-- Paths to local or cluster data locations.
-- Year windows for LAI/FPAR or land-cover inputs.
-- Class mappings if source products change.
-- Region or quicklook settings, if needed.
+- run metadata and time span
+- input and output paths
+- reference and area grids
+- land-cover class mappings
+- output naming conventions
 
-## How it is used
+## Usage
 
-Scripts load the configuration like this:
+Scripts load the active configuration with:
 
 ```r
 cfg <- cfg_read()
 ```
 
-Run `R/00_setup.R` once for each required `RUN_TAG` to create the corresponding configuration file. Only the 0.05-degree processing grid and 0.25-degree analysis grid are created.
+Run `R/00_setup.R` for each required `RUN_TAG` to generate the corresponding configuration file.
+
+The workflow uses a 0.05° processing grid and a 0.25° analysis grid.
+
+## Editing
+
+Typical updates include:
+
+- local or cluster paths
+- analysis years
+- land-cover class mappings
+- optional region or quicklook settings
