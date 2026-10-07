@@ -62,7 +62,7 @@ run_command <- function(command, args, env = character()) {
 
 aggregate_tile <- function(file, years, period) {
   id <- tile_id(file)
-  prefix <-"glc"
+  prefix  <- "glc"
   mode_out <- file.path(tile_out_dir, sprintf("%s_mode_%s_%s_0p05.tif", prefix, period, id))
   grass_out <- file.path(tile_out_dir, sprintf("%s_grass_%s_%s_0p05.tif", prefix, period, id))
 
@@ -330,4 +330,3 @@ if (length(archives) != 36) {
 
   write_global_outputs()
   message("GLC_FCS30D v2 local preprocessing complete.")
-}
