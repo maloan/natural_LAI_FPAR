@@ -65,6 +65,13 @@ if (length(missing_files)) {
 
 
 # Loop
+source_dependencies <- c(
+  nonveg_mask_path,
+  here("config", sprintf("config_%s.yml", Sys.getenv("RUN_TAG", "alpha_0.1"))),
+  here("R", "07_apply_nonveg_only_0p05.R"),
+  here("R", "helpers", "netcdf.R"),
+  here("R", "helpers", "io.R")
+)
 for (f in files) {
   ym <- extract_ym_from_filename(f)
   out <- file.path(
@@ -72,7 +79,8 @@ for (f in files) {
     sprintf("%s_%s_0p05_masked_nonvegetated.tif", var, ym)
   )
 
-  if (file.exists(out)) {
+  dependencies <- c(f, source_dependencies)
+  if (file.exists(out) && file.mtime(out) >= max(file.mtime(dependencies))) {
     next
   }
   r <- rast(f)
