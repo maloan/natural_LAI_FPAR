@@ -334,17 +334,6 @@ summarise_zone <- function(zone_raster,
       mean_masked - mean_unmasked,
       abs(mean_unmasked),
       positive_denominator = TRUE
-    ),
-    trend_retained_ratio = 100 * safe_division(mean_masked, mean_unmasked, positive_denominator = TRUE),
-    trend_removed_pct = 100 * safe_division(
-      mean_unmasked - (frac_retained * mean_masked),
-      1 - frac_retained,
-      positive_denominator = TRUE
-    ),
-    removed_contrib_pct = 100 * safe_division(
-      mean_masked - mean_unmasked,
-      mean_unmasked,
-      positive_denominator = TRUE
     )
   )
 }
@@ -370,9 +359,6 @@ kg_full <- summarise_zone(kg3_id, kg3_codes, kg3_id, ci3_unm, ci3_msk) |>
     area_removed_pct,
     frac_retained,
     trend_delta_pct,
-    trend_retained_ratio,
-    trend_removed_pct,
-    removed_contrib_pct,
     n_unm,
     n_msk
   ) |>
@@ -399,9 +385,6 @@ kg2_summary <- summarise_zone(kg2_id, kg2_codes, kg2_id, ci2_unm, ci2_msk) |>
     area_removed_pct,
     frac_retained,
     trend_delta_pct,
-    trend_retained_ratio,
-    trend_removed_pct,
-    removed_contrib_pct,
     n_unm,
     n_msk
   ) |>
