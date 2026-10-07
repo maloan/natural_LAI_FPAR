@@ -181,7 +181,8 @@ summary_tbl <- tibble(
   abs_trend_mean = c(s_cci_abs$mean, s_luh_abs$mean),
   abs_trend_sd = c(s_cci_abs$sd, s_luh_abs$sd),
   rel_trend_mean_pct = c(s_cci_rel$mean, s_luh_rel$mean),
-  rel_trend_sd_pct = c(s_cci_rel$sd, s_luh_rel$sd)
+  rel_trend_sd_pct = c(s_cci_rel$sd, s_luh_rel$sd),
+  n_cells = c(s_cci_abs$n, s_luh_abs$n)
 )
 write_csv(round_numeric(summary_tbl, 5), outcsv)
 
