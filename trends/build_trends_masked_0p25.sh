@@ -273,8 +273,8 @@ for pid in "${pids[@]}"; do
   wait "$pid" || mk_failed=$((mk_failed + 1))
 done
 if [[ "$mk_failed" -gt 0 ]]; then
-  log "WARNING: MK failed for $mk_failed metric(s)"
-else
-  log "Mann-Kendall complete"
+  log "ERROR: Mann-Kendall failed for $mk_failed metric(s)"
+  exit 1
 fi
+log "Mann-Kendall complete"
 log "========== COMPLETE =========="
