@@ -149,7 +149,14 @@ if (inherits(vals_ok, "try-error") || !isTRUE(vals_ok)) {
 }
 
 mask_combined_path <- file.path(out_dir, "combined_mask_0p05.tif")
-mask_sources <- c(mask_path, nonveg_path, luh_path)
+config_file <- here("config", sprintf("config_%s.yml", Sys.getenv("RUN_TAG", "alpha_0.1")))
+mask_sources <- c(
+  mask_path, nonveg_path, luh_path, config_file,
+  here("R", "10_apply_mask_0p05.R"),
+  here("R", "helpers", "netcdf.R"),
+  here("R", "helpers", "plotting.R"),
+  here("R", "helpers", "io.R")
+)
 mask_needs_update <- !file.exists(mask_combined_path) ||
   any(file.mtime(mask_sources) > file.mtime(mask_combined_path))
 
