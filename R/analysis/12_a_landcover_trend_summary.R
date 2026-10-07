@@ -350,17 +350,7 @@ paper_tab <- lc_tab |>
     domain_difference_excludes_zero,
     n_domain_difference_blocks,
     trend_delta = mean_masked - mean_unmasked,
-    trend_removed = ifelse(
-      (1 - frac_retained) > 0.01,
-      (mean_unmasked - (frac_retained * mean_masked)) / (1 - frac_retained),
-      NA_real_
-    ),
-    trend_delta_pct = 100 * safe_division(mean_masked - mean_unmasked, abs(mean_unmasked)),
-    trend_retained_ratio = 100 * safe_division(mean_masked, mean_unmasked),
-    trend_removed_pct = 100 * safe_division((
-      mean_unmasked - (frac_retained * mean_masked)
-    ), (1 - frac_retained)),
-    removed_contrib_pct = 100 * safe_division(mean_unmasked - mean_masked, mean_unmasked)
+    trend_delta_pct = 100 * safe_division(mean_masked - mean_unmasked, abs(mean_unmasked))
   )
 
 out_csv_paper <- file.path(
