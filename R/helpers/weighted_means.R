@@ -74,8 +74,8 @@ wmean_series <- function(r, w) {
   out
 }
 weighted_stats <- function(x, w) {
-  # Compute weighted mean, standard deviation, and total weight (area) from
-  # vectors of values and weights. Returns a list with mean, sd, and area.
+  # Compute weighted mean, standard deviation, total weight (area), and
+  # contributing cell count from vectors of values and weights.
   dx <- as.data.frame(c(x, w), na.rm = FALSE)
   names(dx) <- c("x", "w")
   dx <- dx |> filter(is.finite(x), is.finite(w), w > 0)
@@ -83,7 +83,8 @@ weighted_stats <- function(x, w) {
     return(list(
       mean = NA_real_,
       sd = NA_real_,
-      area = NA_real_
+      area = NA_real_,
+      n = 0L
     ))
   }
   mu <- weighted.mean(dx$x, dx$w)
@@ -91,6 +92,7 @@ weighted_stats <- function(x, w) {
   list(
     mean = mu,
     sd = sqrt(vv),
-    area = sum(dx$w)
+    area = sum(dx$w),
+    n = nrow(dx)
   )
 }
