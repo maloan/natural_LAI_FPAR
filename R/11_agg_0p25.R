@@ -44,11 +44,7 @@ out_dir <- cfg$paths[[key_out]]
 stopifnot(is.character(in_dir), length(in_dir) == 1, nzchar(in_dir))
 stopifnot(is.character(out_dir), length(out_dir) == 1, nzchar(out_dir))
 
-ql_title <- var
-
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
-qdir <- file.path(out_dir, "quicklooks")
-dir.create(qdir, recursive = TRUE, showWarnings = FALSE)
 
 
 # inputs
@@ -66,19 +62,27 @@ missing_files <- files[!file.exists(files)]
 if (length(missing_files)) {
   stop("Missing expected monthly masked files:\n", paste(missing_files, collapse = "\n"))
 }
+source_dependencies <- c(
+  cfg$grids$grid_005$area_raster,
+  cfg$grids$grid_005$ref_raster,
+  cfg$grids$grid_025$ref_raster,
+  here("config", sprintf("config_%s.yml", Sys.getenv("RUN_TAG", "alpha_0.1"))),
+  here("R", "11_agg_0p25.R"),
+  here("R", "helpers", "netcdf.R"),
+  here("R", "helpers", "io.R"),
+  here("R", "helpers", "plotting.R")
+)
 
 # Aggregation loop
 for (f in files) {
   ym <- extract_ym_from_filename(f)
   out <- file.path(out_dir, sprintf("%s_masked_%s_0p25.tif", var, ym))
 
-  do_write <- !file.exists(out) || file.mtime(f) > file.mtime(out)
-  do_ql <- (substr(ym, 5, 6) %in% c("01", "07")) &&
-    (!file.exists(file.path(
-      qdir, sprintf("quicklook_%s_0p25_%s.png", ql_title, ym)
-    )))
+  dependencies <- c(f, source_dependencies)
+  do_write <- !file.exists(out) ||
+    file.mtime(out) < max(file.mtime(dependencies))
 
-  if (!do_write && !do_ql) {
+  if (!do_write) {
     next
   }
 
@@ -103,23 +107,10 @@ for (f in files) {
     wopt <- wopt_f32(FALSE)
     writeRaster(r025, out, overwrite = TRUE, wopt = wopt)
   } else {
-    # Load existing aggregated file for quicklook
     r025 <- rast(out)
     r025 <- align_to_template(r025, ref025, method = "near")
   }
 
-  if (do_ql) {
-    out_png <- file.path(qdir, sprintf("quicklook_%s_0p25_%s.png", ql_title, ym))
-    write_quicklook_raster(
-      r = r025,
-      out_png = out_png,
-      title = sprintf("%s 0.25° %s", ql_title, ym),
-      width = 1400,
-      height = 700,
-      res = 120,
-      legend = TRUE
-    )
-  }
 
   rm(r025)
   if (do_write) {
