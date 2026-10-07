@@ -17,6 +17,15 @@ ref005 <- rast(cfg$grids$grid_005$ref_raster)
 ref025 <- rast(cfg$grids$grid_025$ref_raster)
 area005 <- rast(cfg$grids$grid_005$area_raster)
 area005 <- align_to_template(area005, ref005, method = "bilinear")
+source_dependencies <- c(
+  cfg$grids$grid_005$area_raster,
+  cfg$grids$grid_005$ref_raster,
+  cfg$grids$grid_025$ref_raster,
+  here("config", sprintf("config_%s.yml", Sys.getenv("RUN_TAG", "alpha_0.1"))),
+  here("R", "08_agg_nonveg_0p25.R"),
+  here("R", "helpers", "netcdf.R"),
+  here("R", "helpers", "io.R")
+)
 
 months <- format(
   seq(
@@ -46,7 +55,9 @@ for (var in c("LAI", "FPAR")) {
       output_dir,
       sprintf("%s_%s_0p25_masked_nonvegetated.tif", var, months[i])
     )
-    if (file.exists(output_file)) {
+    dependencies <- c(input_files[i], source_dependencies)
+    if (file.exists(output_file) &&
+        file.mtime(output_file) >= max(file.mtime(dependencies))) {
       next
     }
 
