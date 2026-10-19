@@ -776,7 +776,7 @@ plot_timeseries <- function(df, trend_df, theme_pub) {
       scales = "free_y",
       labeller = labeller(metric = metric_labs)
     ) +
-    scale_colour_manual(values = cols, name = "Mask scenario") +
+    scale_colour_manual(values = cols, name = "Analysis scenario") +
     guides(colour = guide_legend(
       nrow = 2,
       byrow = TRUE,
