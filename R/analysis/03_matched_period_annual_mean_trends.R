@@ -34,9 +34,11 @@ if (!file.exists(area_file)) {
 periods <- tribble(
   ~start_year, ~end_year,
   1982L, 2011L,
+  1982L, 2014L,
   1982L, 2015L,
   1982L, 2020L,
   1982L, 2021L,
+  1986L, 2005L,
   2001L, 2017L,
   2001L, 2020L,
   2004L, 2020L,
