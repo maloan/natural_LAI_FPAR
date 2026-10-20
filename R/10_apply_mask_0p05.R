@@ -189,6 +189,7 @@ for (f in files) {
   out <- file.path(out_dir, sprintf("%s_%s_0p05_masked.tif", var, ym))
 
   do_write <- !file.exists(out) ||
+    isTRUE(file.info(out)$size == 0) ||
     file.mtime(f) > file.mtime(out) ||
     file.mtime(mask_combined_path) > file.mtime(out)
 
@@ -199,7 +200,11 @@ for (f in files) {
       maskvalues = 1,
       updatevalue = NA
     )
-    writeRaster(r_masked, out, overwrite = TRUE, wopt = wopt)
+    tmp <- paste0(out, ".tmp.tif")
+    writeRaster(r_masked, tmp, overwrite = TRUE, wopt = wopt)
+    if (!file.rename(tmp, out)) {
+      stop("Could not replace ", out)
+    }
     rm(r, r_masked)
     gc(verbose = FALSE)
   }
