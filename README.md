@@ -46,6 +46,17 @@ Chapter 2 inputs are built separately with:
 Rscript R/12_chapter2_inputs_0p5.R
 ```
 
+The CCI alpha 0.1 plus pasture masked 0.5° fAPAR series is a separate product:
+
+```bash
+RUN_TAG=alpha_0.1 Rscript R/11_agg_0p5.R
+```
+
+It writes monthly GeoTIFFs under
+`output/alpha_0.1/masked_0p5/FPAR/masked_FPAR_CCI/` and the Chapter 2 input
+`output/chapter2/fpar_masked/fpar_masked_0p5_monthly_1982-2024.nc`. The
+existing unmasked Chapter 2 fAPAR product remains separate.
+
 ## Configuration
 
 Core settings are stored in `config/config_<RUN_TAG>.yml`, including paths, years, land-cover classes, thresholds, and grid references.
