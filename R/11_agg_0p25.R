@@ -8,9 +8,7 @@ suppressPackageStartupMessages({
 })
 
 
-source(here("R", "helpers", "netcdf.R"))
 source(here("R", "helpers", "io.R"))
-source(here("R", "helpers", "plotting.R"))
 
 cfg <- cfg_read()
 
@@ -32,7 +30,7 @@ ref005 <- rast(cfg$grids$grid_005$ref_raster)
 ref025 <- rast(cfg$grids$grid_025$ref_raster)
 area005 <- rast(cfg$grids$grid_005$area_raster)
 
-area005 <- align_to_template(area005, ref005, method = "bilinear")
+compareGeom(area005, ref005, stopOnError = TRUE)
 
 # dirs
 key_in <- sprintf("masked_%s_%s_0p05_dir", tolower(var), tolower(mask))
@@ -68,54 +66,52 @@ source_dependencies <- c(
   cfg$grids$grid_025$ref_raster,
   here("config", sprintf("config_%s.yml", Sys.getenv("RUN_TAG", "alpha_0.1"))),
   here("R", "11_agg_0p25.R"),
-  here("R", "helpers", "netcdf.R"),
-  here("R", "helpers", "io.R"),
-  here("R", "helpers", "plotting.R")
+  here("R", "helpers", "io.R")
 )
+missing_dependencies <- source_dependencies[!file.exists(source_dependencies)]
+if (length(missing_dependencies)) {
+  stop("Missing aggregation dependencies:\n",
+    paste(missing_dependencies, collapse = "\n"))
+}
+source_mtime <- max(file.mtime(source_dependencies))
+wopt <- wopt_f32(FALSE)
 
 # Aggregation loop
 for (f in files) {
   ym <- extract_ym_from_filename(f)
   out <- file.path(out_dir, sprintf("%s_masked_%s_0p25.tif", var, ym))
 
-  dependencies <- c(f, source_dependencies)
-  do_write <- !file.exists(out) ||
-    file.mtime(out) < max(file.mtime(dependencies))
-
-  if (!do_write) {
+  if (file.exists(out) && isTRUE(file.info(out)$size > 0) &&
+      file.mtime(out) >= max(file.mtime(f), source_mtime) &&
+      isTRUE(tryCatch(compareGeom(rast(out), ref025,
+        stopOnError = FALSE), error = function(e) FALSE))) {
     next
   }
 
-  if (do_write) {
-    r <- rast(f)
-    r <- align_to_template(r, ref005, method = "bilinear")
+  r <- rast(f)
+  compareGeom(r, ref005, stopOnError = TRUE)
 
-    # numerator/denominator (area-weighted mean, handling NA)
-    num <- aggregate(r * area005,
-      fact = 5,
-      fun = "sum",
-      na.rm = TRUE
-    )
-    den <- aggregate((!is.na(r)) * area005,
-      fact = 5,
-      fun = "sum",
-      na.rm = TRUE
-    )
-    r025 <- ifel(den == 0, NA, num / den)
-    r025 <- align_to_template(r025, ref025, method = "near")
+  # Mean over valid fine cells, weighted by their surface area.
+  num <- aggregate(r * area005,
+    fact = 5,
+    fun = "sum",
+    na.rm = TRUE
+  )
+  den <- aggregate((!is.na(r)) * area005,
+    fact = 5,
+    fun = "sum",
+    na.rm = TRUE
+  )
+  r025 <- ifel(den == 0, NA, num / den)
+  compareGeom(r025, ref025, stopOnError = TRUE)
 
-    wopt <- wopt_f32(FALSE)
-    writeRaster(r025, out, overwrite = TRUE, wopt = wopt)
-  } else {
-    r025 <- rast(out)
-    r025 <- align_to_template(r025, ref025, method = "near")
+  tmp <- paste0(out, ".tmp.tif")
+  writeRaster(r025, tmp, overwrite = TRUE, wopt = wopt)
+  if (!file.rename(tmp, out)) {
+    stop("Could not replace ", out)
   }
 
-
-  rm(r025)
-  if (do_write) {
-    rm(r, num, den)
-  }
+  rm(r, num, den, r025)
   gc(verbose = FALSE)
 }
 
