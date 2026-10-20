@@ -40,10 +40,12 @@ All rasters are aligned to common global grids at 0.05° for processing and 0.25
 - `08_agg_nonveg_0p25.R` aggregates the unmasked baseline to 0.25°.
 - `10_apply_mask_0p05.R` applies the combined masks to monthly LAI and FPAR.
 - `11_agg_0p25.R` aggregates masked products to 0.25°.
+- `11_agg_0p5.R` aggregates the CCI alpha 0.1 plus pasture masked fAPAR to monthly 0.5° GeoTIFFs and a 516-month NetCDF.
 
 ### Chapter 2 inputs
 
-- `12_chapter2_inputs_0p5.R` creates the 0.5° FPAR and mask inputs used for Chapter 2.
+- `12_chapter2_inputs_0p5.R` creates the separate unmasked 0.5° fAPAR and mask
+  inputs used for Chapter 2.
 
 ## Mask convention
 
