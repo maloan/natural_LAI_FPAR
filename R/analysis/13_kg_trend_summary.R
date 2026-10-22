@@ -68,9 +68,8 @@ f_unm <- here::here(
   sprintf("%s_georef_%s_%s_0p25.nc", var, metric, trend_suffix)
 )
 
-f_msk <- here::here(
-  "output",
-  alpha,
+f_msk <- file.path(
+  scenario_output_root(mask, alpha),
   "eval",
   sprintf("trend_%s_%s", var, mask),
   sprintf("%s_%s_%s_0p25.nc", var, metric, trend_suffix)
