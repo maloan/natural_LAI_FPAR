@@ -37,15 +37,32 @@ lapply(c(out_georef),
 # Inputs
 stopifnot(dir.exists(nc_dir))
 files <- sort(list.files(nc_dir, pattern = "\\.nc(4)?$", full.names = TRUE))
-stopifnot(length(files) > 0L)
+months <- format(
+  seq(
+    as.Date(sprintf("%d-01-01", cfg$project$years$lai_start)),
+    as.Date(sprintf("%d-12-01", cfg$project$years$lai_end)),
+    by = "month"
+  ),
+  "%Y%m"
+)
+input_months <- vapply(files, extract_ym_from_filename, character(1),
+                       USE.NAMES = FALSE)
+files <- files[order(input_months)]
+
+dependencies <- c(
+  cfg$grids$grid_005$ref_raster,
+  here("config", sprintf("config_%s.yml", Sys.getenv("RUN_TAG", "alpha_0.1"))),
+  here("R", "01_georef_0p05.R"),
+  here("R", "helpers", "netcdf.R"),
+  here("R", "helpers", "io.R")
+)
+stopifnot(all(file.exists(dependencies)))
+source_mtime <- max(file.mtime(dependencies))
 
 # Loop
 for (f in files) {
   ym <- extract_ym_from_filename(f)
   out_tif <- file.path(out_georef, sprintf("%s_%s_0p05.tif", var, ym))
-  if (file.exists(out_tif)) {
-    next
-  }
 
   r <- nc_month_to_raster(
     nc_file     = f,
@@ -56,7 +73,11 @@ for (f in files) {
     method      = "bilinear",
     strict_time = TRUE
   )
-  writeRaster(r, out_tif, overwrite = TRUE, wopt = wopt)
+  tmp <- paste0(out_tif, ".tmp.tif")
+  writeRaster(r, tmp, overwrite = TRUE, wopt = wopt)
+  if (!file.rename(tmp, out_tif)) {
+    stop("Could not replace ", out_tif)
+  }
 }
 
 gc()
