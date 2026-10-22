@@ -12,6 +12,9 @@ source(here("R", "helpers", "io.R"))
 source(here("R", "helpers", "plotting.R"))
 
 cfg <- cfg_read()
+if (cfg$project$run_tag != "glc") {
+  stop("GLC mask products use RUN_TAG=glc")
+}
 
 terraOptions(progress = 1, memfrac = 0.9)
 
