@@ -90,7 +90,11 @@ for (f in files) {
     maskvalues = 1,
     updatevalue = NA
   )
-  writeRaster(r, out, overwrite = TRUE, wopt = wopt)
+  tmp <- paste0(out, ".tmp.tif")
+  writeRaster(r, tmp, overwrite = TRUE, wopt = wopt)
+  if (!file.rename(tmp, out)) {
+    stop("Could not replace ", out)
+  }
 }
 
 gc()
