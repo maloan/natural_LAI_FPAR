@@ -10,9 +10,8 @@ suppressPackageStartupMessages({
 source(here("R", "helpers", "io.R"))
 cfg <- cfg_read()
 
-# locate files
-run_tag <- cfg$project$run_tag
-nonveg_dir <- here("output", run_tag, "masks", "mask_nonvegetated")
+# locate the common CCI-derived nonvegetated masks
+nonveg_dir <- cfg$paths$mask_nonvegetated_dir
 
 yrs <- c(1995L, 2007L, 2022L)
 mask_files <- file.path(
