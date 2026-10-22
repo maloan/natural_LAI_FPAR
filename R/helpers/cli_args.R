@@ -46,7 +46,7 @@ parse_cli_args <- function(defaults) {
 }
 
 create_scenario_spec <- function(cci_alphas = c("alpha_0.05", "alpha_0.1", "alpha_0.2"),
-                                 glc_run_tag = "alpha_0.1") {
+                                 glc_run_tag = "glc") {
   # Create a tibble of scenario specifications for the analysis.
   tibble::tibble(
     scenario = c("Unmasked", sprintf("CCI alpha=%s", sub(
