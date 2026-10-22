@@ -23,7 +23,7 @@ alpha_water <- cfg$esa_cci$nonvegetated$water_threshold
 alpha_ice <- cfg$esa_cci$nonvegetated$ice_threshold
 years <- sort(unique(c(1995L, as.integer(cfg$esa_cci$nonvegetated$year), 2022L)))
 
-out_dir <- file.path(cfg$paths$masks_root_dir, "mask_nonvegetated")
+out_dir <- cfg$paths$mask_nonvegetated_dir
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 alpha_w_tok <- gsub("\\.", "p", sprintf("%.2f", alpha_water))
