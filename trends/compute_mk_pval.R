@@ -8,6 +8,7 @@ suppressPackageStartupMessages({
   library(here)
   library(trend)
 })
+source(here("R", "helpers", "io.R"))
 
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) < 1L ||
@@ -19,7 +20,7 @@ if (length(args) < 1L ||
 mode <- args[1]
 var <- args[2]
 metric <- args[3]
-alpha <- if (mode == "masked") args[4] else NULL
+run_tag <- if (mode == "masked") args[4] else NULL
 mask <- if (mode == "masked") args[5] else NULL
 
 # Optional explicit fill value override; leave NA to rely on NetCDF metadata.
@@ -40,13 +41,14 @@ if (mode == "unmasked") {
     sprintf("%s_georef_%s_trend_mk_pval_0p25.nc", var, metric)
   )
 } else if (mode == "masked") {
-  f_ts <- here(
-    "output", alpha, "eval",
+  root <- scenario_output_root(mask, run_tag)
+  f_ts <- file.path(
+    root, "eval",
     sprintf("trend_%s_%s", var, mask),
     sprintf("%s_%s_0p25.nc", var, metric)
   )
-  out_p <- here(
-    "output", alpha, "eval",
+  out_p <- file.path(
+    root, "eval",
     sprintf("trend_%s_%s", var, mask),
     sprintf("%s_%s_trend_mk_pval_0p25.nc", var, metric)
   )
