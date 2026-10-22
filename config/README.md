@@ -7,10 +7,12 @@ Each processing scenario has its own configuration file and scripts load the fil
 ## Configuration files
 
 - `config_alpha_0.05.yml`
-- `config_alpha_0.1.yml`
 - `config_alpha_0.2.yml`
+- `config_alpha_0.1.yml`
+- `config_glc.yml` (GLC scenario, with no CCI managed-land alpha)
 
-These files correspond to the three CCI masking thresholds used in the analysis.
+The three `alpha_*` files correspond to CCI masking thresholds. `config_glc.yml`
+selects the separate GLC scenario.
 
 All configuration files share the same structure and define:
 
@@ -29,14 +31,8 @@ cfg <- cfg_read()
 ```
 
 Run `R/00_setup.R` for each required `RUN_TAG` to generate the corresponding configuration file.
+To regenerate configuration without rewriting reference grids, use
+`CONFIG_ONLY=1 RUN_TAG=glc Rscript R/00_setup.R` (or a CCI alpha tag).
 
 The workflow uses a 0.05° processing grid and a 0.25° analysis grid.
 
-## Editing
-
-Typical updates include:
-
-- local or cluster paths
-- analysis years
-- land-cover class mappings
-- optional region or quicklook settings
