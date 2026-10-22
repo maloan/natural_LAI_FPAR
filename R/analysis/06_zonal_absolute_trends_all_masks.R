@@ -20,7 +20,8 @@ source(here("R", "helpers", "io.R"))
 var <- "LAI"
 metrics <- c("yearmean", "yearmax")
 alphas_cci <- c("alpha_0.05", "alpha_0.1", "alpha_0.2")
-alpha_glc <- "alpha_0.1"
+glc_run_tag <- "glc"
+analysis_tag <- "alpha_0.1" # existing combined-scenario table basename
 outdir_fig <- here("analysis", "results", "figures", "summaries")
 outdir_tbl <- here("analysis", "results", "tables", "zonal")
 dir.create(outdir_fig, recursive = TRUE, showWarnings = FALSE)
@@ -132,10 +133,10 @@ for (met in metrics) {
       mutate(metric = met, scenario = sprintf("CCI %s", gsub("alpha_", "alpha=", alpha)))
   }
 
-  f_glc <- analysis_raster_path(var, met, "GLC", run_tag = alpha_glc, kind = "trend_slope")
+  f_glc <- analysis_raster_path(var, met, "GLC", run_tag = glc_run_tag, kind = "trend_slope")
   check_file_exists(
     f_glc,
-    sprintf("GLC absolute-trend raster (%s, %s)", met, alpha_glc)
+    sprintf("GLC absolute-trend raster (%s, %s)", met, glc_run_tag)
   )
   r_glc <- load_checked_raster(f_glc, area, label = "GLC", first_layer = TRUE)
   area_glc <- load_summary_area(template = area)
@@ -168,11 +169,11 @@ df <- bind_rows(rows) |>
 # write table
 write_csv(df, file.path(
   outdir_tbl,
-  sprintf("zonal_absolute_trends_all_masks_%s_full_precision.csv", alpha_glc)
+  sprintf("zonal_absolute_trends_all_masks_%s_full_precision.csv", analysis_tag)
 ))
 write_csv(round_numeric(df, 5), file.path(
   outdir_tbl,
-  sprintf("zonal_absolute_trends_all_masks_%s.csv", alpha_glc)
+  sprintf("zonal_absolute_trends_all_masks_%s.csv", analysis_tag)
 ))
 
 p_mean <- plot_zonal_abstrend(
