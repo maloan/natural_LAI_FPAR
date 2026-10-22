@@ -52,7 +52,9 @@ if (any(missing_inputs)) {
 }
 years_to_process <- years[vapply(years, function(year) {
   fraction_file <- file.path(fraction_dir, sprintf("lc025_fraction_%d.tif", year))
-  !file.exists(fraction_file) || file.mtime(fraction_file) < file.mtime(input_file(year))
+  !file.exists(fraction_file) ||
+    !isTRUE(file.info(fraction_file)$size > 0) ||
+    file.mtime(fraction_file) < file.mtime(input_file(year))
 }, logical(1))]
 if (!length(years_to_process)) {
   message("All annual land-cover fractions are current.")
@@ -139,27 +141,34 @@ aggregate_year <- function(year) {
     stop("Unexpected lccs_class dimensions in ", path)
   }
 
-  for (target_row in seq_len(720L)) {
-    source_start <- (target_row - 1L) * 90L + 1L
-    source <- ncdf4::ncvar_get(
+  # Read adjacent rows together to avoid repeated NetCDF decompression.
+  for (batch_start in seq.int(1L, 720L, by = 10L)) {
+    batch_end <- min(batch_start + 9L, 720L)
+    source_start <- (batch_start - 1L) * 90L + 1L
+    source_batch <- ncdf4::ncvar_get(
       nc,
       "lccs_class",
       start = c(1L, source_start, 1L),
-      count = c(129600L, 90L, 1L),
+      count = c(129600L, (batch_end - batch_start + 1L) * 90L, 1L),
       collapse_degen = TRUE,
       raw_datavals = TRUE
     )
-    source <- matrix(as.integer(source), nrow = 129600L, ncol = 90L)
-    fractions[, target_row, ] <- aggregate_land_cover(
-      source,
-      lookup,
-      row_area[source_start:(source_start + 89L)],
-      length(parent_classes)
-    )
+    for (target_row in batch_start:batch_end) {
+      offset <- (target_row - batch_start) * 90L
+      source <- source_batch[, (offset + 1L):(offset + 90L), drop = FALSE]
+      row_start <- (target_row - 1L) * 90L + 1L
+      fractions[, target_row, ] <- aggregate_land_cover(
+        source,
+        lookup,
+        row_area[row_start:(row_start + 89L)],
+        length(parent_classes)
+      )
 
-    if (target_row %% 20L == 0L || target_row == 720L) {
-      message("  target rows ", target_row - 19L, "-", target_row)
+      if (target_row %% 20L == 0L || target_row == 720L) {
+        message("  target rows ", target_row - 19L, "-", target_row)
+      }
     }
+    rm(source_batch, source)
   }
   fractions
 }
@@ -184,14 +193,19 @@ write_outputs <- function(year, fractions) {
   values(fraction_raster) <- fraction_values
   names(fraction_raster) <- paste0("lc_", parent_classes)
 
+  output_file <- file.path(fraction_dir, sprintf("lc025_fraction_%d.tif", year))
+  tmp <- paste0(output_file, ".tmp.tif")
   writeRaster(
     fraction_raster,
-    file.path(fraction_dir, sprintf("lc025_fraction_%d.tif", year)),
+    tmp,
     overwrite = TRUE,
     datatype = "FLT4S",
     NAflag = -9999,
     gdal = c("COMPRESS=DEFLATE", "PREDICTOR=3", "TILED=YES", "BIGTIFF=IF_SAFER")
   )
+  if (!file.rename(tmp, output_file)) {
+    stop("Could not replace ", output_file)
+  }
 }
 
 dir.create(fraction_dir, recursive = TRUE, showWarnings = FALSE)
