@@ -23,6 +23,7 @@ if (!var %in% c("LAI", "FPAR")) {
 if (!mask %in% c("CCI", "GLC")) {
   stop_msg("Unsupported mask: ", mask, ". Use CCI or GLC")
 }
+scenario_output_root(mask, cfg$project$run_tag)
 
 
 # Refs and weights
