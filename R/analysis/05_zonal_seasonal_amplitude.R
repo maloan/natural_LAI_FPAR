@@ -18,7 +18,7 @@ source(here("R", "helpers", "io.R"))
 # config
 var <- "LAI"
 alphas_cci <- c("alpha_0.05", "alpha_0.1", "alpha_0.2")
-alpha_glc <- "alpha_0.1"
+glc_run_tag <- "glc"
 band_deg <- 1L
 scenario_levels <- c("Unmasked", "CCI alpha=0.05", "CCI alpha=0.1", "CCI alpha=0.2", "GLC")
 # paths
@@ -64,7 +64,7 @@ for (alpha in alphas_cci) {
     mutate(scenario = sprintf("CCI %s", gsub("alpha_", "alpha=", alpha)))
 }
 r_glc <- load_checked_raster(
-  analysis_raster_path(var, "yearamp", "GLC", run_tag = alpha_glc, kind = "metric"),
+  analysis_raster_path(var, "yearamp", "GLC", run_tag = glc_run_tag, kind = "metric"),
   area,
   label = "GLC"
 )
