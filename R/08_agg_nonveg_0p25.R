@@ -36,7 +36,11 @@ months <- format(
   "%Y%m"
 )
 
-for (var in c("LAI", "FPAR")) {
+var_filter <- toupper(Sys.getenv("VAR", ""))
+stopifnot(var_filter %in% c("", "LAI", "FPAR"))
+vars <- if (nzchar(var_filter)) var_filter else c("LAI", "FPAR")
+
+for (var in vars) {
   input_dir <- here("output", "nonvegetated_only_0p05", var)
   output_dir <- here("output", "nonvegetated_only_0p25", var)
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
@@ -79,12 +83,16 @@ for (var in c("LAI", "FPAR")) {
     r025 <- ifel(denominator == 0, NA, numerator / denominator)
     r025 <- align_to_template(r025, ref025, method = "near")
 
+    tmp <- paste0(output_file, ".tmp.tif")
     writeRaster(
       r025,
-      output_file,
+      tmp,
       overwrite = TRUE,
       wopt = wopt_f32(FALSE)
     )
+    if (!file.rename(tmp, output_file)) {
+      stop("Could not replace ", output_file)
+    }
   }
 }
 
