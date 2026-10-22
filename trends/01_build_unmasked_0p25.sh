@@ -16,7 +16,16 @@ done
 
 mkdir -p "$repo_dir/analysis/unmasked/0p25"
 
-for var in LAI FPAR; do
+vars=(LAI FPAR)
+if [[ -n "${VAR:-}" ]]; then
+  [[ "$VAR" == LAI || "$VAR" == FPAR ]] || {
+    echo "VAR must be LAI or FPAR" >&2
+    exit 1
+  }
+  vars=("$VAR")
+fi
+
+for var in "${vars[@]}"; do
   input_dir="$repo_dir/output/nonvegetated_only_0p25/$var"
   output_dir="$repo_dir/analysis/unmasked/0p25"
   work_dir="$repo_dir/analysis/unmasked/tmp_$var"
