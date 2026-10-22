@@ -19,7 +19,7 @@ RUNS=(
   "alpha_0.05 CCI"
   "alpha_0.1 CCI"
   "alpha_0.2 CCI"
-  "alpha_0.1 GLC"
+  "glc GLC"
 )
 
 total_jobs=0
