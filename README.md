@@ -25,7 +25,6 @@ data/         Intermediate harmonized products
 output/       Generated products by run tag
 analysis/     Analysis outputs and figures
 src/          Static reference grids and auxiliary files
-vignettes/    Extended documentation
 ```
 
 ## Analysis
@@ -38,7 +37,15 @@ R/analysis/run_all_analysis.sh
 
 The runner checks and rebuilds the unmasked baseline when needed and then produces summaries and figures from the completed masked trend products. It does not rebuild the masked processing branches.
 
-The analysis uses three CCI thresholds and one GLC-based branch stored under `alpha_0.1`. The GLC-based method itself does not depend on the CCI alpha threshold.
+The analysis uses three CCI thresholds under `output/alpha_<threshold>/` and
+one GLC-based branch under `output/glc/`. The GLC land-use and pasture masks
+do not depend on the CCI managed-land alpha threshold. Both scenarios use the
+same CCI-derived nonvegetated exclusion.
+
+For GLC processing, select `RUN_TAG=glc` and `MASK=GLC`. For example,
+`RUN_TAG=glc MASK=GLC VAR=LAI Rscript R/10_apply_mask_0p05.R` writes the
+masked monthly LAI series under `output/glc/`. Use `RUN_TAG=alpha_0.1` with
+`MASK=CCI` for the CCI alpha 0.1 counterpart.
 
 Chapter 2 inputs are built separately with:
 
@@ -77,6 +84,11 @@ sudo apt install gdal-bin libgdal-dev libproj-dev libnetcdf-dev
 ## Data sources
 
 Place the raw datasets under `data-raw/`, including ESA-CCI/C3S land cover, GLC_FCS30D, LUH2 v2h, LAI, and FPAR. These source datasets are not tracked by Git.
+
+`RAW_INPUT_MANIFEST_2026-10-21.tsv` records the file sizes and SHA-256
+checksums of the 516 LAI and 516 fAPAR NetCDFs used for the current source
+audit. This distinguishes the new LAI delivery from older files with the same
+version label.
 
 GLC_FCS30D v2 is downloaded from Zenodo and processed locally. The workflow derives:
 
