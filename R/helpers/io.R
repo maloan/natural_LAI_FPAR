@@ -88,6 +88,23 @@ read_trend <- function(path,
   terra::values(r, dataframe = FALSE)
 }
 
+scenario_output_root <- function(source, run_tag = NULL) {
+  source <- toupper(source)
+  if (source == "GLC") {
+    if (!identical(run_tag, "glc")) {
+      stop("GLC products use run_tag='glc', not a CCI alpha threshold")
+    }
+  } else if (source == "CCI") {
+    if (is.null(run_tag) || length(run_tag) != 1L || is.na(run_tag) ||
+        !grepl("^alpha_[0-9]+(\\.[0-9]+)?$", run_tag)) {
+      stop("CCI products require run_tag='alpha_<threshold>'")
+    }
+  } else {
+    stop("Unsupported masked source: ", source)
+  }
+  here::here("output", run_tag)
+}
+
 trend_path_factory <- function(var,
                                met,
                                source,
@@ -114,9 +131,8 @@ trend_path_factory <- function(var,
       "trend_slope_peryear"
     }
     file.path(
-      here::here(
-        "output",
-        run_tag,
+      file.path(
+        scenario_output_root(source, run_tag),
         "eval",
         sprintf("trend_%s_%s", var, source)
       ),
@@ -135,9 +151,8 @@ masked_lai_dir <- function(source,
   if (is.null(run_tag) || is.na(run_tag) || !nzchar(run_tag)) {
     stop("run_tag required for ", source, " masked LAI output")
   }
-  here::here(
-    "output",
-    run_tag,
+  file.path(
+    scenario_output_root(source_upper, run_tag),
     paste0("masked_", grid_tag),
     "LAI",
     paste0("masked_LAI_", source_upper)
@@ -212,12 +227,12 @@ analysis_raster_path <- function(var,
     trend_mk_pval = sprintf("%s_%s_trend_mk_pval_%s.nc", var, met, grid_tag)
   )
 
-  file.path(here::here(
-    "output",
-    run_tag,
+  file.path(
+    scenario_output_root(source, run_tag),
     "eval",
-    sprintf("trend_%s_%s", var, source)
-  ), file_name)
+    sprintf("trend_%s_%s", var, source),
+    file_name
+  )
 }
 
 
