@@ -1,6 +1,6 @@
 # Analysis
 
-This folder contains post-processing results and diagnostics derived from the masked and unmasked LAI and FPAR products. Most analyses use the 0.25° products.
+This folder contains post-processing results and diagnostics derived from the masked and unmasked LAI products. Most analyses use the 0.25° products. Existing FPAR trend files under `unmasked/` are retained, but the current Chapter 1 analysis runner summarizes LAI.
 
 ## Contents
 
@@ -8,7 +8,7 @@ The analysis includes:
 
 - global and regional trend summaries
 - masked and unmasked comparisons
-- LAI and FPAR diagnostics
+- LAI diagnostics
 - grid-cell significance results
 - global and zonal time-series summaries
 
