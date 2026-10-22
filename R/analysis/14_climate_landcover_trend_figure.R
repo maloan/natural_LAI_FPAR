@@ -89,10 +89,6 @@ figure_values_file <- here::here(
   "climate_landcover_trend_figure_values.csv"
 )
 write_csv(figure_data, figure_values_file)
-write_csv(
-  figure_data,
-  file.path(figure_dir, "climate_landcover_trend_figure_values.csv")
-)
 
 
 p_kg_abs <- plot_class_trend_panel(
