@@ -18,7 +18,7 @@ vars <- "LAI"
 metrics <- c("yearmean", "yearmax")
 scenario_spec <- create_scenario_spec(
   cci_alphas = c("alpha_0.05", "alpha_0.1", "alpha_0.2"),
-  glc_run_tag = "alpha_0.1"
+  glc_run_tag = "glc"
 )
 outdir <- here("analysis", "results", "tables", "trends")
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
