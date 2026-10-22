@@ -14,7 +14,7 @@ suppressPackageStartupMessages({
 source(here("R", "helpers", "io.R"))
 
 cci_alphas <- c("alpha_0.05", "alpha_0.1", "alpha_0.2")
-glc_run_tag <- "alpha_0.1"
+glc_run_tag <- "glc"
 
 outdir <- here("analysis", "results", "tables", "masks")
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
@@ -25,9 +25,8 @@ alpha_to_token <- function(run_tag) {
 }
 load_scenario_masks <- function(run_tag, lu_kind = c("CCI", "GLC")) {
   lu_kind <- match.arg(lu_kind)
-  alpha_token <- alpha_to_token(run_tag)
-
   lu_path <- if (lu_kind == "CCI") {
+    alpha_token <- alpha_to_token(run_tag)
     here(
       "output",
       run_tag,
