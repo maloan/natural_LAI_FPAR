@@ -3,7 +3,7 @@
 # build_trends_masked_0p25.sh — Run masked 0.25° trend workflow from repo root
 #
 # Examples
-#   ./build_trends_masked_0p25.sh alpha_0.2 FPAR GLC
+#   ./build_trends_masked_0p25.sh glc FPAR GLC
 #   ./build_trends_masked_0p25.sh alpha_0.1 LAI  CCI
 # ==============================================================================
 
@@ -33,13 +33,13 @@ need_cmd cdo
 need_cmd Rscript
 if [[ $# -lt 3 ]]; then
   cat >&2 << 'EOF'
-Usage: ./build_trends_masked_0p25.sh ALPHA VAR MASKTAG
+Usage: ./build_trends_masked_0p25.sh RUN_TAG VAR MASKTAG
 Example:
   ./build_trends_masked_0p25.sh alpha_0.1 LAI CCI
 EOF
   exit 1
 fi
-ALPHA="$1"
+RUN_TAG="$1"
 VAR="$2"
 MASKTAG="$3"
 RES="0p25"
@@ -55,14 +55,19 @@ RES="0p25"
   echo "ERROR: MASKTAG must be CCI or GLC" >&2
   exit 1
 }
+if [[ "$MASKTAG" == "GLC" && "$RUN_TAG" != "glc" ]] ||
+   [[ "$MASKTAG" == "CCI" && ! "$RUN_TAG" =~ ^alpha_[0-9]+([.][0-9]+)?$ ]]; then
+  echo "ERROR: Use glc for GLC or alpha_<threshold> for CCI" >&2
+  exit 1
+fi
 
 # ------------------------------------------------------------------------------
 # Paths
 # ------------------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(dirname "$SCRIPT_DIR")"
-IN_DIR="${ROOT}/output/${ALPHA}/masked_0p25/${VAR}/masked_${VAR}_${MASKTAG}"
-OUT_EVAL="${ROOT}/output/${ALPHA}/eval/trend_${VAR}_${MASKTAG}"
+IN_DIR="${ROOT}/output/${RUN_TAG}/masked_0p25/${VAR}/masked_${VAR}_${MASKTAG}"
+OUT_EVAL="${ROOT}/output/${RUN_TAG}/eval/trend_${VAR}_${MASKTAG}"
 mkdir -p "$OUT_EVAL"
 LOG_FILE="${OUT_EVAL}/build_trends.log"
 : > "$LOG_FILE"
@@ -85,7 +90,7 @@ log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
 }
 log "========== START =========="
-log "ALPHA=$ALPHA VAR=$VAR MASKTAG=$MASKTAG"
+log "RUN_TAG=$RUN_TAG VAR=$VAR MASKTAG=$MASKTAG"
 
 # ------------------------------------------------------------------------------
 # Input validation
@@ -264,7 +269,7 @@ pids=()
 for met in yearmean yearmax yearmin yearamp; do
   (
     cd "$ROOT"
-    Rscript "trends/compute_mk_pval.R" masked "$VAR" "$met" "$ALPHA" "$MASKTAG"
+    Rscript "trends/compute_mk_pval.R" masked "$VAR" "$met" "$RUN_TAG" "$MASKTAG"
   ) >>"$LOG_FILE" 2>&1 &
   pids+=($!)
 done
