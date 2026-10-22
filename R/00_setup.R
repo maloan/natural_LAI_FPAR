@@ -14,9 +14,10 @@ terraOptions(progress = 1, memfrac = 0.25)
 
 epsg4326 <- "EPSG:4326"
 run_tag <- Sys.getenv("RUN_TAG", unset = "alpha_0.1")
-alpha_cci <- as.numeric(sub("^alpha_", "", run_tag))
-if (!is.finite(alpha_cci)) {
-  stop("RUN_TAG must have the form alpha_<threshold>; received: ", run_tag)
+is_glc <- identical(run_tag, "glc")
+alpha_cci <- if (is_glc) NA_real_ else suppressWarnings(as.numeric(sub("^alpha_", "", run_tag)))
+if (!is_glc && (!grepl("^alpha_", run_tag) || !is.finite(alpha_cci))) {
+  stop("RUN_TAG must be glc or alpha_<threshold>; received: ", run_tag)
 }
 GDAL_OPTS <- gdal_co_int()
 
@@ -34,14 +35,17 @@ dirs <- list(
   cci_out_dir = here("data", "frac", "cci_frac_0p05"),
   glc_out_dir = here("data", "frac", "glc_frac_0p05"),
   masks_root_dir = here("output", run_tag, "masks"),
-  masks_cci_dir = here("output", run_tag, "masks", "mask_cci"),
-  masks_glc_dir = here("output", run_tag, "masks", "mask_glc"),
-  mask_nonvegetated_dir = here("output", run_tag, "masks", "mask_nonvegetated")
+  mask_nonvegetated_dir = here("output", if (is_glc) "alpha_0.1" else run_tag, "masks", "mask_nonvegetated")
 )
+if (is_glc) {
+  dirs$masks_glc_dir <- here("output", "glc", "masks", "mask_glc")
+} else {
+  dirs$masks_cci_dir <- here("output", run_tag, "masks", "mask_cci")
+}
 
 # masked dirs
 for (v in c("LAI", "FPAR")) {
-  for (m in c("CCI", "GLC")) {
+  for (m in if (is_glc) "GLC" else "CCI") {
     for (r in c("0p05", "0p25")) {
       key <- sprintf("masked_%s_%s_%s_dir", tolower(v), tolower(m), r)
       dirs[[key]] <- here(
@@ -201,6 +205,10 @@ cfg$luh2 <- list(
 )
 
 yaml::write_yaml(cfg, cfg_path)
+if (identical(Sys.getenv("CONFIG_ONLY"), "1")) {
+  message("Wrote configuration only: ", cfg_path)
+  quit(save = "no", status = 0L)
+}
 
 #  build reference rasters + netcdf
 for (k in names(ref)) {
