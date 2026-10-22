@@ -10,6 +10,7 @@ suppressPackageStartupMessages({
 source(here("R", "helpers", "netcdf.R"))
 source(here("R", "helpers", "io.R"))
 cfg <- cfg_read()
+scenario_output_root("CCI", cfg$project$run_tag)
 
 terraOptions(progress = 1, memfrac = 0.9)
 
