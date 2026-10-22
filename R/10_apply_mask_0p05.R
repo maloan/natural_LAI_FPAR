@@ -22,6 +22,7 @@ if (!var %in% c("LAI", "FPAR")) {
 if (!mask_kind %in% c("CCI", "GLC")) {
   stop_msg("Unsupported mask: ", mask_kind, ". Use CCI or GLC")
 }
+scenario_output_root(mask_kind, cfg$project$run_tag)
 
 g_min <- cfg$luh2$pasture_mask$grass_min
 p_min <- cfg$luh2$pasture_mask$pasture_min
@@ -102,15 +103,12 @@ stopifnot(compareGeom(drop_mask, ref005, stopOnError = FALSE))
 combine_or <- function(a, b) {
   # Combine drop masks; an NA component is treated as no additional exclusion.
   b <- align_to_template(b, a, method = "near")
-  app(
-    c(a, b),
-    fun = function(v) {
-      as.integer(any(v >= 1, na.rm = TRUE))
-    }
-  )
+  a <- ifel(is.na(a), 0L, a)
+  b <- ifel(is.na(b), 0L, b)
+  ifel(a + b >= 1L, 1L, 0L)
 }
 
-nonveg_dir <- file.path(cfg$paths$masks_root_dir, "mask_nonvegetated")
+nonveg_dir <- cfg$paths$mask_nonvegetated_dir
 nonveg_path <- file.path(
   nonveg_dir,
   sprintf(
