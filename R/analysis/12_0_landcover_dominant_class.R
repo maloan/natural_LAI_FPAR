@@ -7,36 +7,42 @@ suppressPackageStartupMessages({
   library(here)
 })
 
+source(here("R", "helpers", "landcover_classification.R"))
+
+terraOptions(progress = 1, memfrac = 0.2, todisk = TRUE)
+
 years <- 1992:2022
-fraction_dir <- here("analysis", "tmp", "lc025_fraction_yearly")
-out_dir <- here("analysis", "tmp", "lc025_dominant_class")
+fraction_dir <- here(
+  "analysis", "tmp", paste0("lc025_fraction_yearly_", lc_fraction_schema)
+)
+out_dir <- here(
+  "analysis", "tmp", paste0("lc025_dominant_class_grouped19_", lc_fraction_schema)
+)
 out_file <- file.path(out_dir, "lc025_dominant_mean_1992-2022.tif")
 files <- file.path(fraction_dir, sprintf("lc025_fraction_%d.tif", years))
 
-missing_files <- files[!file.exists(files)]
-if (length(missing_files)) {
-  stop(
-    "Missing annual 0.25-degree land-cover fractions. Run ",
-    "R/12_make_lc025_fractions.R first:\n",
-    paste(missing_files, collapse = "\n")
-  )
-}
+lc_assert_fraction_files(files)
 
 if (file.exists(out_file) && file.mtime(out_file) >= max(file.mtime(files))) {
   message("Dominant land-cover classification is current; skipping calculation.")
   quit(save = "no", status = 0L)
 }
 
-annual <- rast(files)
-class_names <- names(rast(files[[1]]))
-n_classes <- length(class_names)
-mean_fraction <- rast(lapply(seq_len(n_classes), function(i) {
-  app(annual[[seq(i, nlyr(annual), by = n_classes)]], mean, na.rm = TRUE)
+group_names <- paste0("lc_", names(lc_group_members))
+mean_fraction <- rast(lapply(lc_group_members, function(class_ids) {
+  annual_group <- rast(lapply(files, function(path) {
+    layers <- rast(path)[[paste0("lc_", class_ids)]]
+    if (nlyr(layers) == 1L) {
+      return(layers)
+    }
+    app(layers, sum, na.rm = FALSE)
+  }))
+  app(annual_group, mean, na.rm = TRUE)
 }))
-names(mean_fraction) <- class_names
+names(mean_fraction) <- group_names
 
 dominant_index <- which.max(mean_fraction)
-class_ids <- as.integer(sub("^lc_", "", class_names))
+class_ids <- as.integer(names(lc_group_members))
 dominant_class <- classify(
   dominant_index,
   cbind(seq_along(class_ids), class_ids),
@@ -45,12 +51,16 @@ dominant_class <- classify(
 names(dominant_class) <- "lc_id"
 
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+tmp <- paste0(out_file, ".tmp.tif")
 writeRaster(
   dominant_class,
-  out_file,
+  tmp,
   overwrite = TRUE,
   datatype = "INT2S",
   NAflag = -9999,
   gdal = c("COMPRESS=DEFLATE", "PREDICTOR=2", "TILED=YES", "BIGTIFF=IF_SAFER")
 )
+if (!file.rename(tmp, out_file)) {
+  stop("Could not replace ", out_file, call. = FALSE)
+}
 message("Wrote dominant land-cover classification: ", out_file)
