@@ -2,37 +2,13 @@
 
 Scripts for computing annual LAI/FPAR diagnostics, OLS trends, relative trends, and Mann--Kendall significance at 0.25° resolution.
 
-## Main scripts
-
-**Unmasked baseline**
+## Run
 
 ```bash
-./01_build_unmasked_0p25.sh
+make
 ```
 
-Builds the baseline used as `unmasked` in the analysis. Only the common water and permanent snow or ice mask is applied.
-
-**Masked trends**
-
-```bash
-./build_trends_masked_0p25.sh alpha_0.1 LAI CCI
-```
-
-Arguments:
-
-- first argument: scenario directory, for example `alpha_0.1` or `glc`
-- `VAR`: `LAI` or `FPAR`
-- `MASKTAG`: `CCI` or `GLC`
-
-**Batch processing**
-
-```bash
-./02_batch_build_trends_masked.sh
-```
-
-Runs the three CCI thresholds `0.05`, `0.10`, and `0.20` for LAI and FPAR. The
-GLC branch is run once for each variable and stored under `output/glc/`.
-Invoke it with `./build_trends_masked_0p25.sh glc LAI GLC` (or `FPAR`).
+`01_build_unmasked_0p25.sh` builds the water- and ice-masked reference trends. `02_batch_build_trends_masked.sh` builds masked trends for LAI and FPAR across the three CCI thresholds and the GLC scenario. `build_trends_masked_0p25.sh` processes one scenario and variable within the batch workflow.
 
 ## Outputs
 

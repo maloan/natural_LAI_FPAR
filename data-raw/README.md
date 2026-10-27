@@ -1,6 +1,6 @@
 # Raw Datasets
 
-This folder contains external source datasets used by the processing pipeline. Raw data are not tracked by Git.
+This folder contains local copies of the external source datasets used by the processing pipeline.
 
 ```text
 data-raw/
@@ -33,7 +33,7 @@ Download scripts are provided in the `ESACCI/` directory.
 
 Used for the GLC-based masking branch and for fractional grass-cover estimates used with LUH2 pasture data.
 
-The original 30 m archives are stored locally under `GLC_FCS30D/archives/` and are not tracked by Git. Derived 0.05° products include categorical modal-class maps and fractional grass-cover maps.
+The original 30 m archives are stored under `GLC_FCS30D/archives/`. Derived 0.05° products include categorical modal-class maps and fractional grass-cover maps.
 
 Source:
 
@@ -73,8 +73,4 @@ Source:
 
 ## Reproducibility
 
-Raw datasets are not included in the repository. Dataset paths, analysis years, thresholds, and class mappings are defined in:
-
-```text
-config/config_<RUN_TAG>.yml
-```
+The four files under `config/` define dataset paths, analysis years, thresholds, and class mappings.

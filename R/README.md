@@ -42,9 +42,7 @@ All rasters are aligned to common global grids at 0.05° for processing and 0.25
 - `11_agg_0p25.R` aggregates masked products to 0.25°.
 - `11_agg_0p5.R` aggregates the CCI alpha 0.1 plus pasture masked fAPAR to monthly 0.5° GeoTIFFs and a 516-month NetCDF.
 
-Use `RUN_TAG=glc` with `MASK=GLC` for the GLC branch. Use
-`RUN_TAG=alpha_<threshold>` with `MASK=CCI` for a CCI branch. GLC outputs are
-stored under `output/glc/`; CCI outputs remain under their threshold folders.
+GLC outputs are stored under `output/glc/`. CCI outputs are stored under their threshold folders.
 
 ### Chapter 2 inputs
 
@@ -61,13 +59,12 @@ NA = undefined
 
 ## Analysis
 
-Analysis scripts are stored under `R/analysis/`. After the masked trend products have been generated, run:
+Analysis scripts are stored under `R/analysis/`. Run the complete processing and analysis workflow from the repository root:
 
-```bash id="tjtw2e"
-R/analysis/run_all_analysis.sh
+```bash
+make
 ```
 
-The analysis workflow uses the completed masked and unmasked trend products and produces the statistical summaries, tables, diagnostics, and figures.
 
 ## Helpers
 

@@ -1,8 +1,8 @@
 # Managed-Land-Masked LAI / FPAR Processing Pipeline
 
-This repository builds global LAI and FPAR products with mapped managed areas excluded from satellite observations. Static masks based on ESA-CCI/C3S and GLC_FCS30D land cover combined with LUH2 pasture data are applied at 0.05° resolution. The retained domain is less managed according to these datasets but is not necessarily free of human influence. Products are aggregated to coarser grids using area weighting for subsequent analysis.
+This repository builds global LAI and FPAR products with mapped managed areas excluded from satellite observations. Static masks based on ESA-CCI/C3S and GLC_FCS30D land cover combined with LUH2 pasture data are applied at 0.05° resolution. The retained domain represents areas with lower mapped management influence. Products are aggregated to coarser grids using area weighting for subsequent analysis.
 
-Observed vegetation trends combine responses to environmental change with the effects of land use and management. This pipeline quantifies how trend estimates change when mapped managed areas are excluded. The comparison describes sensitivity to the retained spatial domain and does not attribute trend differences to individual drivers.
+Observed vegetation trends combine responses to environmental change with the effects of land use and management. This pipeline quantifies the sensitivity of trend estimates to excluding mapped managed areas and selecting the retained spatial domain.
 
 ## Main outputs
 
@@ -20,57 +20,41 @@ Outputs are organized under `output/<RUN_TAG>/`.
 ```text
 R/            Processing and analysis scripts
 config/       Run configuration
-data-raw/     External source data (not tracked)
+data-raw/     Local external source data
 data/         Intermediate harmonized products
 output/       Generated products by run tag
 analysis/     Analysis outputs and figures
 src/          Static reference grids and auxiliary files
 ```
 
-## Analysis
+## Run
 
-Run the numbered processing scripts to build the CCI-based and GLC-based masked trend products first. Then run the downstream analysis with:
+Place the raw datasets under `data-raw/`, then run the complete workflow from the repository root:
 
 ```bash
-R/analysis/run_all_analysis.sh
+make
 ```
 
-The runner checks and rebuilds the unmasked baseline when needed and then produces summaries and figures from the completed masked trend products. It does not rebuild the masked processing branches.
+The workflow builds both variables for all four masking scenarios and runs the analyses.
 
 The analysis uses three CCI thresholds under `output/alpha_<threshold>/` and
 one GLC-based branch under `output/glc/`. The GLC land-use and pasture masks
-do not depend on the CCI managed-land alpha threshold. Both scenarios use the
-same CCI-derived nonvegetated exclusion.
+are independent of the CCI managed-land alpha threshold. Both scenarios use
+the same CCI-derived nonvegetated exclusion.
 
-For GLC processing, select `RUN_TAG=glc` and `MASK=GLC`. For example,
-`RUN_TAG=glc MASK=GLC VAR=LAI Rscript R/10_apply_mask_0p05.R` writes the
-masked monthly LAI series under `output/glc/`. Use `RUN_TAG=alpha_0.1` with
-`MASK=CCI` for the CCI alpha 0.1 counterpart.
-
-Chapter 2 inputs are built separately with:
+Build the release archives with:
 
 ```bash
-Rscript R/12_chapter2_inputs_0p5.R
+bash release/build_archives.sh
 ```
-
-The CCI alpha 0.1 plus pasture masked 0.5° fAPAR series is a separate product:
-
-```bash
-RUN_TAG=alpha_0.1 Rscript R/11_agg_0p5.R
-```
-
-It writes monthly GeoTIFFs under
-`output/alpha_0.1/masked_0p5/FPAR/masked_FPAR_CCI/` and the Chapter 2 input
-`output/chapter2/fpar_masked/fpar_masked_0p5_monthly_1982-2024.nc`. The
-existing unmasked Chapter 2 fAPAR product remains separate.
 
 ## Configuration
 
-Core settings are stored in `config/config_<RUN_TAG>.yml`, including paths, years, land-cover classes, thresholds, and grid references.
+The four fixed configuration files under `config/` define paths, years, classes, thresholds, and grids.
 
 ## Requirements
 
-- R 4.1 or newer.
+- R 4.1 or later.
 - R packages used by the processing and analysis scripts, including `terra`, `sf`, `ncdf4`, and `tidyverse`.
 - R packages `Rcpp`, `sf`, and `lwgeom` for annual 0.25° land-cover-fraction aggregation.
 - System libraries including GDAL, PROJ, and NetCDF.
@@ -83,4 +67,4 @@ sudo apt install gdal-bin libgdal-dev libproj-dev libnetcdf-dev
 
 ## Data sources
 
-Place the raw datasets under `data-raw/`, including ESA-CCI/C3S land cover, GLC_FCS30D, LUH2 v2h, LAI, and FPAR. These source datasets are not tracked by Git.
+Place the ESA-CCI/C3S land cover, GLC_FCS30D, LUH2 v2h, LAI, and FPAR source datasets under `data-raw/`.

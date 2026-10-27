@@ -1,18 +1,14 @@
 # Analysis Workflows
 
-This folder contains R scripts for statistical summaries, figures, and diagnostics of LAI trends across masking scenarios. The current Chapter 1 analysis runner does not summarize FPAR trends.
+This folder contains R scripts for statistical summaries, figures, and diagnostics of LAI trends across masking scenarios. Chapter 1 summaries use LAI.
 
-## Run the analysis
-
-After the masked trend products have been generated, run:
+## Run
 
 ```bash
-R/analysis/run_all_analysis.sh
+make
 ```
 
-The runner uses three CCI thresholds under `output/alpha_<threshold>/` and one
-GLC-based branch under `output/glc/`. It checks the LAI water/ice-only baseline
-against its inputs and code and rebuilds that baseline when required.
+The workflow analyzes three CCI thresholds and one GLC-based masking scenario.
 
 ## Data flow
 
@@ -32,7 +28,7 @@ analysis/results/
 
 Spatial summaries use the fixed post-non-vegetated support area of each valid 0.25° grid cell.
 
-Land-use masks determine whether a grid-cell estimate is retained, but do not reduce its baseline support area.
+Land-use masks determine whether a grid-cell estimate is retained. The baseline support area remains fixed.
 
 Area-weighted means are calculated as:
 
@@ -51,7 +47,7 @@ Uncertainty is estimated using a spatial block bootstrap with 5° × 5° blocks.
 
 ## Climate classification
 
-Köppen--Geiger classes are assigned to the 0.25° grid by the dominant area-weighted class among the 9 by 9 nominal 100-arc-second source cells provided by `kgc`. Ocean cells are excluded from the class totals. Detailed three-character classes and two-character climate groups are aggregated and assigned independently. Climate classes are not spatially interpolated.
+Köppen--Geiger classes are assigned to the 0.25° grid by the dominant area-weighted class among the 9 by 9 nominal 100-arc-second source cells provided by `kgc`. Ocean cells are excluded from the class totals. Detailed three-character classes and two-character climate groups are aggregated and assigned independently. Class assignment uses categorical area dominance.
 
 ## Land-cover summaries
 

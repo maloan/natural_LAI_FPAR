@@ -2,7 +2,7 @@
 
 This folder contains generated intermediate products used by the LAI and FPAR processing pipeline.
 
-Files in this directory are derived from `data-raw/` and should not be edited manually.
+Pipeline scripts generate these files from `data-raw/`.
 
 ## Layout
 
@@ -34,4 +34,4 @@ These products are the direct inputs to masking and subsequent spatial aggregati
 
 ## Conventions
 
-All files use the project reference grids and are treated as generated outputs. If upstream inputs or preprocessing change, regenerate the affected products using the corresponding pipeline scripts.
+All files use the project reference grids and are generated outputs.

@@ -16,4 +16,4 @@ These modules provide reusable functions for raster and NetCDF handling, area-we
 
 ## Usage
 
-These files are intended to be sourced by other pipeline scripts and are not run directly.
+Pipeline scripts source these helper files.
