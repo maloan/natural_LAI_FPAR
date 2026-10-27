@@ -20,7 +20,7 @@ Builds the baseline used as `unmasked` in the analysis. Only the common water an
 
 Arguments:
 
-- `ALPHA`: run directory, for example `alpha_0.1`
+- first argument: scenario directory, for example `alpha_0.1` or `glc`
 - `VAR`: `LAI` or `FPAR`
 - `MASKTAG`: `CCI` or `GLC`
 
@@ -30,7 +30,9 @@ Arguments:
 ./02_batch_build_trends_masked.sh
 ```
 
-Runs the three CCI thresholds `0.05`, `0.10`, and `0.20` for LAI and FPAR. The GLC branch is run once for each variable and stored under `alpha_0.1`. The GLC mask itself does not depend on the CCI threshold.
+Runs the three CCI thresholds `0.05`, `0.10`, and `0.20` for LAI and FPAR. The
+GLC branch is run once for each variable and stored under `output/glc/`.
+Invoke it with `./build_trends_masked_0p25.sh glc LAI GLC` (or `FPAR`).
 
 ## Outputs
 
@@ -46,7 +48,7 @@ Relative trends are calculated only above variable-specific mean-value threshold
 Masked outputs are stored under:
 
 ```text
-output/<ALPHA>/eval/trend_<VAR>_<MASKTAG>/
+output/<RUN_TAG>/eval/trend_<VAR>_<MASKTAG>/
 ```
 
 Unmasked outputs are stored under:
