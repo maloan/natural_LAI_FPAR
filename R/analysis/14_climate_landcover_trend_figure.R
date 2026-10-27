@@ -13,6 +13,7 @@ suppressPackageStartupMessages({
 
 source(here::here("R", "helpers", "cli_args.R"))
 source(here::here("R", "helpers", "kg_classification.R"))
+source(here::here("R", "helpers", "landcover_classification.R"))
 source(here::here("R", "helpers", "plotting.R"))
 cfg <- parse_cli_args(list(mask = "CCI", alpha = "alpha_0.1"))
 kg_dir <- kg_output_dir("tables")
@@ -32,7 +33,7 @@ if (any(!file.exists(input_files))) {
 dir.create(figure_dir, recursive = TRUE, showWarnings = FALSE)
 
 kg_keep <- c("Af", "Am", "As", "Aw", "BS", "BW", "Cf", "Cs", "Cw", "Df", "Ds", "Dw", "ET")
-lc_keep <- c(10L, 50L, 60L, 70L, 80L, 90L, 100L, 120L, 130L, 140L, 150L, 160L, 180L, 190L, 200L)
+lc_keep <- lc_plot_ids
 
 prepare_kg <- function(path, metric) {
   readr::read_csv(path, show_col_types = FALSE) |>
@@ -49,7 +50,7 @@ prepare_kg <- function(path, metric) {
       unmasked_upper = ci_unm_upper,
       masked_lower = ci_msk_lower,
       masked_upper = ci_msk_upper,
-      retention_pct = 100 * frac_retained
+      retained_trend_coverage_pct = 100 * frac_retained
     )
 }
 
@@ -60,14 +61,14 @@ prepare_lc <- function(path, metric) {
       domain = "Land-cover class",
       metric,
       class = as.character(lc_id),
-      class_name = unname(c(`10` = "Cropland", `50` = "Evergreen broadleaf forest", `60` = "Deciduous broadleaf forest", `70` = "Needleleaf evergreen forest", `80` = "Needleleaf deciduous forest", `90` = "Mixed forest", `100` = "Mosaic tree/shrub", `120` = "Shrubland", `130` = "Grassland", `140` = "Lichen and mosses", `150` = "Sparse vegetation", `160` = "Flooded tree cover", `180` = "Flooded shrub/herbaceous", `190` = "Urban areas", `200` = "Bare areas")[as.character(lc_id)]),
+      class_name = lc_class_name(lc_id),
       unmasked = mean_unmasked,
       masked = mean_masked,
       unmasked_lower = ci_unm_lower,
       unmasked_upper = ci_unm_upper,
       masked_lower = ci_msk_lower,
       masked_upper = ci_msk_upper,
-      retention_pct = 100 * frac_retained
+      retained_trend_coverage_pct = 100 * frac_retained
     )
 }
 
@@ -79,7 +80,11 @@ figure_data <- bind_rows(
 ) |>
   mutate(
     change_pct = 100 * (masked - unmasked) / abs(unmasked),
-    retained_label = sprintf("%s  [%.0f%%]", class_name, retention_pct)
+    retained_label = sprintf(
+      "%s  [%.0f%%]",
+      class_name,
+      retained_trend_coverage_pct
+    )
   )
 
 figure_values_file <- here::here(
@@ -122,16 +127,19 @@ p_lc_rel <- plot_class_trend_panel(
 )
 
 climate_figure <- (p_kg_abs | p_kg_rel) +
-  plot_layout(guides = "collect") &
+  plot_layout(guides = "collect") +
+  plot_annotation(
+    caption = "Percentages in brackets show retained 0.25° trend coverage.",
+    theme = theme(plot.caption = element_text(hjust = 0, size = 10))
+  ) &
   theme(legend.position = "bottom")
 
 landcover_figure <- (p_lc_abs | p_lc_rel) +
-  plot_layout(guides = "collect") &
-  theme(legend.position = "bottom")
-
-# Keep the four-panel alternative for diagnostic use.
-combined_figure <- ((p_kg_abs | p_kg_rel) / ((p_lc_abs + labs(tag = "(c)")) | (p_lc_rel + labs(tag = "(d)")))) +
-  plot_layout(guides = "collect") &
+  plot_layout(guides = "collect") +
+  plot_annotation(
+    caption = "Percentages in brackets show retained 0.25° trend coverage.",
+    theme = theme(plot.caption = element_text(hjust = 0, size = 10))
+  ) &
   theme(legend.position = "bottom")
 
 climate_stem <- file.path(
@@ -161,11 +169,4 @@ save_figure <- function(stem, plot, width, height) {
 
 save_figure(climate_stem, climate_figure, width = 13.0, height = 6.5)
 save_figure(landcover_stem, landcover_figure, width = 13.0, height = 7.2)
-
-combined_stem <- file.path(
-  figure_dir,
-  paste0("climate_landcover_trends_absolute_relative_", cfg$mask, "_", cfg$alpha)
-)
-save_figure(combined_stem, combined_figure, width = 13.0, height = 13.4)
-
-message("Wrote separate and combined climate-zone/land-cover trend figures.")
+message("Wrote the climate-zone and land-cover figures used in the manuscript.")
