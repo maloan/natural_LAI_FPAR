@@ -11,50 +11,131 @@ suppressPackageStartupMessages({
   library(here)
 })
 
-terraOptions(progress = 1, memfrac = 0.6)
+source(here("R", "helpers", "landcover_classification.R"))
+
+terraOptions(progress = 1, memfrac = 0.2, todisk = TRUE)
 
 input_dir <- here("data-raw", "ESACCI", "ESACCI_1992-2022")
-fraction_dir <- here("analysis", "tmp", "lc025_fraction_yearly")
-years <- 1992:2022
-
-parent_classes <- c(
-  10L, 50L, 60L, 70L, 80L, 90L, 100L, 120L, 130L,
-  140L, 150L, 160L, 180L, 190L, 200L, 210L, 220L
+fraction_dir <- here(
+  "analysis", "tmp", paste0("lc025_fraction_yearly_", lc_fraction_schema)
 )
+all_years <- 1992:2022
+year_selection <- trimws(Sys.getenv("LC_YEARS", ""))
+if (nzchar(year_selection)) {
+  years <- suppressWarnings(as.integer(strsplit(year_selection, ",", fixed = TRUE)[[1]]))
+  if (anyNA(years) || !length(years) || any(!years %in% all_years)) {
+    stop(
+      "LC_YEARS must be a comma-separated subset of 1992 through 2022.",
+      call. = FALSE
+    )
+  }
+  years <- sort(unique(years))
+} else {
+  years <- all_years
+}
 
-class_to_parent <- c(
-  `10` = 10L, `11` = 10L, `12` = 10L, `20` = 10L,
-  `30` = 10L, `40` = 10L, `50` = 50L,
-  `60` = 60L, `61` = 60L, `62` = 60L,
-  `70` = 70L, `71` = 70L, `72` = 70L,
-  `80` = 80L, `81` = 80L, `82` = 80L,
-  `90` = 90L, `100` = 100L, `110` = 100L,
-  `120` = 120L, `121` = 120L, `122` = 120L,
-  `130` = 130L, `140` = 140L,
-  `150` = 150L, `151` = 150L, `152` = 150L, `153` = 150L,
-  `160` = 160L, `170` = 160L, `180` = 180L,
-  `190` = 190L, `200` = 200L, `201` = 200L, `202` = 200L,
-  `210` = 210L, `220` = 220L
-)
+parent_classes <- lc_primary_classes
+class_to_parent <- lc_native_to_primary
+batch_target_rows <- suppressWarnings(as.integer(Sys.getenv("LC_BATCH_TARGET_ROWS", "2")))
+if (is.na(batch_target_rows) || batch_target_rows < 1L || batch_target_rows > 10L) {
+  stop("LC_BATCH_TARGET_ROWS must be an integer from 1 through 10.", call. = FALSE)
+}
 
-input_file <- function(year) {
-  filename <- if (year <= 2015) {
+input_basename <- function(year) {
+  if (year <= 2015) {
     sprintf("ESACCI-LC-L4-LCCS-Map-300m-P1Y-%d-v2.0.7cds.nc", year)
   } else {
     sprintf("C3S-LC-L4-LCCS-Map-300m-P1Y-%d-v2.1.1.nc", year)
   }
-  file.path(input_dir, filename)
 }
 
-missing_inputs <- vapply(years, function(year) !file.exists(input_file(year)), logical(1))
-if (any(missing_inputs)) {
-  stop("Missing expected ESA-CCI files for years: ", paste(years[missing_inputs], collapse = ", "))
+archive_basename <- function(year) {
+  version <- if (year <= 2015) "v2_0_7cds" else "v2_1_1"
+  sprintf("C3S_LC_%d_%s.zip", year, version)
 }
+
+find_input <- function(year) {
+  nc_path <- file.path(input_dir, input_basename(year))
+  zip_path <- file.path(input_dir, archive_basename(year))
+  if (file.exists(nc_path) && isTRUE(file.info(nc_path)$size > 0)) {
+    return(list(type = "netcdf", path = nc_path, member = NA_character_))
+  }
+  if (!file.exists(zip_path) || !isTRUE(file.info(zip_path)$size > 0)) {
+    return(NULL)
+  }
+
+  listing <- try(utils::unzip(zip_path, list = TRUE), silent = TRUE)
+  if (inherits(listing, "try-error")) {
+    return(NULL)
+  }
+  members <- listing$Name[basename(listing$Name) == input_basename(year)]
+  if (length(members) != 1L) {
+    return(NULL)
+  }
+  list(type = "zip", path = zip_path, member = members)
+}
+
+validate_netcdf <- function(path) {
+  nc <- try(ncdf4::nc_open(path), silent = TRUE)
+  if (inherits(nc, "try-error")) {
+    return(FALSE)
+  }
+  on.exit(ncdf4::nc_close(nc))
+  valid <- "lccs_class" %in% names(nc$var) &&
+    identical(as.integer(nc$var$lccs_class$size), c(129600L, 64800L, 1L))
+  isTRUE(valid)
+}
+
+# Validate the selected series before writing derived output. Production runs
+# use all 31 years. LC_YEARS permits safe, resumable preparation of completed
+# downloads, but downstream classification still requires the full series.
+inputs <- setNames(lapply(years, find_input), years)
+missing_inputs <- vapply(inputs, is.null, logical(1))
+if (any(missing_inputs)) {
+  stop(
+    "Missing, incomplete, or invalid ESA-CCI archives/NetCDFs for years: ",
+    paste(years[missing_inputs], collapse = ", "),
+    call. = FALSE
+  )
+}
+invalid_netcdf <- vapply(inputs, function(input) {
+  identical(input$type, "netcdf") && !validate_netcdf(input$path)
+}, logical(1))
+if (any(invalid_netcdf)) {
+  stop(
+    "Invalid ESA-CCI NetCDFs for years: ",
+    paste(years[invalid_netcdf], collapse = ", "),
+    call. = FALSE
+  )
+}
+
+materialize_input <- function(year) {
+  input <- inputs[[as.character(year)]]
+  if (identical(input$type, "netcdf")) {
+    return(list(path = input$path, temporary_dir = NULL))
+  }
+
+  extract_dir <- tempfile(sprintf("esacci_%d_", year))
+  dir.create(extract_dir)
+  status <- system2(
+    "unzip",
+    c(
+      "-qq", "-o", shQuote(input$path), shQuote(input$member),
+      "-d", shQuote(extract_dir)
+    )
+  )
+  extracted <- file.path(extract_dir, input$member)
+  if (status != 0L || !file.exists(extracted) || !validate_netcdf(extracted)) {
+    unlink(extract_dir, recursive = TRUE)
+    stop("Could not extract a valid ESA-CCI NetCDF from ", input$path, call. = FALSE)
+  }
+  list(path = extracted, temporary_dir = extract_dir)
+}
+
 years_to_process <- years[vapply(years, function(year) {
   fraction_file <- file.path(fraction_dir, sprintf("lc025_fraction_%d.tif", year))
-  !file.exists(fraction_file) ||
-    !isTRUE(file.info(fraction_file)$size > 0) ||
-    file.mtime(fraction_file) < file.mtime(input_file(year))
+  !lc_fraction_file_is_valid(fraction_file) ||
+    file.mtime(fraction_file) < file.mtime(inputs[[as.character(year)]]$path)
 }, logical(1))]
 if (!length(years_to_process)) {
   message("All annual land-cover fractions are current.")
@@ -124,10 +205,13 @@ NumericMatrix aggregate_land_cover(
 ')
 
 aggregate_year <- function(year) {
-  path <- input_file(year)
-  if (!file.exists(path)) {
-    stop("Missing expected ESA-CCI file: ", path)
-  }
+  materialized <- materialize_input(year)
+  path <- materialized$path
+  on.exit({
+    if (!is.null(materialized$temporary_dir)) {
+      unlink(materialized$temporary_dir, recursive = TRUE)
+    }
+  }, add = TRUE)
 
   fractions <- array(
     NA_real_,
@@ -142,8 +226,8 @@ aggregate_year <- function(year) {
   }
 
   # Read adjacent rows together to avoid repeated NetCDF decompression.
-  for (batch_start in seq.int(1L, 720L, by = 10L)) {
-    batch_end <- min(batch_start + 9L, 720L)
+  for (batch_start in seq.int(1L, 720L, by = batch_target_rows)) {
+    batch_end <- min(batch_start + batch_target_rows - 1L, 720L)
     source_start <- (batch_start - 1L) * 90L + 1L
     source_batch <- ncdf4::ncvar_get(
       nc,
@@ -211,7 +295,10 @@ write_outputs <- function(year, fractions) {
 dir.create(fraction_dir, recursive = TRUE, showWarnings = FALSE)
 
 for (year in years_to_process) {
-  message("Processing ", year, ": ", basename(input_file(year)))
+  message(
+    "Processing ", year, ": ",
+    basename(inputs[[as.character(year)]]$path)
+  )
   fractions <- aggregate_year(year)
   write_outputs(year, fractions)
   rm(fractions)
