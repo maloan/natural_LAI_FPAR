@@ -19,27 +19,11 @@ input_dir <- here("data-raw", "ESACCI", "ESACCI_1992-2022")
 fraction_dir <- here(
   "analysis", "tmp", paste0("lc025_fraction_yearly_", lc_fraction_schema)
 )
-all_years <- 1992:2022
-year_selection <- trimws(Sys.getenv("LC_YEARS", ""))
-if (nzchar(year_selection)) {
-  years <- suppressWarnings(as.integer(strsplit(year_selection, ",", fixed = TRUE)[[1]]))
-  if (anyNA(years) || !length(years) || any(!years %in% all_years)) {
-    stop(
-      "LC_YEARS must be a comma-separated subset of 1992 through 2022.",
-      call. = FALSE
-    )
-  }
-  years <- sort(unique(years))
-} else {
-  years <- all_years
-}
+years <- 1992:2022
 
 parent_classes <- lc_primary_classes
 class_to_parent <- lc_native_to_primary
-batch_target_rows <- suppressWarnings(as.integer(Sys.getenv("LC_BATCH_TARGET_ROWS", "2")))
-if (is.na(batch_target_rows) || batch_target_rows < 1L || batch_target_rows > 10L) {
-  stop("LC_BATCH_TARGET_ROWS must be an integer from 1 through 10.", call. = FALSE)
-}
+batch_target_rows <- 2L
 
 input_basename <- function(year) {
   if (year <= 2015) {
@@ -86,9 +70,7 @@ validate_netcdf <- function(path) {
   isTRUE(valid)
 }
 
-# Validate the selected series before writing derived output. Production runs
-# use all 31 years. LC_YEARS permits safe, resumable preparation of completed
-# downloads, but downstream classification still requires the full series.
+# Validate the complete 31-year series before writing derived output.
 inputs <- setNames(lapply(years, find_input), years)
 missing_inputs <- vapply(inputs, is.null, logical(1))
 if (any(missing_inputs)) {
