@@ -16,16 +16,7 @@ done
 
 mkdir -p "$repo_dir/analysis/unmasked/0p25"
 
-vars=(LAI FPAR)
-if [[ -n "${VAR:-}" ]]; then
-  [[ "$VAR" == LAI || "$VAR" == FPAR ]] || {
-    echo "VAR must be LAI or FPAR" >&2
-    exit 1
-  }
-  vars=("$VAR")
-fi
-
-for var in "${vars[@]}"; do
+for var in LAI FPAR; do
   input_dir="$repo_dir/output/nonvegetated_only_0p25/$var"
   output_dir="$repo_dir/analysis/unmasked/0p25"
   work_dir="$repo_dir/analysis/unmasked/tmp_$var"
@@ -86,21 +77,10 @@ for var in "${vars[@]}"; do
     cdo -O trend "$annual" "$intercept" "$slope" >>"$log_file" 2>&1
   done
 
-  mk_pids=()
   for metric in yearmean yearmax yearmin yearamp; do
     Rscript "$repo_dir/trends/compute_mk_pval.R" unmasked "$var" "$metric" \
-      >>"$log_file" 2>&1 &
-    mk_pids+=("$!")
+      >>"$log_file" 2>&1
   done
-
-  mk_failed=0
-  for pid in "${mk_pids[@]}"; do
-    wait "$pid" || mk_failed=$((mk_failed + 1))
-  done
-  if [[ "$mk_failed" -gt 0 ]]; then
-    echo "Mann-Kendall failed for $mk_failed $var metric(s)" >&2
-    exit 1
-  fi
 
   eps=0.02
   [[ "$var" == LAI ]] && eps=0.05
