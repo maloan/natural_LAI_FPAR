@@ -21,7 +21,7 @@ source_dependencies <- c(
   cfg$grids$grid_005$area_raster,
   cfg$grids$grid_005$ref_raster,
   cfg$grids$grid_025$ref_raster,
-  here("config", sprintf("config_%s.yml", Sys.getenv("RUN_TAG", "alpha_0.1"))),
+  here("config", sprintf("config_%s.yml", cfg$project$run_tag)),
   here("R", "08_agg_nonveg_0p25.R"),
   here("R", "helpers", "netcdf.R"),
   here("R", "helpers", "io.R")
@@ -36,11 +36,7 @@ months <- format(
   "%Y%m"
 )
 
-var_filter <- toupper(Sys.getenv("VAR", ""))
-stopifnot(var_filter %in% c("", "LAI", "FPAR"))
-vars <- if (nzchar(var_filter)) var_filter else c("LAI", "FPAR")
-
-for (var in vars) {
+for (var in c("LAI", "FPAR")) {
   input_dir <- here("output", "nonvegetated_only_0p05", var)
   output_dir <- here("output", "nonvegetated_only_0p25", var)
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)

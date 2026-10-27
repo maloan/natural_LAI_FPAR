@@ -18,7 +18,7 @@ terraOptions(progress = 1, memfrac = 0.25)
 
 
 # Config
-var <- toupper(Sys.getenv("VAR", "FPAR"))
+var <- toupper(Sys.getenv("VAR"))
 stopifnot(var %in% c("LAI", "FPAR"))
 
 var_lower <- tolower(var)
@@ -67,7 +67,7 @@ if (length(missing_files)) {
 # Loop
 source_dependencies <- c(
   nonveg_mask_path,
-  here("config", sprintf("config_%s.yml", Sys.getenv("RUN_TAG", "alpha_0.1"))),
+  here("config", sprintf("config_%s.yml", cfg$project$run_tag)),
   here("R", "07_apply_nonveg_only_0p05.R"),
   here("R", "helpers", "netcdf.R"),
   here("R", "helpers", "io.R")

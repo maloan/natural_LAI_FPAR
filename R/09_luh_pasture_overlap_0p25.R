@@ -18,11 +18,7 @@ cfg <- cfg_read()
 terraOptions(progress = 1, memfrac = 0.25)
 
 #  params
-grass_source <- toupper(Sys.getenv("GRASS_SOURCE", "GLC"))
-if ((grass_source == "GLC" && cfg$project$run_tag != "glc") ||
-    (grass_source == "CCI" && cfg$project$run_tag == "glc")) {
-  stop("Use RUN_TAG=glc for GLC grass, or RUN_TAG=alpha_<threshold> for CCI grass")
-}
+grass_source <- if (cfg$project$run_tag == "glc") "GLC" else "CCI"
 g_min <- cfg$luh2$pasture_mask$grass_min
 p_min <- cfg$luh2$pasture_mask$pasture_min
 beta <- cfg$luh2$pasture_mask$pasture_grass_ratio_min

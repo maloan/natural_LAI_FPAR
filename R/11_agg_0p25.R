@@ -15,13 +15,10 @@ cfg <- cfg_read()
 terraOptions(progress = 1, memfrac = 0.25)
 
 
-var <- toupper(Sys.getenv("VAR", "LAI")) # allowed values: LAI or FPAR
-mask <- toupper(Sys.getenv("MASK", "CCI")) # allowed values: CCI or GLC
+var <- toupper(Sys.getenv("VAR")) # allowed values: LAI or FPAR
+mask <- if (cfg$project$run_tag == "glc") "GLC" else "CCI"
 if (!var %in% c("LAI", "FPAR")) {
   stop_msg("Unsupported var: ", var, ". Use LAI or FPAR")
-}
-if (!mask %in% c("CCI", "GLC")) {
-  stop_msg("Unsupported mask: ", mask, ". Use CCI or GLC")
 }
 scenario_output_root(mask, cfg$project$run_tag)
 
@@ -65,7 +62,7 @@ source_dependencies <- c(
   cfg$grids$grid_005$area_raster,
   cfg$grids$grid_005$ref_raster,
   cfg$grids$grid_025$ref_raster,
-  here("config", sprintf("config_%s.yml", Sys.getenv("RUN_TAG", "alpha_0.1"))),
+  here("config", sprintf("config_%s.yml", cfg$project$run_tag)),
   here("R", "11_agg_0p25.R"),
   here("R", "helpers", "io.R")
 )

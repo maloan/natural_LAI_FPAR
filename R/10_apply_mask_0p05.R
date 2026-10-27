@@ -14,13 +14,10 @@ source(here("R", "helpers", "io.R"))
 cfg <- cfg_read()
 terraOptions(progress = 1, memfrac = 0.25)
 
-var <- toupper(Sys.getenv("VAR", "LAI"))
-mask_kind <- toupper(Sys.getenv("MASK", "GLC"))
+var <- toupper(Sys.getenv("VAR"))
+mask_kind <- if (cfg$project$run_tag == "glc") "GLC" else "CCI"
 if (!var %in% c("LAI", "FPAR")) {
   stop_msg("Unsupported var: ", var, ". Use LAI or FPAR")
-}
-if (!mask_kind %in% c("CCI", "GLC")) {
-  stop_msg("Unsupported mask: ", mask_kind, ". Use CCI or GLC")
 }
 scenario_output_root(mask_kind, cfg$project$run_tag)
 
@@ -147,7 +144,7 @@ if (inherits(vals_ok, "try-error") || !isTRUE(vals_ok)) {
 }
 
 mask_combined_path <- file.path(out_dir, "combined_mask_0p05.tif")
-config_file <- here("config", sprintf("config_%s.yml", Sys.getenv("RUN_TAG", "alpha_0.1")))
+config_file <- here("config", sprintf("config_%s.yml", cfg$project$run_tag))
 mask_sources <- c(
   mask_path, nonveg_path, luh_path, config_file,
   here("R", "10_apply_mask_0p05.R"),
