@@ -6,15 +6,11 @@ suppressPackageStartupMessages({
   library(terra)
   library(dplyr)
   library(here)
-  library(ggplot2)
-  library(ggrepel)
-  library(tidyr)
   library(readr)
 })
 
 source(here::here("R", "helpers", "cli_args.R"))
 source(here::here("R", "helpers", "bootstrap_ci.R"))
-source(here::here("R", "helpers", "plotting.R"))
 source(here::here("R", "helpers", "io.R"))
 source(here::here("R", "helpers", "kg_classification.R"))
 
@@ -37,8 +33,8 @@ use_relative <- isTRUE(cfg$use_relative)
 n_boot <- as.integer(cfg$n_boot)
 conf <- as.numeric(cfg$conf)
 stopifnot(n_boot >= 2L, conf > 0, conf < 1)
-message("Climate summary: nominal 100-arc-second classification, relative=", use_relative)
-terraOptions(progress = 0)
+message("Climate summary: area-dominant 100-arc-second classification, relative=", use_relative)
+terraOptions(progress = 0, memfrac = 0.2, todisk = TRUE)
 
 ref025 <- terra::rast(here::here("src", "ref_0p25.nc"))
 area_land <- rast(here::here("src", "area_0p25_validdomain_km2.nc"))[[1]]
@@ -53,12 +49,10 @@ if (use_relative) {
   trend_suffix <- "trend_relative_percent_peryear"
   suffix <- "rel"
   scale_factor <- 1
-  unit_label <- expression("LAI trend (% yr"^-1 * ")")
 } else {
   trend_suffix <- "trend_slope_peryear"
   suffix <- "abs"
   scale_factor <- 1
-  unit_label <- expression("LAI trend (" ~ "×" ~ 10^-3 ~ m^2 ~ m^-2 ~ yr^-1 * ")")
 }
 
 f_unm <- here::here(
@@ -75,11 +69,9 @@ f_msk <- file.path(
   sprintf("%s_%s_%s_0p25.nc", var, metric, trend_suffix)
 )
 
-outdir_fig <- kg_output_dir("figures")
 outdir_tbl <- kg_output_dir("tables")
 dir_kg_grid <- here::here("analysis", "results", "tmp", "kg_grid")
 
-dir.create(outdir_fig, recursive = TRUE, showWarnings = FALSE)
 dir.create(outdir_tbl, recursive = TRUE, showWarnings = FALSE)
 dir.create(dir_kg_grid, recursive = TRUE, showWarnings = FALSE)
 
@@ -174,10 +166,9 @@ stopifnot(
 
 block_id_sub <- block_id[valid_domain_cells]
 
-classification <- kg_grid(
+classification <- kg_grid_dominant(
   ref025,
   valid_domain_cells,
-  resolution = "fine",
   cache_dir = dir_kg_grid
 )
 kg_code <- classification$code
@@ -201,7 +192,7 @@ if (!length(codes3)) {
   stop("No valid Köppen-Geiger classes found.", call. = FALSE)
 }
 
-kg_code2 <- substr(kg_code, 1, 2)
+kg_code2 <- classification$code2
 codes2 <- sort(unique(kg_code2))
 codes2 <- codes2[!is.na(codes2) & codes2 != ""]
 
@@ -400,6 +391,7 @@ out_kg2 <- file.path(
 )
 
 add_provenance <- function(x) mutate(x,
+  kg_assignment_method = classification$resolution,
   kg_nominal_degrees = classification$nominal_degrees, kg_grid_signature = classification$signature,
   kgc_version = as.character(packageVersion("kgc")), bootstrap_replicates = n_boot,
   bootstrap_confidence = conf, bootstrap_block_degrees = 5)
@@ -407,122 +399,6 @@ kg_full <- add_provenance(kg_full)
 kg2_summary <- add_provenance(kg2_summary)
 write_csv(kg_full, out_full)
 write_csv(kg2_summary, out_kg2)
-
-valid_kg2 <- c(
-  "Af",
-  "Am",
-  "As",
-  "Aw",
-  "BS",
-  "BW",
-  "Cf",
-  "Cs",
-  "Cw",
-  "Df",
-  "Ds",
-  "Dw",
-  "ET"
-)
-
-plot_tab <- kg2_summary |>
-  filter(
-    kg_code2 %in% valid_kg2,
-    is.finite(mean_unmasked) | is.finite(mean_masked),
-    is.finite(area_unm_mkm2),
-    area_unm_mkm2 > 0
-  ) |>
-  mutate(
-    kg_label = paste0(kg_code2, " - ", kg_name),
-    mean_removed = abs(mean_masked - mean_unmasked),
-    area_removed_label = sprintf("%.0f%%", area_removed_pct),
-    frac_retained_label = sprintf("%.0f%%", frac_retained * 100),
-    # Determine significance
-    sig_unmasked = ci_unm_lower * ci_unm_upper > 0,
-    sig_masked = ci_msk_lower * ci_msk_upper > 0
-  ) |>
-  arrange(desc(abs(mean_removed)))
-
-if (!nrow(plot_tab)) {
-  stop("No finite Köppen-Geiger groups available for plotting.",
-    call. = FALSE
-  )
-}
-
-plot_long <- plot_tab |>
-  select(
-    kg_label,
-    mean_unmasked,
-    mean_masked,
-    ci_unm_lower,
-    ci_unm_upper,
-    ci_msk_lower,
-    ci_msk_upper,
-    sig_unmasked,
-    sig_masked
-  ) |>
-  pivot_longer(
-    cols = c(mean_unmasked, mean_masked),
-    names_to = "scenario",
-    values_to = "trend"
-  ) |>
-  mutate(
-    ci_lower = if_else(scenario == "mean_unmasked", ci_unm_lower, ci_msk_lower),
-    ci_upper = if_else(scenario == "mean_unmasked", ci_unm_upper, ci_msk_upper),
-    sig = if_else(scenario == "mean_unmasked", sig_unmasked, sig_masked),
-    scenario = factor(
-      scenario,
-      levels = c("mean_unmasked", "mean_masked"),
-      labels = c("Unmasked", "Masked")
-    ),
-    shape_type = ifelse(sig, 16, 1)
-  )
-
-kg_levels <- rev(unique(plot_tab$kg_label))
-plot_tab <- plot_tab |>
-  mutate(kg_label = factor(kg_label, levels = kg_levels))
-plot_long <- plot_long |>
-  mutate(kg_label = factor(kg_label, levels = kg_levels))
-
-if (!use_relative) {
-  plot_tab <- plot_tab |>
-    mutate(across(c(mean_unmasked, mean_masked, ci_unm_lower, ci_unm_upper,
-                    ci_msk_lower, ci_msk_upper), ~ 1000 * .x))
-  plot_long <- plot_long |>
-    mutate(across(c(trend, ci_lower, ci_upper), ~ 1000 * .x))
-}
-p <- plot_kg(plot_tab, plot_long, unit_label)
-
-out_png <- file.path(
-  outdir_fig,
-  sprintf(
-    "kg_group_trend_summary_%s_%s_%s_%s_%s_main.png",
-    var,
-    metric,
-    mask,
-    alpha,
-    suffix
-  )
-)
-
-out_pdf <- file.path(
-  outdir_fig,
-  sprintf(
-    "kg_group_trend_summary_%s_%s_%s_%s_%s_main.pdf",
-    var,
-    metric,
-    mask,
-    alpha,
-    suffix
-  )
-)
-
-ggsave(out_png,
-  p,
-  width = 8.2,
-  height = 5.4,
-  dpi = 320
-)
-ggsave(out_pdf, p, width = 8.2, height = 5.4)
 invisible(list(subzone = kg_full, group = kg2_summary, coverage = coverage))
 }
 
