@@ -84,15 +84,3 @@ sudo apt install gdal-bin libgdal-dev libproj-dev libnetcdf-dev
 ## Data sources
 
 Place the raw datasets under `data-raw/`, including ESA-CCI/C3S land cover, GLC_FCS30D, LUH2 v2h, LAI, and FPAR. These source datasets are not tracked by Git.
-
-`RAW_INPUT_MANIFEST_2026-10-21.tsv` records the file sizes and SHA-256
-checksums of the 516 LAI and 516 fAPAR NetCDFs used for the current source
-audit. This distinguishes the new LAI delivery from older files with the same
-version label.
-
-GLC_FCS30D v2 is downloaded from Zenodo and processed locally. The workflow derives:
-
-- Categorical modal-class maps used for the GLC-based land-use mask.
-- Fractional grass-cover maps used for the LUH2 pasture-overlap calculation.
-
-Download and local-processing instructions are provided in `data-raw/GLC_FCS30D/README.md`.
