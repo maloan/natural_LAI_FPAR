@@ -6,20 +6,17 @@ suppressPackageStartupMessages({
   library(terra)
   library(dplyr)
   library(here)
-  library(ggplot2)
-  library(ggrepel)
-  library(tidyr)
   library(readr)
   library(purrr)
 })
 
 source(here::here("R", "helpers", "cli_args.R"))
 source(here::here("R", "helpers", "bootstrap_ci.R"))
-source(here::here("R", "helpers", "plotting.R"))
 source(here::here("R", "helpers", "io.R"))
+source(here::here("R", "helpers", "landcover_classification.R"))
 terraOptions(
   progress = 0,
-  memfrac = 0.6,
+  memfrac = 0.2,
   todisk = TRUE
 )
 
@@ -57,11 +54,11 @@ if (is.na(cfg$lc_year_start) ||
 lc_years <- cfg$lc_year_start:cfg$lc_year_end
 
 # paths
-lc_class_dir <- here("analysis", "tmp", "lc025_dominant_class")
-outdir_fig <- here("analysis", "results", "figures", "summaries")
+lc_class_dir <- here(
+  "analysis", "tmp", paste0("lc025_dominant_class_grouped19_", lc_fraction_schema)
+)
 outdir_tbl <- here("analysis", "results", "tables", "land_cover")
 
-dir.create(outdir_fig, recursive = TRUE, showWarnings = FALSE)
 dir.create(outdir_tbl, recursive = TRUE, showWarnings = FALSE)
 
 ref025 <- terra::rast(here::here("src", "ref_0p25.nc"))
@@ -86,66 +83,15 @@ trend_files <- function(use_relative) {
       "0p25",
       sprintf("%s_georef_%s_%s_0p25.nc", var, metric, suf)
     ),
-    msk = here(
-      "output",
-      alpha,
+    msk = file.path(
+      scenario_output_root(mask, alpha),
       "eval",
       sprintf("trend_%s_%s", var, mask),
       sprintf("%s_%s_%s_0p25.nc", var, metric, suf)
     )
   )
 }
-# land-cover legend
-lc_legend <- tibble::tribble(
-  ~lc_id,
-  ~lc_name,
-  0L,
-  "No Data",
-  10L,
-  "Cropland",
-  50L,
-  "Broadleaved Evergreen Forest",
-  60L,
-  "Broadleaved Deciduous Forest",
-  70L,
-  "Needleleaved Evergreen Forest",
-  80L,
-  "Needleleaved Deciduous Forest",
-  90L,
-  "Mixed Forest",
-  100L,
-  "Mosaic Tree/Shrub",
-  120L,
-  "Shrubland",
-  130L,
-  "Grassland",
-  140L,
-  "Lichen and Mosses",
-  150L,
-  "Sparse Vegetation",
-  160L,
-  "Flooded Tree Cover",
-  180L,
-  "Flooded Shrub/Herbaceous Cover",
-  190L,
-  "Urban Areas",
-  200L,
-  "Bare Areas",
-  210L,
-  "Water Bodies",
-  220L,
-  "Permanent Snow and Ice"
-)
-
-# Land-cover classes considered non-vegetated for plotting (exclude from
-# figures)
-nonveg_lc_ids <- c(
-  200L,
-  # Bare areas
-  210L,
-  # Water bodies
-  220L # Permanent snow and ice
-)
+lc_legend <- tibble::as_tibble(lc_group_legend)
 
 # Read the fixed dominant class. Land-cover fractions are used only for class
 # assignment and are not statistical weights.
@@ -176,14 +122,10 @@ r_msk_all <- terra::values(r_msk, dataframe = FALSE)
 
 if (use_relative) {
   scale_factor <- 1
-  plot_scale_factor <- 1
   suffix <- "rel"
-  unit_label <- "% yr-1"
 } else {
   scale_factor <- 1
-  plot_scale_factor <- 1000
   suffix <- "abs"
-  unit_label <- expression("LAI trend (" ~ "×" ~ 10^-3 ~ m^2 ~ m^-2 ~ yr^-1 * ")")
 }
 
 # Each valid class member receives its fixed post-nonvegetated support area.
@@ -366,88 +308,3 @@ out_csv_paper <- file.path(
 )
 write_csv(paper_tab, sub("\\.csv$", "_full_precision.csv", out_csv_paper))
 write_csv(round_numeric(paper_tab, 5), out_csv_paper)
-#  plot
-plot_tab <- lc_tab |>
-  filter(!is.na(lc_id), area_unm_mkm2 > 0, !lc_id %in% nonveg_lc_ids) |>
-  mutate(
-    trend_delta = mean_masked - mean_unmasked,
-    frac_retained_label = sprintf("%.0f%%", frac_retained * 100)
-  ) |>
-  arrange(mean_masked) |>
-  mutate(
-    lc_name = factor(lc_name, levels = lc_name),
-    sig_unmasked = ci_unm_lower * ci_unm_upper > 0,
-    sig_masked = ci_msk_lower * ci_msk_upper > 0
-  )
-plot_long <- plot_tab |>
-  select(
-    lc_name,
-    mean_unmasked,
-    mean_masked,
-    ci_unm_lower,
-    ci_unm_upper,
-    ci_msk_lower,
-    ci_msk_upper,
-    sig_unmasked,
-    sig_masked
-  ) |>
-  pivot_longer(
-    cols = c(mean_unmasked, mean_masked),
-    names_to = "scenario",
-    values_to = "trend"
-  ) |>
-  mutate(
-    ci_lower = if_else(scenario == "mean_unmasked", ci_unm_lower, ci_msk_lower),
-    ci_upper = if_else(scenario == "mean_unmasked", ci_unm_upper, ci_msk_upper),
-    sig = if_else(scenario == "mean_unmasked", sig_unmasked, sig_masked),
-    scenario = factor(
-      scenario,
-      levels = c("mean_unmasked", "mean_masked"),
-      labels = c("Unmasked", "Masked")
-    ),
-    shape_type = ifelse(sig, 16, 1)
-  )
-if (!use_relative) {
-  plot_tab <- plot_tab |>
-    mutate(across(c(mean_unmasked, mean_masked, ci_unm_lower, ci_unm_upper,
-                    ci_msk_lower, ci_msk_upper), ~ 1000 * .x))
-  plot_long <- plot_long |>
-    mutate(across(c(trend, ci_lower, ci_upper), ~ 1000 * .x))
-}
-p <- plot_lc_trend(plot_tab, plot_long, plot_scale_factor, unit_label)
-# Save
-out_png <- file.path(
-  outdir_fig,
-  sprintf(
-    "lc_fraction_class_trend_summary_%s_%s_%s_%s_%s_main.png",
-    var,
-    metric,
-    mask,
-    alpha,
-    suffix
-  )
-)
-out_pdf <- file.path(
-  outdir_fig,
-  sprintf(
-    "lc_fraction_class_trend_summary_%s_%s_%s_%s_%s_main.pdf",
-    var,
-    metric,
-    mask,
-    alpha,
-    suffix
-  )
-)
-
-ggsave(out_png,
-  p,
-  width = 8.4,
-  height = 6.2,
-  dpi = 320
-)
-ggsave(out_pdf,
-  p,
-  width = 8.4,
-  height = 6.2,
-  dpi = 320
-)
