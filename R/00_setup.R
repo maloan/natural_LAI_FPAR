@@ -13,7 +13,10 @@ source(here("R", "helpers", "io.R"))
 terraOptions(progress = 1, memfrac = 0.25)
 
 epsg4326 <- "EPSG:4326"
-run_tag <- Sys.getenv("RUN_TAG", unset = "alpha_0.1")
+run_tag <- Sys.getenv("RUN_TAG")
+if (!run_tag %in% c("alpha_0.05", "alpha_0.1", "alpha_0.2", "glc")) {
+  stop("RUN_TAG must be set by run_all.sh.")
+}
 is_glc <- identical(run_tag, "glc")
 alpha_cci <- if (is_glc) NA_real_ else suppressWarnings(as.numeric(sub("^alpha_", "", run_tag)))
 if (!is_glc && (!grepl("^alpha_", run_tag) || !is.finite(alpha_cci))) {
@@ -205,10 +208,6 @@ cfg$luh2 <- list(
 )
 
 yaml::write_yaml(cfg, cfg_path)
-if (identical(Sys.getenv("CONFIG_ONLY"), "1")) {
-  message("Wrote configuration only: ", cfg_path)
-  quit(save = "no", status = 0L)
-}
 
 #  build reference rasters + netcdf
 for (k in names(ref)) {
@@ -218,18 +217,20 @@ for (k in names(ref)) {
   deg <- ref[[k]]$deg
 
 
-  r <- rast(
-    nrows = nrc[1],
-    ncols = nrc[2],
-    xmin = -180,
-    xmax = 180,
-    ymin = -90,
-    ymax = 90,
-    crs = epsg4326
-  )
-  values(r) <- NA_real_
-  writeRaster(r, tif, overwrite = TRUE, gdal = GDAL_OPTS)
-  terra::writeCDF(r, nc, overwrite = TRUE)
+  if (!file.exists(tif) || !file.exists(nc)) {
+    r <- rast(
+      nrows = nrc[1],
+      ncols = nrc[2],
+      xmin = -180,
+      xmax = 180,
+      ymin = -90,
+      ymax = 90,
+      crs = epsg4326
+    )
+    values(r) <- NA_real_
+    writeRaster(r, tif, overwrite = TRUE, gdal = GDAL_OPTS)
+    terra::writeCDF(r, nc, overwrite = TRUE)
+  }
 }
 
 #  build area rasters + netcdf
@@ -238,9 +239,11 @@ for (k in names(area)) {
   nc <- area[[k]]$nc
   deg <- area[[k]]$deg
 
-  a <- cellSize(rast(ref[[k]]$tif), unit = "km")
-  writeRaster(a, tif, overwrite = TRUE, gdal = GDAL_OPTS)
-  terra::writeCDF(a, nc, overwrite = TRUE)
+  if (!file.exists(tif) || !file.exists(nc)) {
+    a <- cellSize(rast(ref[[k]]$tif), unit = "km")
+    writeRaster(a, tif, overwrite = TRUE, gdal = GDAL_OPTS)
+    terra::writeCDF(a, nc, overwrite = TRUE)
+  }
 }
 # sanity checks & manifest
 ref_rasts <- lapply(ref, function(r) {

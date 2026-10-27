@@ -15,7 +15,7 @@ cfg <- cfg_read()
 terraOptions(progress = 1, memfrac = 0.25)
 
 # Config
-var <- toupper(Sys.getenv("VAR", "FPAR"))
+var <- toupper(Sys.getenv("VAR"))
 stopifnot(var %in% c("LAI", "FPAR"))
 
 var_lower <- tolower(var)
@@ -51,7 +51,7 @@ files <- files[order(input_months)]
 
 dependencies <- c(
   cfg$grids$grid_005$ref_raster,
-  here("config", sprintf("config_%s.yml", Sys.getenv("RUN_TAG", "alpha_0.1"))),
+  here("config", sprintf("config_%s.yml", cfg$project$run_tag)),
   here("R", "01_georef_0p05.R"),
   here("R", "helpers", "netcdf.R"),
   here("R", "helpers", "io.R")
