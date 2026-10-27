@@ -1,6 +1,6 @@
 # Analysis Workflows
 
-This folder contains R scripts for statistical summaries, figures, and diagnostics of LAI and FPAR trends across masking scenarios.
+This folder contains R scripts for statistical summaries, figures, and diagnostics of LAI trends across masking scenarios. The current Chapter 1 analysis runner does not summarize FPAR trends.
 
 ## Run the analysis
 
@@ -10,7 +10,9 @@ After the masked trend products have been generated, run:
 R/analysis/run_all_analysis.sh
 ```
 
-The runner uses three CCI thresholds and one GLC-based branch stored under `alpha_0.1`. It also checks and rebuilds the unmasked baseline when required.
+The runner uses three CCI thresholds under `output/alpha_<threshold>/` and one
+GLC-based branch under `output/glc/`. It checks the LAI water/ice-only baseline
+against its inputs and code and rebuilds that baseline when required.
 
 ## Data flow
 
@@ -44,13 +46,14 @@ Uncertainty is estimated using a spatial block bootstrap with 5° × 5° blocks.
 
 - `00_area_validdomain_after_nonvegetated.R` creates the fixed post-non-vegetated support rasters.
 - `03_matched_period_annual_mean_trends.R` recalculates unmasked annual-mean LAI trends for alternative analysis periods.
-- `12_0_landcover_dominant_class.R` assigns each 0.25° grid cell to its dominant 1992--2022 CCI land-cover class.
-- Script 14 produces climate-zone and land-cover summary figures.
+- `12_0_landcover_dominant_class.R` assigns each 0.25° grid cell to its dominant grouped 1992--2022 CCI land-cover class.
+- Script 14 produces the separate climate-zone and land-cover summary figures used in the manuscript.
 
 ## Climate classification
 
-Köppen--Geiger classes are assigned categorically to 0.25° grid-cell centres using the nominal 100-arc-second classification provided by `kgc`. Climate classes are not spatially interpolated.
+Köppen--Geiger classes are assigned to the 0.25° grid by the dominant area-weighted class among the 9 by 9 nominal 100-arc-second source cells provided by `kgc`. Ocean cells are excluded from the class totals. Detailed three-character classes and two-character climate groups are aggregated and assigned independently. Climate classes are not spatially interpolated.
 
 ## Land-cover summaries
 
-Each 0.25° grid cell is assigned to the CCI class with the largest mean fractional cover over 1992--2022. Land-cover fractions are used only for class assignment. Spatial summaries use the same fixed post-non-vegetated area weights as the global analysis.
+
+`R/12_make_lc025_fractions.R` builds the 31 annual 22-layer fraction rasters from raw 300 m CCI maps.
