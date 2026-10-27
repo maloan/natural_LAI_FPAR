@@ -16,7 +16,7 @@ gdal_co <- function(predictor = 2L,
     base,
     comp,
     sprintf("PREDICTOR=%d", predictor),
-    "NUM_THREADS=ALL_CPUS"
+    "NUM_THREADS=1"
   )
 }
 
@@ -325,7 +325,10 @@ exp_ <- function(p) {
 cfg_read <- function() {
   # Read the exact configuration for the selected analysis scenario.
   root <- here::here()
-  run_tag <- Sys.getenv("RUN_TAG", "alpha_0.1")
+  run_tag <- Sys.getenv("RUN_TAG")
+  if (!run_tag %in% c("alpha_0.05", "alpha_0.1", "alpha_0.2", "glc")) {
+    stop("RUN_TAG must be set by run_all.sh.")
+  }
   cfg_file <- file.path(root, "config", sprintf("config_%s.yml", run_tag))
 
   if (!file.exists(cfg_file)) {
