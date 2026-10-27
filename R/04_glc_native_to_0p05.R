@@ -18,7 +18,7 @@ global_out_dir <- here("data-raw", "GLC_FCS30D")
 years_5year <- c(1985, 1990, 1995)
 years_annual <- 2000:2022
 
-for (command in c("gdal_calc.py", "gdal_translate", "gdalwarp", "gdalbuildvrt", "unzip")) {
+for (command in c("gdal_calc.py", "gdal_merge.py", "gdal_translate", "gdalwarp", "unzip")) {
   if (!nzchar(Sys.which(command))) {
     stop("Missing required command: ", command)
   }
@@ -53,8 +53,8 @@ tile_id <- function(file) {
   sub(".*_([EW][0-9]+[NS][0-9]+)_.*", "\\1", basename(file))
 }
 
-run_command <- function(command, args, env = character()) {
-  status <- system2(command, args, env = env)
+run_command <- function(command, args) {
+  status <- system2(command, args)
   if (status != 0) {
     stop(command, " failed with status ", status)
   }
@@ -62,9 +62,8 @@ run_command <- function(command, args, env = character()) {
 
 aggregate_tile <- function(file, years, period) {
   id <- tile_id(file)
-  prefix  <- "glc"
-  mode_out <- file.path(tile_out_dir, sprintf("%s_mode_%s_%s_0p05.tif", prefix, period, id))
-  grass_out <- file.path(tile_out_dir, sprintf("%s_grass_%s_%s_0p05.tif", prefix, period, id))
+  mode_out <- file.path(tile_out_dir, sprintf("glc_mode_%s_%s_0p05.tif", period, id))
+  grass_out <- file.path(tile_out_dir, sprintf("glc_grass_%s_%s_0p05.tif", period, id))
 
   if (file.exists(mode_out) && file.exists(grass_out)) {
     return(invisible(NULL))
@@ -78,9 +77,6 @@ aggregate_tile <- function(file, years, period) {
 
   target_extent <- tile_extent(file)
   source_file <- file
-  nrows_target <- 100
-  ncols_target <- 100
-
   work_dir <- tempfile("glc-tile-")
   dir.create(work_dir)
   on.exit(unlink(work_dir, recursive = TRUE), add = TRUE)
@@ -112,8 +108,8 @@ aggregate_tile <- function(file, years, period) {
       "-te",
       xmin(target_extent), ymin(target_extent),
       xmax(target_extent), ymax(target_extent),
-      "-ts", ncols_target, nrows_target,
-      "-multi", "-wo", "NUM_THREADS=4",
+      "-ts", "100", "100",
+      "-wo", "NUM_THREADS=1",
       "-ot", output_type,
       "-co", "COMPRESS=DEFLATE", "-co", "TILED=YES",
       shQuote(source), shQuote(output)
@@ -141,26 +137,20 @@ aggregate_tile <- function(file, years, period) {
   gc(verbose = FALSE)
 }
 
-extract_archive <- function(archive, output_dir, member_pattern = NULL) {
-  args <- c("-q", archive)
-  if (!is.null(member_pattern)) {
-    args <- c(args, member_pattern)
-  }
-  args <- c(args, "-d", output_dir)
-
-  status <- system2("unzip", args)
+extract_archive <- function(archive, output_dir) {
+  status <- system2("unzip", c("-q", archive, "-d", output_dir))
   if (status != 0) {
     stop("Could not extract ", basename(archive))
   }
 }
 
-process_archive <- function(archive, member_pattern = NULL) {
+process_archive <- function(archive) {
   extract_dir <- tempfile("glc-fcs30d-v2-")
   dir.create(extract_dir)
   on.exit(unlink(extract_dir, recursive = TRUE), add = TRUE)
 
   message("→ Extracting ", basename(archive))
-  extract_archive(archive, extract_dir, member_pattern)
+  extract_archive(archive, extract_dir)
   files <- list.files(extract_dir, "\\.tif$", recursive = TRUE, full.names = TRUE)
 
   files_5year <- files[grepl("_5years_", files)]
@@ -170,16 +160,8 @@ process_archive <- function(archive, member_pattern = NULL) {
   }
 
   process_files <- function(files, years, period) {
-    workers <- 1L
-    results <- parallel::mclapply(
-      files,
-      function(file) aggregate_tile(file, years, period),
-      mc.cores = workers,
-      mc.preschedule = FALSE
-    )
-    failed <- vapply(results, inherits, logical(1), "try-error")
-    if (any(failed)) {
-      stop("Failed ", period, " tiles:\n", paste(results[failed], collapse = "\n"))
+    for (file in files) {
+      aggregate_tile(file, years, period)
     }
   }
 
@@ -210,97 +192,73 @@ write_global_outputs <- function() {
   }
   stopifnot(all(file.exists(c(grass_5year_files, grass_annual_files))))
 
-  vrt_dir <- tempfile("glc-fcs30d-vrt-")
-  dir.create(vrt_dir)
-  on.exit(unlink(vrt_dir, recursive = TRUE), add = TRUE)
-
-  build_mosaic <- function(files, output, nodata) {
-    input_list <- paste0(output, ".txt")
-    writeLines(files, input_list)
-    run_command(
-      "gdalbuildvrt",
-      c(
-        "-q", "-overwrite",
-        "-resolution", "user", "-tr", "0.05", "0.05",
-        "-te", "-180", "-90", "180", "90",
-        "-srcnodata", nodata, "-vrtnodata", nodata,
-        "-input_file_list", shQuote(input_list),
-        shQuote(output)
-      )
-    )
-  }
-
-  mode_5year_vrt <- file.path(vrt_dir, "mode_5year.vrt")
-  mode_annual_vrt <- file.path(vrt_dir, "mode_annual.vrt")
-  grass_5year_vrt <- file.path(vrt_dir, "grass_5year.vrt")
-  grass_annual_vrt <- file.path(vrt_dir, "grass_annual.vrt")
-
-  build_mosaic(mode_5year_files, mode_5year_vrt, "255")
-  build_mosaic(mode_annual_files, mode_annual_vrt, "255")
-  build_mosaic(grass_5year_files, grass_5year_vrt, "-9999")
-  build_mosaic(grass_annual_files, grass_annual_vrt, "-9999")
-
   years <- c(years_5year, years_annual)
-  mode_vrts <- c(rep(mode_5year_vrt, length(years_5year)), rep(mode_annual_vrt, length(years_annual)))
-  mode_bands <- c(seq_along(years_5year), seq_along(years_annual))
-
-  for (i in seq_along(years)) {
-    year <- years[i]
-    output <- file.path(global_out_dir, sprintf("GLC_FCS30D_mode_0p05_%d.tif", year))
-    if (!file.exists(output)) {
-      run_command(
-        "gdal_translate",
-        c(
-          "-q", "-of", "GTiff", "-b", mode_bands[i],
-          "-ot", "Byte", "-a_nodata", "255",
-          "-co", "COMPRESS=DEFLATE", "-co", "TILED=YES",
-          shQuote(mode_vrts[i]), shQuote(output)
-        )
-      )
-    }
-  }
-
+  mode_outputs <- file.path(
+    global_out_dir,
+    sprintf("GLC_FCS30D_mode_0p05_%d.tif", years)
+  )
   grass_output <- file.path(
     global_out_dir,
     "GLC_FCS30D_grass_fraction_0p05_1985_2022.tif"
   )
-  if (!file.exists(grass_output)) {
-    grass_layer_vrts <- character(length(years))
-    grass_vrts <- c(rep(grass_5year_vrt, length(years_5year)), rep(grass_annual_vrt, length(years_annual)))
-    grass_bands <- c(seq_along(years_5year), seq_along(years_annual))
 
-    for (i in seq_along(years)) {
-      grass_layer_vrts[i] <- file.path(vrt_dir, sprintf("grass_%d.vrt", years[i]))
-      run_command(
-        "gdal_translate",
-        c(
-          "-q", "-of", "VRT", "-b", grass_bands[i],
-          shQuote(grass_vrts[i]), shQuote(grass_layer_vrts[i])
-        )
-      )
-    }
+  mosaic_dir <- tempfile("glc-fcs30d-mosaic-")
+  dir.create(mosaic_dir)
+  on.exit(unlink(mosaic_dir, recursive = TRUE), add = TRUE)
 
-    grass_list <- file.path(vrt_dir, "grass_layers.txt")
-    grass_stack_vrt <- file.path(vrt_dir, "grass_stack.vrt")
-    writeLines(grass_layer_vrts, grass_list)
+  build_mosaic <- function(files, output, nodata, output_type) {
     run_command(
-      "gdalbuildvrt",
+      "gdal_merge.py",
       c(
-        "-q", "-overwrite", "-separate",
-        "-srcnodata", "-9999", "-vrtnodata", "-9999",
-        "-input_file_list", shQuote(grass_list),
-        shQuote(grass_stack_vrt)
-      )
-    )
-    run_command(
-      "gdal_translate",
-      c(
-        "-q", "-of", "GTiff", "-ot", "Float32", "-a_nodata", "-9999",
-        "-co", "COMPRESS=DEFLATE", "-co", "PREDICTOR=2", "-co", "TILED=YES",
-        shQuote(grass_stack_vrt), shQuote(grass_output)
+        "-q", "-o", shQuote(output), "-of", "GTiff",
+        "-ul_lr", "-180", "90", "180", "-90",
+        "-ps", "0.05", "0.05",
+        "-n", nodata, "-init", nodata, "-a_nodata", nodata,
+        "-ot", output_type,
+        "-co", "COMPRESS=DEFLATE", "-co", "TILED=YES",
+        "-co", "BIGTIFF=YES",
+        vapply(files, shQuote, character(1))
       )
     )
   }
+
+  mode_5year_mosaic <- file.path(mosaic_dir, "mode_5year.tif")
+  mode_annual_mosaic <- file.path(mosaic_dir, "mode_annual.tif")
+  grass_5year_mosaic <- file.path(mosaic_dir, "grass_5year.tif")
+  grass_annual_mosaic <- file.path(mosaic_dir, "grass_annual.tif")
+
+  build_mosaic(mode_5year_files, mode_5year_mosaic, "255", "Byte")
+  build_mosaic(mode_annual_files, mode_annual_mosaic, "255", "Byte")
+  build_mosaic(grass_5year_files, grass_5year_mosaic, "-9999", "Float32")
+  build_mosaic(grass_annual_files, grass_annual_mosaic, "-9999", "Float32")
+
+  mode_mosaics <- c(
+    rep(mode_5year_mosaic, length(years_5year)),
+    rep(mode_annual_mosaic, length(years_annual))
+  )
+  mode_bands <- c(seq_along(years_5year), seq_along(years_annual))
+
+  for (i in seq_along(years)) {
+    output <- mode_outputs[i]
+    run_command(
+      "gdal_translate",
+      c(
+        "-q", "-overwrite", "-of", "GTiff", "-b", mode_bands[i],
+        "-ot", "Byte", "-a_nodata", "255",
+        "-co", "COMPRESS=DEFLATE", "-co", "TILED=YES",
+        shQuote(mode_mosaics[i]), shQuote(output)
+      )
+    )
+  }
+
+  grass <- c(rast(grass_5year_mosaic), rast(grass_annual_mosaic))
+  names(grass) <- sprintf("Y%d", years)
+  writeRaster(
+    grass,
+    grass_output,
+    overwrite = TRUE,
+    wopt = wopt_f32(FALSE)
+  )
 }
 
 archives <- sort(list.files(
