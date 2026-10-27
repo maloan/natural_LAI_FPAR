@@ -265,21 +265,11 @@ mv \
 # ------------------------------------------------------------------------------
 # Mann-Kendall
 # ------------------------------------------------------------------------------
-pids=()
 for met in yearmean yearmax yearmin yearamp; do
   (
     cd "$ROOT"
     Rscript "trends/compute_mk_pval.R" masked "$VAR" "$met" "$RUN_TAG" "$MASKTAG"
-  ) >>"$LOG_FILE" 2>&1 &
-  pids+=($!)
+  ) >>"$LOG_FILE" 2>&1
 done
-mk_failed=0
-for pid in "${pids[@]}"; do
-  wait "$pid" || mk_failed=$((mk_failed + 1))
-done
-if [[ "$mk_failed" -gt 0 ]]; then
-  log "ERROR: Mann-Kendall failed for $mk_failed metric(s)"
-  exit 1
-fi
 log "Mann-Kendall complete"
 log "========== COMPLETE =========="
