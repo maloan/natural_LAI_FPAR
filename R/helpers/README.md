@@ -12,7 +12,8 @@ These modules provide reusable functions for raster and NetCDF handling, area-we
 - `cli_args.R` for command-line argument parsing and scenario helpers.
 - `weighted_means.R` for area-weighted aggregation.
 - `bootstrap_ci.R` for bootstrap confidence intervals.
-- `kg_classification.R` for Köppen--Geiger classification, grid lookup, and classification diagnostics.
+- `kg_classification.R` for Köppen–Geiger classification, grid lookup, and classification diagnostics.
+- `landcover_classification.R` for land-cover class mappings and analysis groups.
 
 ## Usage
 
