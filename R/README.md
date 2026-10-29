@@ -11,7 +11,7 @@ This folder contains the main R scripts for building and analyzing LAI and FPAR 
 5. Apply masks and aggregate to the analysis grid.
 6. Compute trends, summaries, and diagnostics.
 
-All rasters are aligned to common global grids at 0.05° for processing and 0.25° for analysis.
+The workflow uses common global grids at 0.05° for processing, 0.25° for analysis, and 0.5° for Chapter 2 inputs.
 
 ## Main scripts
 
@@ -30,7 +30,7 @@ All rasters are aligned to common global grids at 0.05° for processing and 0.25
 ### Mask construction
 
 - `03_cci_mask_0p05.R` creates CCI-based managed-land masks.
-- `05_glc_mask_0p05.R` creates GLC-based persistence masks.
+- `05_glc_mask_0p05.R` creates managed-land masks based on recurring GLC cropland and urban classifications.
 - `06_nonveg_static_from_cci_0p05.R` creates the static non-vegetated mask and snapshot-year sensitivity masks.
 - `09_luh_pasture_overlap_0p25.R` creates LUH2 pasture-overlap masks.
 
@@ -51,7 +51,7 @@ GLC outputs are stored under `output/glc/`. CCI outputs are stored under their t
 
 ## Mask convention
 
-```text id="5w09dd"
+```text
 1  = exclude
 0  = retain
 NA = undefined
