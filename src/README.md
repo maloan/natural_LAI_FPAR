@@ -4,7 +4,7 @@ This folder contains spatial reference files used throughout the processing and 
 
 ## Reference grids
 
-Canonical global grids:
+Global reference grids:
 
 - `ref_0p05.tif` / `ref_0p05.nc`
 - `ref_0p25.tif` / `ref_0p25.nc`
