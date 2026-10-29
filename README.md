@@ -1,6 +1,6 @@
 # Managed-Land-Masked LAI / FPAR Processing Pipeline
 
-This repository builds global LAI and FPAR products with mapped managed areas excluded from satellite observations. Static masks based on ESA-CCI/C3S and GLC_FCS30D land cover combined with LUH2 pasture data are applied at 0.05° resolution. The retained domain represents areas with lower mapped management influence. Products are aggregated to coarser grids using area weighting for subsequent analysis.
+This repository builds global LAI and FPAR products with mapped managed areas excluded from satellite observations. Static masks based on ESA-CCI/C3S and GLC_FCS30D land cover combined with LUH2 pasture data are applied at 0.05° resolution. The retained domain contains less mapped managed-land cover. Products are aggregated to coarser grids using area weighting for subsequent analysis.
 
 Observed vegetation trends combine responses to environmental change with the effects of land use and management. This pipeline quantifies the sensitivity of trend estimates to excluding mapped managed areas and selecting the retained spatial domain.
 
@@ -14,6 +14,17 @@ Observed vegetation trends combine responses to environmental change with the ef
 - Chapter 2 unmasked FPAR and CCI--pasture mask inputs at 0.5° resolution.
 
 Outputs are organized under `output/<RUN_TAG>/`.
+
+## Dataset
+
+Monthly global LAI and FAPAR products for 1982–2024 at 0.25° resolution are available on [Zenodo](https://doi.org/10.5281/zenodo.23690908). The archive contains GeoTIFF files for all four masking scenarios.
+<p align="center">
+  <img width="800"
+       alt="Global annual-mean LAI trends before and after CCI alpha 0.1 masking"
+       src="https://github.com/user-attachments/assets/361fd739-3fdf-47d3-b530-e548182013a4" />
+</p>
+
+*Annual-mean LAI trends for 1982–2024 before and after applying the CCI α = 0.10 mask combined with LUH2 pasture exclusions. Upper panels show absolute trends; lower panels show relative trends.*
 
 ## Repository layout
 
@@ -35,12 +46,7 @@ Place the raw datasets under `data-raw/`, then run the complete workflow from th
 make
 ```
 
-The workflow builds both variables for all four masking scenarios and runs the analyses.
-
-The analysis uses three CCI thresholds under `output/alpha_<threshold>/` and
-one GLC-based branch under `output/glc/`. The GLC land-use and pasture masks
-are independent of the CCI managed-land alpha threshold. Both scenarios use
-the same CCI-derived nonvegetated exclusion.
+The workflow builds both variables for all four masking scenarios and runs the analyses. The analysis uses three CCI thresholds under `output/alpha_<threshold>/` and one GLC-based branch under `output/glc/`. The GLC land-use and pasture masks are independent of the CCI managed-land alpha threshold. All four masking scenarios use the same CCI-derived nonvegetated exclusion.
 
 Build the release archives with:
 
@@ -55,8 +61,7 @@ The four fixed configuration files under `config/` define paths, years, classes,
 ## Requirements
 
 - R 4.1 or later.
-- R packages used by the processing and analysis scripts, including `terra`, `sf`, `ncdf4`, and `tidyverse`.
-- R packages `Rcpp`, `sf`, and `lwgeom` for annual 0.25° land-cover-fraction aggregation.
+- R packages used by the processing and analysis scripts, including `terra`, `sf`, `ncdf4`, `tidyverse`, `Rcpp`, and `lwgeom`.
 - System libraries including GDAL, PROJ, and NetCDF.
 
 Ubuntu example:
@@ -68,3 +73,5 @@ sudo apt install gdal-bin libgdal-dev libproj-dev libnetcdf-dev
 ## Data sources
 
 Place the ESA-CCI/C3S land cover, GLC_FCS30D, LUH2 v2h, LAI, and FPAR source datasets under `data-raw/`.
+
+
