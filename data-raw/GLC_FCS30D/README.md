@@ -8,8 +8,4 @@ The record contains 36 ZIP archives (approximately 135.8 GB). The archives belon
 
 ## Local aggregation
 
-Each nominal 5-degree tile contains three bands for 1985, 1990, and 1995 and 23 annual bands for 2000--2022. The workflow aggregates the native tiles to 0.05° categorical and grass-fraction products.
-
-```bash
-make
-```
+For each nominal 5° tile, the archives provide three historical bands (1985, 1990, and 1995) and 23 annual bands covering 2000--2022.
