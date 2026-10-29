@@ -1,14 +1,6 @@
 # Analysis Workflows
 
-This folder contains R scripts for statistical summaries, figures, and diagnostics of LAI trends across masking scenarios. Chapter 1 summaries use LAI.
-
-## Run
-
-```bash
-make
-```
-
-The workflow analyzes three CCI thresholds and one GLC-based masking scenario.
+This folder contains R scripts for statistical summaries, figures, and diagnostics of LAI trends across masking scenarios. Chapter 1 summaries use LAI. The workflow analyzes three CCI thresholds and one GLC-based masking scenario.
 
 ## Data flow
 
@@ -17,7 +9,7 @@ trends/
   ↓
 Annual diagnostics, OLS trends, relative trends, MK p-values
   ↓
-output/<ALPHA>/eval/trend_<VAR>_<MASK>/
+output/<RUN_TAG>/eval/trend_<VAR>_<MASK>/
   ↓
 R/analysis/
   ↓
@@ -25,18 +17,7 @@ analysis/results/
 ```
 
 ## Spatial weighting and uncertainty
-
-Spatial summaries use the fixed post-non-vegetated support area of each valid 0.25° grid cell.
-
-Land-use masks determine whether a grid-cell estimate is retained. The baseline support area remains fixed.
-
-Area-weighted means are calculated as:
-
-```text
-Σ(trend × area) / Σ(area)
-```
-
-Uncertainty is estimated using a spatial block bootstrap with 5° × 5° blocks. Confidence intervals excluding zero are treated as statistically resolved.
+Spatial summaries weight each valid 0.25° trend estimate by the cell's fixed baseline area after water and permanent snow or ice exclusions. Managed-land masks exclude 0.05° subcells before aggregation and can therefore change the resulting 0.25° values and their availability. The baseline area weights remain fixed. Uncertainty is estimated using a spatial block bootstrap with 5° × 5° blocks. Confidence intervals excluding zero are treated as statistically resolved.
 
 ## Key scripts
 
@@ -53,3 +34,4 @@ Köppen--Geiger classes are assigned to the 0.25° grid by the dominant area-wei
 
 
 `R/12_make_lc025_fractions.R` builds the 31 annual 22-layer fraction rasters from raw 300 m CCI maps.
+The workflow combines the 22 primary-class fractions into 19 analysis groups, averages the grouped fractions over 1992--2022, and assigns each cell to the group with the largest mean fraction.
